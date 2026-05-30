@@ -65,8 +65,8 @@ export interface StatuspageIncident {
   scheduled_for?: string;
   /** Present for scheduled maintenances. */
   scheduled_until?: string;
-  shortlink: string;
-  started_at: string;
+  shortlink?: string | null;
+  started_at?: string | null;
   status: string;
 }
 
@@ -83,6 +83,11 @@ export interface StatuspageComponentsResponse {
 export interface StatuspageIncidentsResponse {
   incidents: StatuspageIncident[];
   page: StatuspagePage;
+}
+
+export interface StatuspageScheduledMaintenancesResponse {
+  page: StatuspagePage;
+  scheduled_maintenances: StatuspageIncident[];
 }
 
 export interface StatuspageSummaryResponse {

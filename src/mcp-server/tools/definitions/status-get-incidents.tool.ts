@@ -9,8 +9,11 @@ import { getStatuspageService } from '@/services/statuspage/statuspage-service.j
 import type { StatuspageIncident } from '@/services/statuspage/types.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 
-function durationMinutes(startedAt: string, resolvedAt: string | null): number | null {
-  if (!resolvedAt) return null;
+function durationMinutes(
+  startedAt: string | null | undefined,
+  resolvedAt: string | null,
+): number | null {
+  if (!startedAt || !resolvedAt) return null;
   const start = new Date(startedAt).getTime();
   const end = new Date(resolvedAt).getTime();
   if (Number.isNaN(start) || Number.isNaN(end)) return null;
@@ -37,12 +40,12 @@ function normalizeIncident(i: StatuspageIncident, isScheduled: boolean) {
       | 'maintenance',
     status: i.status,
     created_at: i.created_at,
-    started_at: i.started_at,
+    started_at: i.started_at ?? null,
     resolved_at: i.resolved_at ?? null,
     scheduled_for: i.scheduled_for ?? null,
     scheduled_until: i.scheduled_until ?? null,
     duration_minutes: durationMinutes(i.started_at, i.resolved_at),
-    shortlink: i.shortlink,
+    shortlink: i.shortlink ?? null,
     affected_components: affectedComponents,
     updates: updates.map((u) => ({
       status: u.status,
@@ -105,7 +108,12 @@ export const statusGetIncidents = tool('status_get_incidents', {
             created_at: z
               .string()
               .describe('ISO 8601 UTC timestamp when the incident was created.'),
-            started_at: z.string().describe('ISO 8601 UTC timestamp when the incident started.'),
+            started_at: z
+              .string()
+              .nullish()
+              .describe(
+                'ISO 8601 UTC timestamp when the incident started, or null/absent if not set by the vendor.',
+              ),
             resolved_at: z
               .string()
               .nullable()
@@ -124,7 +132,12 @@ export const statusGetIncidents = tool('status_get_incidents', {
               .describe(
                 'Minutes from started_at to resolved_at. Null for active or scheduled incidents.',
               ),
-            shortlink: z.string().describe('Direct URL to the incident page.'),
+            shortlink: z
+              .string()
+              .nullish()
+              .describe(
+                'Direct URL to the incident page, or null/absent if not provided by the vendor.',
+              ),
             affected_components: z
               .array(z.string())
               .describe('Component names affected by this incident.'),
@@ -179,7 +192,7 @@ export const statusGetIncidents = tool('status_get_incidents', {
 
     if (input.filter === 'scheduled') {
       const { data } = await statuspage.fetchScheduledMaintenances(resolved.url);
-      incidents = data.incidents.map((i) => normalizeIncident(i, true));
+      incidents = data.scheduled_maintenances.map((i) => normalizeIncident(i, true));
     } else if (input.filter === 'active') {
       const { data } = await statuspage.fetchIncidents(resolved.url);
       incidents = data.incidents
@@ -197,7 +210,7 @@ export const statusGetIncidents = tool('status_get_incidents', {
         statuspage.fetchScheduledMaintenances(resolved.url),
       ]);
       const inc = incData.data.incidents.map((i) => normalizeIncident(i, false));
-      const maint = mainData.data.incidents.map((i) => normalizeIncident(i, true));
+      const maint = mainData.data.scheduled_maintenances.map((i) => normalizeIncident(i, true));
       incidents = [...inc, ...maint].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       );
@@ -234,7 +247,7 @@ export const statusGetIncidents = tool('status_get_incidents', {
             : '⚠️';
       lines.push(`### ${icon} ${inc.name} \`${inc.id}\``);
       lines.push(
-        `**Impact:** ${inc.impact} | **Status:** ${inc.status} | **Created:** ${inc.created_at} | **Started:** ${inc.started_at}`,
+        `**Impact:** ${inc.impact} | **Status:** ${inc.status} | **Created:** ${inc.created_at}${inc.started_at ? ` | **Started:** ${inc.started_at}` : ''}`,
       );
       if (inc.resolved_at)
         lines.push(`**Resolved:** ${inc.resolved_at} (${inc.duration_minutes ?? '?'} min)`);
@@ -247,7 +260,7 @@ export const statusGetIncidents = tool('status_get_incidents', {
       for (const u of inc.updates) {
         lines.push(`- [${u.created_at}] ${u.status}: ${u.body}`);
       }
-      lines.push(`[Incident page](${inc.shortlink})`);
+      if (inc.shortlink) lines.push(`[Incident page](${inc.shortlink})`);
       lines.push('');
     }
     return [{ type: 'text', text: lines.join('\n') }];

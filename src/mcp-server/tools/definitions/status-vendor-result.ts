@@ -47,7 +47,12 @@ export const VendorResultSchema = z
             status: z
               .string()
               .describe('Current incident status (e.g., investigating, monitoring, resolved).'),
-            started_at: z.string().describe('ISO 8601 UTC timestamp when the incident started.'),
+            started_at: z
+              .string()
+              .nullish()
+              .describe(
+                'ISO 8601 UTC timestamp when the incident started, or null/absent if not set by the vendor.',
+              ),
             latest_update: z.string().describe('Most recent incident_update body text.'),
           })
           .describe('An active incident entry.'),
@@ -114,7 +119,7 @@ export function renderVendorBlock(v: VendorResult): string[] {
   if (v.active_incidents.length > 0) {
     for (const inc of v.active_incidents) {
       lines.push(
-        `**Incident [${inc.id}]:** ${inc.name} [${inc.impact}/${inc.status}] started ${inc.started_at}`,
+        `**Incident [${inc.id}]:** ${inc.name} [${inc.impact}/${inc.status}]${inc.started_at ? ` started ${inc.started_at}` : ''}`,
       );
       lines.push(`  ${inc.latest_update}`);
     }
@@ -169,7 +174,7 @@ export function buildVendorResult(
         name: i.name,
         impact: i.impact,
         status: i.status,
-        started_at: i.started_at,
+        started_at: i.started_at ?? null,
         latest_update: updates[0]?.body ?? '',
       };
     }),

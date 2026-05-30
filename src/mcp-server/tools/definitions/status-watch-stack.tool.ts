@@ -14,7 +14,7 @@ import {
   VendorResultSchema,
 } from './status-vendor-result.js';
 
-const STACK_STATE_PREFIX = 'stack:';
+const STACK_STATE_PREFIX = 'stack/';
 
 function computeStackHealth(
   results: VendorResult[],
@@ -136,17 +136,17 @@ export const statusWatchStack = tool('status_watch_stack', {
 
     const vendors: VendorResult[] = fetched.map((r, i) => {
       if (r.status === 'fulfilled') return r.value;
-      const res = resolved[i]!;
+      const res = resolved[i];
       return {
-        vendor: res.input,
-        name: res.name,
+        vendor: res?.input ?? '',
+        name: res?.name ?? '',
         indicator: 'none' as const,
         description: 'Unknown',
         degraded_components: [],
         active_incidents: [],
         cached: false,
         checked_at: new Date().toISOString(),
-        statuspage_url: res.url,
+        statuspage_url: res?.url ?? '',
         error: (r.reason as Error).message,
       };
     });

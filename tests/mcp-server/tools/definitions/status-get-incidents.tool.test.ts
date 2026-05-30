@@ -6,7 +6,10 @@
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { statusGetIncidents } from '@/mcp-server/tools/definitions/status-get-incidents.tool.js';
-import type { StatuspageIncidentsResponse } from '@/services/statuspage/types.js';
+import type {
+  StatuspageIncidentsResponse,
+  StatuspageScheduledMaintenancesResponse,
+} from '@/services/statuspage/types.js';
 import { initVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 
 vi.mock('@/services/statuspage/statuspage-service.js', () => {
@@ -73,7 +76,7 @@ const RESOLVED_INCIDENT: StatuspageIncidentsResponse = {
   ],
 };
 
-const EMPTY_INCIDENTS: StatuspageIncidentsResponse = {
+const EMPTY_SCHEDULED: StatuspageScheduledMaintenancesResponse = {
   page: {
     id: 'p1',
     name: 'GitHub',
@@ -81,7 +84,7 @@ const EMPTY_INCIDENTS: StatuspageIncidentsResponse = {
     updated_at: '',
     url: 'https://www.githubstatus.com',
   },
-  incidents: [],
+  scheduled_maintenances: [],
 };
 
 beforeAll(() => {
@@ -97,7 +100,7 @@ describe('statusGetIncidents', () => {
       _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
     };
     _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
-    _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_INCIDENTS, cached: false });
+    _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
 
     const ctx = createMockContext({ errors: statusGetIncidents.errors });
     const input = statusGetIncidents.input.parse({ vendor: 'github', filter: 'all' });
@@ -147,7 +150,7 @@ describe('statusGetIncidents', () => {
       _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
     };
     _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
-    _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_INCIDENTS, cached: false });
+    _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
 
     const ctx = createMockContext({ errors: statusGetIncidents.errors });
     const input = statusGetIncidents.input.parse({ vendor: 'github', filter: 'resolved' });
@@ -158,8 +161,10 @@ describe('statusGetIncidents', () => {
     expect(result.incidents[0]!.status).toBe('resolved');
   });
 
-  it('filter: scheduled calls scheduled-maintenances endpoint', async () => {
-    const SCHEDULED_RESPONSE: StatuspageIncidentsResponse = {
+  it('filter: scheduled uses scheduled_maintenances key from API response', async () => {
+    // Regression: scheduled-maintenances endpoint returns { scheduled_maintenances: [] },
+    // NOT { incidents: [] }. The handler must use data.scheduled_maintenances.
+    const SCHEDULED_RESPONSE: StatuspageScheduledMaintenancesResponse = {
       page: {
         id: 'p1',
         name: 'GitHub',
@@ -167,7 +172,7 @@ describe('statusGetIncidents', () => {
         updated_at: '',
         url: 'https://www.githubstatus.com',
       },
-      incidents: [
+      scheduled_maintenances: [
         {
           id: 'maint-001',
           name: 'Planned DB Migration',
@@ -202,6 +207,62 @@ describe('statusGetIncidents', () => {
     // Scheduled maintenances get impact='maintenance' from normalizeIncident
     expect(result.incidents[0]!.impact).toBe('maintenance');
     expect(result.incidents[0]!.scheduled_for).toBe('2025-02-05T02:00:00Z');
+  });
+
+  it('handles null started_at and shortlink (vendors using newer Statuspage format)', async () => {
+    // Regression: some vendors (e.g., OpenAI) omit started_at and shortlink entirely.
+    // The API returns these fields as absent (undefined at runtime, null after ?? null coercion).
+    // The output schema must accept null/undefined; durationMinutes must not throw.
+    const SPARSE_INCIDENTS: StatuspageIncidentsResponse = {
+      page: {
+        id: 'p-openai',
+        name: 'OpenAI',
+        time_zone: 'UTC',
+        updated_at: '',
+        url: 'https://status.openai.com',
+      },
+      incidents: [
+        {
+          id: 'inc-sparse-001',
+          name: 'Service Disruption',
+          impact: 'critical',
+          status: 'resolved',
+          created_at: '2026-05-28T19:00:00Z',
+          // started_at and shortlink intentionally absent (as in real OpenAI API responses)
+          resolved_at: '2026-05-28T21:00:00Z',
+          monitoring_at: null,
+          page_id: 'p-openai',
+          components: [],
+          incident_updates: [
+            {
+              id: 'u1',
+              body: 'Resolved.',
+              status: 'resolved',
+              created_at: '2026-05-28T21:00:00Z',
+              display_at: '2026-05-28T21:00:00Z',
+              affected_components: null,
+            },
+          ],
+        } as unknown as StatuspageIncidentsResponse['incidents'][number],
+      ],
+    };
+
+    const { _mockFetchIncidents } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as {
+      _mockFetchIncidents: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchIncidents.mockResolvedValue({ data: SPARSE_INCIDENTS, cached: false });
+
+    const ctx = createMockContext({ errors: statusGetIncidents.errors });
+    const input = statusGetIncidents.input.parse({ vendor: 'openai', filter: 'resolved' });
+    const result = await statusGetIncidents.handler(input, ctx);
+
+    expect(result.incidents).toHaveLength(1);
+    expect(result.incidents[0]!.started_at).toBeNull();
+    expect(result.incidents[0]!.shortlink).toBeNull();
+    // duration_minutes should be null when started_at is absent (can't compute elapsed time)
+    expect(result.incidents[0]!.duration_minutes).toBeNull();
   });
 
   it('throws statuspage_unavailable when fetch rejects', async () => {

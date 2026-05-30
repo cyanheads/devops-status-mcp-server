@@ -222,6 +222,34 @@ describe('statusWatchStack', () => {
     expect(slugs).toContain('npm');
   });
 
+  it('state key uses slash separator (not colon) — colons are invalid in ctx.state keys', async () => {
+    // Regression: STACK_STATE_PREFIX was 'stack:' which violates the state store key format.
+    // The key must use only alphanumeric, hyphens, underscores, dots, and slashes.
+    // Verify that saving a stack (which writes to ctx.state) succeeds with the current prefix.
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
+
+    const ctx = createMockContext({ tenantId: 'key-fmt-test', errors: statusWatchStack.errors });
+    const stackName = 'my-stack';
+
+    // This must not throw (would throw with 'stack:my-stack' key)
+    const r1 = await statusWatchStack.handler(
+      statusWatchStack.input.parse({ vendors: ['github'], stack_name: stackName }),
+      ctx,
+    );
+    expect(r1.stack_persisted).toBe(true);
+
+    // Confirm recall works
+    const r2 = await statusWatchStack.handler(
+      statusWatchStack.input.parse({ stack_name: stackName }),
+      ctx,
+    );
+    expect(r2.stack_persisted).toBe(false);
+    expect(r2.vendors[0]!.vendor).toBe('github');
+  });
+
   it('health = degraded when any vendor is minor, partial_outage when any is major', async () => {
     const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;

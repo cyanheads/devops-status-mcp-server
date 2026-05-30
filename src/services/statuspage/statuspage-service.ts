@@ -4,7 +4,11 @@
  */
 
 import { getServerConfig } from '@/config/server-config.js';
-import type { StatuspageIncidentsResponse, StatuspageSummaryResponse } from './types.js';
+import type {
+  StatuspageIncidentsResponse,
+  StatuspageScheduledMaintenancesResponse,
+  StatuspageSummaryResponse,
+} from './types.js';
 
 interface CacheEntry<T> {
   expiresAt: number;
@@ -77,9 +81,9 @@ export class StatuspageService {
 
   async fetchScheduledMaintenances(
     baseUrl: string,
-  ): Promise<{ data: StatuspageIncidentsResponse; cached: boolean }> {
+  ): Promise<{ data: StatuspageScheduledMaintenancesResponse; cached: boolean }> {
     const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
-    return await fetchStatuspage<StatuspageIncidentsResponse>(
+    return await fetchStatuspage<StatuspageScheduledMaintenancesResponse>(
       `${baseUrl}/api/v2/scheduled-maintenances.json`,
       cacheTtlMs,
       fetchTimeoutMs,

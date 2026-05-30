@@ -5,17 +5,29 @@
  */
 
 import { createApp } from '@cyanheads/mcp-ts-core';
-import { echoTool } from './mcp-server/tools/definitions/echo.tool.js';
-import { echoAppTool } from './mcp-server/tools/definitions/echo-app.app-tool.js';
-import { echoResource } from './mcp-server/resources/definitions/echo.resource.js';
-import { echoAppUiResource } from './mcp-server/resources/definitions/echo-app-ui.app-resource.js';
-import { echoPrompt } from './mcp-server/prompts/definitions/echo.prompt.js';
+import { allResourceDefinitions } from './mcp-server/resources/definitions/index.js';
+import { allToolDefinitions } from './mcp-server/tools/definitions/index.js';
+import { initCertService } from './services/cert/cert-service.js';
+import { initDnsService } from './services/dns/dns-service.js';
+import { initStatuspageService } from './services/statuspage/statuspage-service.js';
+import { initVendorRegistryService } from './services/vendor-registry/vendor-registry-service.js';
 
 await createApp({
-  tools: [echoTool, echoAppTool],
-  resources: [echoResource, echoAppUiResource],
-  prompts: [echoPrompt],
-  // instructions: 'Server-level orientation forwarded to the model on every initialize.\n' +
-  //   '- Use shortcut `X` for the most common case\n' +
-  //   '- Tools require auth via the `inventory:read` scope',
+  tools: [...allToolDefinitions],
+  resources: [...allResourceDefinitions],
+  prompts: [],
+  instructions:
+    'Infrastructure health and incident intelligence for DevOps agents. ' +
+    'No API keys required — fully public data sources. ' +
+    'Vendor registry: 26 verified vendors across cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories. ' +
+    'Workflow: status_list_vendors (discover slugs) → status_check (health snapshot) → status_get_incidents (incident history) → status_suggest_action (response playbook). ' +
+    'status_watch_stack persists a named vendor list in session state for repeat health sweeps. ' +
+    'status_check_certs and status_check_dns work for any domain — not just registered vendors.',
+
+  setup() {
+    initVendorRegistryService();
+    initStatuspageService();
+    initCertService();
+    initDnsService();
+  },
 });

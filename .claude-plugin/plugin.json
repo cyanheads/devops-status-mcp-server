@@ -1,0 +1,20 @@
+{
+  "name": "devops-status-mcp-server",
+  "version": "0.1.0",
+  "description": "",
+  "author": {
+    "name": ""
+  },
+  "homepage": "",
+  "repository": "",
+  "license": "Apache-2.0",
+  "mcpServers": {
+    "devops-status-mcp-server": {
+      "command": "npx",
+      "args": ["-y", "devops-status-mcp-server"],
+      "env": {
+        "MCP_TRANSPORT_TYPE": "stdio"
+      }
+    }
+  }
+}

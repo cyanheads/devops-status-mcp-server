@@ -1,0 +1,9 @@
+{
+  "devops-status-mcp-server": {
+    "command": "npx",
+    "args": ["-y", "devops-status-mcp-server"],
+    "env": {
+      "MCP_TRANSPORT_TYPE": "stdio"
+    }
+  }
+}

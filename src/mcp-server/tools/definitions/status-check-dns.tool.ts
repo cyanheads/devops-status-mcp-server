@@ -6,7 +6,6 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
-import { getServerConfig } from '@/config/server-config.js';
 import type { RecordType } from '@/services/dns/dns-service.js';
 import { getDnsService } from '@/services/dns/dns-service.js';
 
@@ -124,6 +123,8 @@ export const statusCheckDns = tool('status_check_dns', {
         'Pass bare hostnames without "https://" (e.g., "example.com" not "https://example.com").',
     },
   ],
+  // Note: SSRF-blocked domains surface as per-domain error results (status with error field).
+  // SSRF-blocked resolver IPs cause the whole call to fail (assertSafeResolverIp throws).
 
   async handler(input, ctx) {
     // Validate domains — no protocol prefixes
@@ -136,13 +137,12 @@ export const statusCheckDns = tool('status_check_dns', {
       }
     }
 
-    const timeoutMs = input.timeout_ms ?? getServerConfig().dnsTimeoutMs;
     const dnsService = getDnsService();
     const results = await dnsService.checkDomains(
       input.domains,
       input.record_types as RecordType[],
       input.resolvers,
-      timeoutMs,
+      input.timeout_ms,
     );
 
     ctx.log.info('DNS check completed', {

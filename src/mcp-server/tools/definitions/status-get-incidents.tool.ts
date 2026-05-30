@@ -8,6 +8,7 @@ import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getStatuspageService } from '@/services/statuspage/statuspage-service.js';
 import type { StatuspageIncident } from '@/services/statuspage/types.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
+import { assertSafeUrl } from '@/utils/ssrf-guard.js';
 
 function durationMinutes(
   startedAt: string | null | undefined,
@@ -168,6 +169,13 @@ export const statusGetIncidents = tool('status_get_incidents', {
       recovery: 'Call status_list_vendors to browse slugs or pass the full Statuspage base URL.',
     },
     {
+      reason: 'target_blocked',
+      code: JsonRpcErrorCode.InvalidParams,
+      when: 'A raw URL resolves to a private, loopback, or cloud-metadata address.',
+      recovery:
+        'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set STATUS_ALLOW_PRIVATE_TARGETS=true.',
+    },
+    {
       reason: 'statuspage_unavailable',
       code: JsonRpcErrorCode.ServiceUnavailable,
       when: 'Statuspage API returned an error or timed out.',
@@ -186,6 +194,19 @@ export const statusGetIncidents = tool('status_get_incidents', {
         'vendor_not_found',
         `"${input.vendor}" is not a known vendor slug and is not a valid URL.`,
       );
+    }
+
+    // SSRF guard: only raw URL inputs need checking — registry entries are pre-verified public URLs.
+    if (resolved.slug === null) {
+      try {
+        await assertSafeUrl(resolved.url);
+      } catch (err) {
+        const msg = (err as Error).message;
+        if (msg.startsWith('SSRF_BLOCKED')) {
+          throw ctx.fail('target_blocked', msg.replace('SSRF_BLOCKED: ', ''));
+        }
+        throw err;
+      }
     }
 
     let incidents: ReturnType<typeof normalizeIncident>[] = [];

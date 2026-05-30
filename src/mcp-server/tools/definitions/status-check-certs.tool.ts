@@ -6,7 +6,6 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
-import { getServerConfig } from '@/config/server-config.js';
 import { getCertService } from '@/services/cert/cert-service.js';
 
 /** Regex for a bare hostname (no protocol). */
@@ -123,6 +122,8 @@ export const statusCheckCerts = tool('status_check_certs', {
         'Remove "https://" and pass the bare hostname only (e.g., "api.github.com" not "https://api.github.com").',
     },
   ],
+  // Note: SSRF-blocked domains surface as per-domain error results (status: "error") rather than
+  // as a thrown tool error, matching the service's soft-error pattern for cert/DNS tools.
 
   async handler(input, ctx) {
     // Validate no protocol prefixes slipped through (belt-and-suspenders over the regex)
@@ -135,9 +136,8 @@ export const statusCheckCerts = tool('status_check_certs', {
       }
     }
 
-    const timeoutMs = input.timeout_ms ?? getServerConfig().certTimeoutMs;
     const certService = getCertService();
-    const results = await certService.checkDomains(input.domains, input.port, timeoutMs);
+    const results = await certService.checkDomains(input.domains, input.port, input.timeout_ms);
 
     ctx.log.info('Cert check completed', {
       domains: input.domains.length,

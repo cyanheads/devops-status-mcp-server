@@ -1,17 +1,17 @@
 {
   "name": "devops-status-mcp-server",
   "version": "0.1.0",
-  "description": "",
+  "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
   "author": {
-    "name": ""
+    "name": "cyanheads"
   },
-  "homepage": "",
-  "repository": "",
+  "homepage": "https://github.com/cyanheads/devops-status-mcp-server#readme",
+  "repository": "git+https://github.com/cyanheads/devops-status-mcp-server.git",
   "license": "Apache-2.0",
   "mcpServers": {
-    "devops-status-mcp-server": {
+    "@cyanheads/devops-status-mcp-server": {
       "command": "npx",
-      "args": ["-y", "devops-status-mcp-server"],
+      "args": ["-y", "@cyanheads/devops-status-mcp-server"],
       "env": {
         "MCP_TRANSPORT_TYPE": "stdio"
       }

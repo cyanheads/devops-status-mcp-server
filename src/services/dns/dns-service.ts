@@ -5,6 +5,7 @@
 
 import { Resolver } from 'node:dns/promises';
 import { performance } from 'node:perf_hooks';
+import { assertSafeDomain, assertSafeResolverIp } from '@/utils/ssrf-guard.js';
 
 export type RecordType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS';
 
@@ -125,8 +126,18 @@ export class DnsService {
     resolverIps: string[],
     timeoutMs: number,
   ): Promise<DnsResult[]> {
+    // SSRF guard: reject resolver IPs that are in private/loopback ranges (direct IP check —
+    // no DNS resolution needed since the caller controls the value).
+    for (const ip of resolverIps) {
+      assertSafeResolverIp(ip);
+    }
+
     const results = await Promise.allSettled(
-      domains.map((domain) => this.checkOneDomain(domain, types, resolverIps, timeoutMs)),
+      domains.map(async (domain) => {
+        // SSRF guard: reject domains that resolve to private/loopback/cloud-metadata addresses.
+        await assertSafeDomain(domain);
+        return this.checkOneDomain(domain, types, resolverIps, timeoutMs);
+      }),
     );
     return results.map((r, i) =>
       r.status === 'fulfilled'
@@ -136,7 +147,7 @@ export class DnsService {
             records: {},
             resolver_results: [],
             propagation_discrepancies: [],
-            flags: [`Unexpected error: ${(r.reason as Error).message}`],
+            flags: [`${(r.reason as Error).message}`],
             error: (r.reason as Error).message,
           },
     );

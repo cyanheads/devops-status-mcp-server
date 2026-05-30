@@ -5,6 +5,7 @@
  */
 
 import * as tls from 'node:tls';
+import { assertSafeDomain } from '@/utils/ssrf-guard.js';
 
 export interface CertResult {
   cert: {
@@ -153,6 +154,19 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
         let responseBuffer = '';
         let hstsChecked = false;
 
+        function resolveStatus(): CertResult['status'] {
+          if (certData === null) return 'error';
+          const daysExpiry = certData.days_until_expiry;
+          if (
+            flags.some(
+              (f) => f.includes('CRITICAL') || f.includes('expired') || f.includes('Insecure TLS'),
+            )
+          )
+            return 'critical';
+          if (daysExpiry < 30 || flags.some((f) => f.includes('Self-signed'))) return 'warning';
+          return 'ok';
+        }
+
         socket.on('data', (chunk) => {
           if (hstsChecked) return;
           responseBuffer += chunk.toString('utf8');
@@ -166,26 +180,10 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
               flags.push('HSTS not configured');
             }
             socket.destroy();
-
-            const daysExpiry = certData?.days_until_expiry ?? 999;
-            const status: CertResult['status'] =
-              certData === null
-                ? 'error'
-                : flags.some(
-                      (f) =>
-                        f.includes('CRITICAL') ||
-                        f.includes('expired') ||
-                        f.includes('Insecure TLS'),
-                    )
-                  ? 'critical'
-                  : daysExpiry < 30 || flags.some((f) => f.includes('Self-signed'))
-                    ? 'warning'
-                    : 'ok';
-
             settle({
               domain,
               port,
-              status,
+              status: resolveStatus(),
               flags,
               cert: certData,
               tls: tlsData,
@@ -199,23 +197,10 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
           if (!hstsChecked) {
             flags.push('HSTS not configured');
           }
-          const daysExpiry = certData?.days_until_expiry ?? 999;
-          const status: CertResult['status'] =
-            certData === null
-              ? 'error'
-              : flags.some(
-                    (f) =>
-                      f.includes('CRITICAL') || f.includes('expired') || f.includes('Insecure TLS'),
-                  )
-                ? 'critical'
-                : daysExpiry < 30 || flags.some((f) => f.includes('Self-signed'))
-                  ? 'warning'
-                  : 'ok';
-
           settle({
             domain,
             port,
-            status,
+            status: resolveStatus(),
             flags,
             cert: certData,
             tls: tlsData,
@@ -243,7 +228,13 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
 
 export class CertService {
   async checkDomains(domains: string[], port: number, timeoutMs: number): Promise<CertResult[]> {
-    const results = await Promise.allSettled(domains.map((d) => inspectCert(d, port, timeoutMs)));
+    const results = await Promise.allSettled(
+      domains.map(async (domain) => {
+        // SSRF guard: reject domains that resolve to private/loopback/cloud-metadata addresses.
+        await assertSafeDomain(domain);
+        return inspectCert(domain, port, timeoutMs);
+      }),
+    );
     return results.map((r, i) =>
       r.status === 'fulfilled'
         ? r.value
@@ -251,7 +242,7 @@ export class CertService {
             domain: domains[i] ?? 'unknown',
             port,
             status: 'error' as const,
-            flags: [`Unexpected error: ${(r.reason as Error).message}`],
+            flags: [`${(r.reason as Error).message}`],
             cert: null,
             tls: null,
             checked_at: new Date().toISOString(),

@@ -18,6 +18,13 @@ const ServerConfigSchema = z.object({
     .default(5_000)
     .describe('TLS handshake timeout per domain in milliseconds.'),
   dnsTimeoutMs: z.coerce.number().default(3_000).describe('DNS query timeout in milliseconds.'),
+  allowPrivateTargets: z
+    .string()
+    .optional()
+    .describe(
+      'When "true", disables SSRF guards for user-supplied URLs and domains. ' +
+        'For trusted local/intranet deployments only. Defaults to false (guards enabled).',
+    ),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -30,6 +37,7 @@ export function getServerConfig(): ServerConfig {
     fetchTimeoutMs: 'STATUS_FETCH_TIMEOUT_MS',
     certTimeoutMs: 'STATUS_CERT_TIMEOUT_MS',
     dnsTimeoutMs: 'STATUS_DNS_TIMEOUT_MS',
+    allowPrivateTargets: 'STATUS_ALLOW_PRIVATE_TARGETS',
   });
   return _config;
 }

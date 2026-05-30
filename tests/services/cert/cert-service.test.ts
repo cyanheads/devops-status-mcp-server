@@ -81,6 +81,16 @@ vi.mock('node:tls', () => ({
 }));
 
 // ──────────────────────────────────────────────
+// SSRF guard mock — unit tests for TLS logic; guard behavior is tested in ssrf-guard.test.ts
+// ──────────────────────────────────────────────
+
+vi.mock('@/utils/ssrf-guard.js', () => ({
+  assertSafeDomain: vi.fn().mockResolvedValue(undefined),
+  assertSafeUrl: vi.fn().mockResolvedValue(undefined),
+  assertSafeResolverIp: vi.fn(),
+}));
+
+// ──────────────────────────────────────────────
 // Import AFTER the mock is registered
 // ──────────────────────────────────────────────
 

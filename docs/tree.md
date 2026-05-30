@@ -1,9 +1,10 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-05-30 09:59:37
+Generated on: 2026-05-30 13:15:55
 
 ```text
 devops-status-mcp-server/
+├── .claude/
 ├── .claude-plugin/
 │   └── plugin.json
 ├── .codex-plugin/
@@ -18,8 +19,10 @@ devops-status-mcp-server/
 │   ├── extensions.json
 │   └── settings.json
 ├── changelog/
+│   ├── 0.1.x/
 │   └── template.md
 ├── docs/
+│   ├── design.md
 │   └── idea.md
 ├── scripts/
 │   ├── build-changelog.ts
@@ -106,26 +109,64 @@ devops-status-mcp-server/
 │   └── tool-defs-analysis/
 │       └── SKILL.md
 ├── src/
+│   ├── config/
+│   │   └── server-config.ts
+│   ├── data/
 │   ├── mcp-server/
 │   │   ├── prompts/
 │   │   │   └── definitions/
-│   │   │       └── echo.prompt.ts
 │   │   ├── resources/
 │   │   │   └── definitions/
-│   │   │       ├── echo-app-ui.app-resource.ts
-│   │   │       └── echo.resource.ts
+│   │   │       ├── index.ts
+│   │   │       └── vendor-entry.resource.ts
 │   │   └── tools/
 │   │       └── definitions/
-│   │           ├── echo-app.app-tool.ts
-│   │           └── echo.tool.ts
+│   │           ├── index.ts
+│   │           ├── status-check-certs.tool.ts
+│   │           ├── status-check-dns.tool.ts
+│   │           ├── status-check.tool.ts
+│   │           ├── status-get-incidents.tool.ts
+│   │           ├── status-list-vendors.tool.ts
+│   │           ├── status-suggest-action.tool.ts
+│   │           ├── status-vendor-result.ts
+│   │           └── status-watch-stack.tool.ts
+│   ├── services/
+│   │   ├── cert/
+│   │   │   └── cert-service.ts
+│   │   ├── dns/
+│   │   │   └── dns-service.ts
+│   │   ├── statuspage/
+│   │   │   ├── statuspage-service.ts
+│   │   │   └── types.ts
+│   │   └── vendor-registry/
+│   │       └── vendor-registry-service.ts
 │   └── index.ts
 ├── tests/
+│   ├── mcp-server/
+│   │   ├── resources/
+│   │   │   └── definitions/
+│   │   │       └── vendor-entry.resource.test.ts
+│   │   └── tools/
+│   │       └── definitions/
+│   │           ├── status-check-certs.tool.test.ts
+│   │           ├── status-check-dns.tool.test.ts
+│   │           ├── status-check.tool.test.ts
+│   │           ├── status-get-incidents.tool.test.ts
+│   │           ├── status-list-vendors.tool.test.ts
+│   │           ├── status-suggest-action.tool.test.ts
+│   │           └── status-watch-stack.tool.test.ts
 │   ├── prompts/
-│   │   └── echo.prompt.test.ts
 │   ├── resources/
-│   │   └── echo.resource.test.ts
+│   ├── services/
+│   │   ├── cert/
+│   │   │   └── cert-service.test.ts
+│   │   ├── dns/
+│   │   │   └── dns-service.test.ts
+│   │   ├── statuspage/
+│   │   │   └── statuspage-service.test.ts
+│   │   └── vendor-registry/
+│   │       └── vendor-registry-service.test.ts
 │   └── tools/
-│       └── echo.tool.test.ts
 ├── .dockerignore
 ├── .env.example
 ├── .gitignore
@@ -133,11 +174,15 @@ devops-status-mcp-server/
 ├── AGENTS.md
 ├── biome.json
 ├── bun.lock
+├── bunfig.toml
+├── CHANGELOG.md
 ├── CLAUDE.md
 ├── devcheck.config.json
 ├── Dockerfile
+├── LICENSE
 ├── manifest.json
 ├── package.json
+├── README.md
 ├── server.json
 ├── tsconfig.build.json
 ├── tsconfig.json

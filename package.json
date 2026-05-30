@@ -1,7 +1,8 @@
 {
   "name": "@cyanheads/devops-status-mcp-server",
   "version": "0.1.0",
-  "description": "",
+  "mcpName": "io.github.cyanheads/devops-status-mcp-server",
+  "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks via MCP. STDIO or Streamable HTTP.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -39,12 +40,32 @@
     "start:http": "MCP_TRANSPORT_TYPE=http bun ./dist/index.js",
     "publish-mcp": "mcp-publisher login github -token \"$(security find-generic-password -a \"$USER\" -s mcp-publisher-github-pat -w)\" && mcp-publisher publish"
   },
-  "keywords": ["mcp", "mcp-server", "model-context-protocol"],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "devops",
+    "status-page",
+    "statuspage",
+    "incident-response",
+    "ssl-certificate",
+    "dns",
+    "typescript",
+    "bun",
+    "stdio",
+    "streamable-http"
+  ],
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/cyanheads/devops-status-mcp-server.git"
   },
+  "homepage": "https://github.com/cyanheads/devops-status-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/cyanheads/devops-status-mcp-server/issues"
+  },
+  "author": "cyanheads <casey@caseyjhand.com> (https://github.com/cyanheads/devops-status-mcp-server#readme)",
   "license": "Apache-2.0",
+  "packageManager": "bun@1.3.0",
   "engines": {
     "bun": ">=1.3.0",
     "node": ">=24.0.0"

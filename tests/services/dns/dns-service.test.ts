@@ -6,6 +6,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DnsService, getDnsService, initDnsService } from '@/services/dns/dns-service.js';
 
+// SSRF guard mock — unit tests for DNS propagation logic; guard behavior tested in ssrf-guard.test.ts
+vi.mock('@/utils/ssrf-guard.js', () => ({
+  assertSafeDomain: vi.fn().mockResolvedValue(undefined),
+  assertSafeUrl: vi.fn().mockResolvedValue(undefined),
+  assertSafeResolverIp: vi.fn(),
+}));
+
 vi.mock('node:dns/promises', () => ({
   // The module-level mock always returns a resolver with A=['1.2.3.4'] by default.
   // Individual tests override via vi.mocked where needed.

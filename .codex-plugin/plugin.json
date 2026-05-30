@@ -1,25 +1,39 @@
 {
   "name": "devops-status-mcp-server",
   "version": "0.1.0",
-  "description": "",
+  "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
   "author": {
-    "name": "",
-    "email": "",
-    "url": ""
+    "name": "cyanheads",
+    "email": "casey@caseyjhand.com",
+    "url": "https://github.com/cyanheads"
   },
-  "homepage": "",
-  "repository": "",
+  "homepage": "https://github.com/cyanheads/devops-status-mcp-server#readme",
+  "repository": "git+https://github.com/cyanheads/devops-status-mcp-server.git",
   "license": "Apache-2.0",
-  "keywords": ["mcp", "mcp-server", "model-context-protocol"],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "devops",
+    "status-page",
+    "statuspage",
+    "incident-response",
+    "ssl-certificate",
+    "dns",
+    "typescript",
+    "bun",
+    "stdio",
+    "streamable-http"
+  ],
   "mcpServers": "./.codex-plugin/mcp.json",
   "interface": {
-    "displayName": "devops-status-mcp-server",
-    "shortDescription": "",
-    "longDescription": "",
-    "developerName": "",
-    "category": "",
+    "displayName": "@cyanheads/devops-status-mcp-server",
+    "shortDescription": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
+    "longDescription": "Infrastructure health and incident intelligence. Check 26 built-in vendors (GitHub, Cloudflare, OpenAI, Slack, and more) via Atlassian Statuspage, inspect SSL/TLS certificates and DNS propagation for any domain, and get deterministic incident-response playbooks — all without API keys.",
+    "developerName": "cyanheads",
+    "category": "developer-tools",
     "capabilities": ["Read"],
-    "websiteURL": "",
+    "websiteURL": "https://github.com/cyanheads/devops-status-mcp-server",
     "defaultPrompt": []
   }
 }

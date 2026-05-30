@@ -4,7 +4,7 @@
  */
 
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { statusCheck } from '@/mcp-server/tools/definitions/status-check.tool.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
 import { initVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
@@ -18,6 +18,14 @@ vi.mock('@/services/statuspage/statuspage-service.js', () => {
     _mockFetchSummary: mockFetchSummary,
   };
 });
+
+// Mock the SSRF guard so tests that pass raw URLs don't make real DNS calls.
+// Default: passes (public URL). Individual tests override for block scenarios.
+vi.mock('@/utils/ssrf-guard.js', () => ({
+  assertSafeUrl: vi.fn().mockResolvedValue(undefined),
+  assertSafeDomain: vi.fn().mockResolvedValue(undefined),
+  assertSafeResolverIp: vi.fn(),
+}));
 
 const ALL_OPERATIONAL: StatuspageSummaryResponse = {
   page: {
@@ -300,5 +308,41 @@ describe('statusCheck', () => {
     // Only the non-group degraded component should appear
     expect(result.results[0]!.degraded_components).toHaveLength(1);
     expect(result.results[0]!.degraded_components[0]!.name).toBe('Real Component');
+  });
+
+  describe('SSRF guard integration', () => {
+    afterEach(() => vi.clearAllMocks());
+
+    it('throws target_blocked for a raw URL that the guard rejects', async () => {
+      const { assertSafeUrl } = await import('@/utils/ssrf-guard.js');
+      vi.mocked(assertSafeUrl).mockRejectedValueOnce(
+        new Error(
+          'SSRF_BLOCKED: URL "http://169.254.169.254" resolves to 169.254.169.254 (link-local / cloud-metadata).',
+        ),
+      );
+
+      const ctx = createMockContext({ errors: statusCheck.errors });
+      const input = statusCheck.input.parse({ vendors: ['http://169.254.169.254'] });
+      await expect(statusCheck.handler(input, ctx)).rejects.toMatchObject({
+        data: { reason: 'target_blocked' },
+      });
+    });
+
+    it('does NOT call assertSafeUrl for registry slugs (public, pre-verified)', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchSummary: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
+
+      const { assertSafeUrl } = await import('@/utils/ssrf-guard.js');
+      const ctx = createMockContext({ errors: statusCheck.errors });
+      const input = statusCheck.input.parse({ vendors: ['github'] });
+      await statusCheck.handler(input, ctx);
+
+      // Guard must not fire for registry slugs — they're pre-verified
+      expect(vi.mocked(assertSafeUrl)).not.toHaveBeenCalled();
+    });
   });
 });

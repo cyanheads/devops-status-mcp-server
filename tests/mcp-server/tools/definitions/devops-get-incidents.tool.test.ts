@@ -1,11 +1,11 @@
 /**
- * @fileoverview Tests for the status_get_incidents tool.
- * @module tests/mcp-server/tools/definitions/status-get-incidents.tool.test
+ * @fileoverview Tests for the devops_get_incidents tool.
+ * @module tests/mcp-server/tools/definitions/devops-get-incidents.tool.test
  */
 
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { statusGetIncidents } from '@/mcp-server/tools/definitions/status-get-incidents.tool.js';
+import { devopsGetIncidents } from '@/mcp-server/tools/definitions/devops-get-incidents.tool.js';
 import type {
   StatuspageIncidentsResponse,
   StatuspageScheduledMaintenancesResponse,
@@ -91,7 +91,7 @@ beforeAll(() => {
   initVendorRegistryService();
 });
 
-describe('statusGetIncidents', () => {
+describe('devopsGetIncidents', () => {
   it('returns resolved incidents with full detail', async () => {
     const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
       '@/services/statuspage/statuspage-service.js'
@@ -102,9 +102,9 @@ describe('statusGetIncidents', () => {
     _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
     _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
 
-    const ctx = createMockContext({ errors: statusGetIncidents.errors });
-    const input = statusGetIncidents.input.parse({ vendor: 'github', filter: 'all' });
-    const result = await statusGetIncidents.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'all' });
+    const result = await devopsGetIncidents.handler(input, ctx);
 
     expect(result.vendor).toBe('github');
     expect(result.incidents).toHaveLength(1);
@@ -128,16 +128,16 @@ describe('statusGetIncidents', () => {
     // Only resolved incident — active filter should return empty
     _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
 
-    const ctx = createMockContext({ errors: statusGetIncidents.errors });
-    const input = statusGetIncidents.input.parse({ vendor: 'github', filter: 'active' });
-    const result = await statusGetIncidents.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'active' });
+    const result = await devopsGetIncidents.handler(input, ctx);
     expect(result.incidents).toHaveLength(0);
   });
 
   it('throws vendor_not_found for unknown slug', async () => {
-    const ctx = createMockContext({ errors: statusGetIncidents.errors });
-    const input = statusGetIncidents.input.parse({ vendor: 'unknown-xyz', filter: 'all' });
-    await expect(statusGetIncidents.handler(input, ctx)).rejects.toMatchObject({
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'unknown-xyz', filter: 'all' });
+    await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
       data: { reason: 'vendor_not_found' },
     });
   });
@@ -152,9 +152,9 @@ describe('statusGetIncidents', () => {
     _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
     _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
 
-    const ctx = createMockContext({ errors: statusGetIncidents.errors });
-    const input = statusGetIncidents.input.parse({ vendor: 'github', filter: 'resolved' });
-    const result = await statusGetIncidents.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved' });
+    const result = await devopsGetIncidents.handler(input, ctx);
 
     // The fixture incident has status 'resolved'
     expect(result.incidents).toHaveLength(1);
@@ -199,9 +199,9 @@ describe('statusGetIncidents', () => {
     };
     _mockFetchScheduledMaintenances.mockResolvedValue({ data: SCHEDULED_RESPONSE, cached: false });
 
-    const ctx = createMockContext({ errors: statusGetIncidents.errors });
-    const input = statusGetIncidents.input.parse({ vendor: 'github', filter: 'scheduled' });
-    const result = await statusGetIncidents.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'scheduled' });
+    const result = await devopsGetIncidents.handler(input, ctx);
 
     expect(result.incidents).toHaveLength(1);
     // Scheduled maintenances get impact='maintenance' from normalizeIncident
@@ -254,9 +254,9 @@ describe('statusGetIncidents', () => {
     };
     _mockFetchIncidents.mockResolvedValue({ data: SPARSE_INCIDENTS, cached: false });
 
-    const ctx = createMockContext({ errors: statusGetIncidents.errors });
-    const input = statusGetIncidents.input.parse({ vendor: 'openai', filter: 'resolved' });
-    const result = await statusGetIncidents.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'openai', filter: 'resolved' });
+    const result = await devopsGetIncidents.handler(input, ctx);
 
     expect(result.incidents).toHaveLength(1);
     expect(result.incidents[0]!.started_at).toBeNull();
@@ -275,10 +275,10 @@ describe('statusGetIncidents', () => {
     _mockFetchIncidents.mockRejectedValue(new Error('HTTP 503 from statuspage'));
     _mockFetchScheduledMaintenances.mockRejectedValue(new Error('HTTP 503 from statuspage'));
 
-    const ctx = createMockContext({ errors: statusGetIncidents.errors });
-    const input = statusGetIncidents.input.parse({ vendor: 'github', filter: 'active' });
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'active' });
     // The handler does not catch fetch errors — they propagate as ServiceUnavailable
-    await expect(statusGetIncidents.handler(input, ctx)).rejects.toThrow();
+    await expect(devopsGetIncidents.handler(input, ctx)).rejects.toThrow();
   });
 
   it('formats output with vendor, id, and created_at', async () => {
@@ -305,7 +305,7 @@ describe('statusGetIncidents', () => {
       total_returned: 1,
       statuspage_url: 'https://www.githubstatus.com',
     };
-    const blocks = statusGetIncidents.format!(result);
+    const blocks = devopsGetIncidents.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('github');
     expect(text).toContain('inc-001');

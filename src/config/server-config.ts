@@ -33,11 +33,11 @@ let _config: ServerConfig | undefined;
 
 export function getServerConfig(): ServerConfig {
   _config ??= parseEnvConfig(ServerConfigSchema, {
-    cacheTtlMs: 'STATUS_CACHE_TTL_MS',
-    fetchTimeoutMs: 'STATUS_FETCH_TIMEOUT_MS',
-    certTimeoutMs: 'STATUS_CERT_TIMEOUT_MS',
-    dnsTimeoutMs: 'STATUS_DNS_TIMEOUT_MS',
-    allowPrivateTargets: 'STATUS_ALLOW_PRIVATE_TARGETS',
+    cacheTtlMs: 'DEVOPS_STATUS_CACHE_TTL_MS',
+    fetchTimeoutMs: 'DEVOPS_STATUS_FETCH_TIMEOUT_MS',
+    certTimeoutMs: 'DEVOPS_STATUS_CERT_TIMEOUT_MS',
+    dnsTimeoutMs: 'DEVOPS_STATUS_DNS_TIMEOUT_MS',
+    allowPrivateTargets: 'DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS',
   });
   return _config;
 }

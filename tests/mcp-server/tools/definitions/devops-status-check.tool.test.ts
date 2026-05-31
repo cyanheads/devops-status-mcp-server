@@ -1,11 +1,11 @@
 /**
- * @fileoverview Tests for the status_check tool.
- * @module tests/mcp-server/tools/definitions/status-check.tool.test
+ * @fileoverview Tests for the devops_status_check tool.
+ * @module tests/mcp-server/tools/definitions/devops-status-check.tool.test
  */
 
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { statusCheck } from '@/mcp-server/tools/definitions/status-check.tool.js';
+import { devopsStatusCheck } from '@/mcp-server/tools/definitions/devops-status-check.tool.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
 import { initVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 
@@ -111,16 +111,16 @@ beforeAll(() => {
   initVendorRegistryService();
 });
 
-describe('statusCheck', () => {
+describe('devopsStatusCheck', () => {
   it('returns operational result for all-clear vendor', async () => {
     const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['github'] });
-    const result = await statusCheck.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
 
     expect(result.results).toHaveLength(1);
     expect(result.results[0]!.vendor).toBe('github');
@@ -138,9 +138,9 @@ describe('statusCheck', () => {
     };
     _mockFetchSummary.mockResolvedValue({ data: DEGRADED, cached: false });
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['cloudflare'] });
-    const result = await statusCheck.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['cloudflare'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
 
     expect(result.results[0]!.indicator).toBe('minor');
     expect(result.results[0]!.degraded_components.length).toBeGreaterThan(0);
@@ -150,9 +150,9 @@ describe('statusCheck', () => {
   });
 
   it('throws vendor_not_found for unknown slug', async () => {
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['totally-unknown-slug-xyz'] });
-    await expect(statusCheck.handler(input, ctx)).rejects.toMatchObject({
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['totally-unknown-slug-xyz'] });
+    await expect(devopsStatusCheck.handler(input, ctx)).rejects.toMatchObject({
       data: { reason: 'vendor_not_found' },
     });
   });
@@ -163,9 +163,9 @@ describe('statusCheck', () => {
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['github'], mode: 'detailed' });
-    const result = await statusCheck.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'], mode: 'detailed' });
+    const result = await devopsStatusCheck.handler(input, ctx);
 
     expect(result.results[0]!.all_components).toBeDefined();
     expect(result.results[0]!.scheduled_maintenances).toBeDefined();
@@ -177,10 +177,10 @@ describe('statusCheck', () => {
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['github'] });
-    const result = await statusCheck.handler(input, ctx);
-    const blocks = statusCheck.format!(result);
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
+    const blocks = devopsStatusCheck.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('GitHub');
     expect(text).toContain('none');
@@ -197,9 +197,9 @@ describe('statusCheck', () => {
         new Error('HTTP 503 from https://www.cloudflarestatus.com/api/v2/summary.json'),
       );
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['github', 'cloudflare'] });
-    const result = await statusCheck.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github', 'cloudflare'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
 
     // Both vendors appear — allSettled semantics
     expect(result.results).toHaveLength(2);
@@ -215,10 +215,10 @@ describe('statusCheck', () => {
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
     const rawUrl = 'https://www.githubstatus.com';
-    const input = statusCheck.input.parse({ vendors: [rawUrl] });
-    const result = await statusCheck.handler(input, ctx);
+    const input = devopsStatusCheck.input.parse({ vendors: [rawUrl] });
+    const result = await devopsStatusCheck.handler(input, ctx);
 
     expect(result.results).toHaveLength(1);
     expect(result.results[0]!.vendor).toBe(rawUrl);
@@ -235,9 +235,9 @@ describe('statusCheck', () => {
     };
     _mockFetchSummary.mockResolvedValue({ data: CRITICAL_RESPONSE, cached: false });
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['github'] });
-    const result = await statusCheck.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
 
     expect(result.results[0]!.indicator).toBe('critical');
     expect(result.summary.down).toBe(1);
@@ -254,9 +254,9 @@ describe('statusCheck', () => {
     };
     _mockFetchSummary.mockResolvedValue({ data: MAJOR_RESPONSE, cached: false });
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['github'] });
-    const result = await statusCheck.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
 
     expect(result.results[0]!.indicator).toBe('major');
     expect(result.summary.degraded).toBe(1);
@@ -301,9 +301,9 @@ describe('statusCheck', () => {
     };
     _mockFetchSummary.mockResolvedValue({ data: WITH_GROUP_COMPONENT, cached: false });
 
-    const ctx = createMockContext({ errors: statusCheck.errors });
-    const input = statusCheck.input.parse({ vendors: ['github'] });
-    const result = await statusCheck.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
 
     // Only the non-group degraded component should appear
     expect(result.results[0]!.degraded_components).toHaveLength(1);
@@ -321,9 +321,9 @@ describe('statusCheck', () => {
         ),
       );
 
-      const ctx = createMockContext({ errors: statusCheck.errors });
-      const input = statusCheck.input.parse({ vendors: ['http://169.254.169.254'] });
-      await expect(statusCheck.handler(input, ctx)).rejects.toMatchObject({
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const input = devopsStatusCheck.input.parse({ vendors: ['http://169.254.169.254'] });
+      await expect(devopsStatusCheck.handler(input, ctx)).rejects.toMatchObject({
         data: { reason: 'target_blocked' },
       });
     });
@@ -337,9 +337,9 @@ describe('statusCheck', () => {
       _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
 
       const { assertSafeUrl } = await import('@/utils/ssrf-guard.js');
-      const ctx = createMockContext({ errors: statusCheck.errors });
-      const input = statusCheck.input.parse({ vendors: ['github'] });
-      await statusCheck.handler(input, ctx);
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const input = devopsStatusCheck.input.parse({ vendors: ['github'] });
+      await devopsStatusCheck.handler(input, ctx);
 
       // Guard must not fire for registry slugs — they're pre-verified
       expect(vi.mocked(assertSafeUrl)).not.toHaveBeenCalled();

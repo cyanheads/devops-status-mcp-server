@@ -1,12 +1,12 @@
 /**
- * @fileoverview Shared VendorResult schema and builder used by status_check and status_watch_stack.
- * @module mcp-server/tools/definitions/status-vendor-result
+ * @fileoverview Shared VendorResult schema and builder used by devops_status_check and devops_watch_stack.
+ * @module mcp-server/tools/definitions/devops-vendor-result
  */
 
 import { z } from '@cyanheads/mcp-ts-core';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
 
-/** Per-vendor result schema shared by status_check and status_watch_stack. */
+/** Per-vendor result schema shared by devops_status_check and devops_watch_stack. */
 export const VendorResultSchema = z
   .object({
     vendor: z.string().describe('Vendor slug or URL as provided.'),

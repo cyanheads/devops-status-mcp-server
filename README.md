@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.1.1-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^5.9.3-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.2.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^5.9.3-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -33,15 +33,15 @@ Seven tools in three capability groups — vendor status (Atlassian Statuspage, 
 
 | Tool | Description |
 |:-----|:------------|
-| `status_list_vendors` | List vendors in the built-in registry, optionally filtered by name or category. Returns slug, display name, category, and Statuspage base URL. |
-| `status_check` | Check the current health status for one or more vendors. Returns per-vendor indicator (`none` / `minor` / `major` / `critical`), degraded components, and active incident summaries. |
-| `status_get_incidents` | Fetch incident history for a vendor — active, resolved, or scheduled maintenance. Returns the full incident timeline with per-update bodies and affected components. |
-| `status_watch_stack` | Check the health of a named vendor stack persisted in session state. Pass `vendors` once to save the list; subsequent calls reuse it. Returns an aggregate health rollup plus per-vendor detail. |
-| `status_check_certs` | Inspect SSL/TLS certificate health for one or more domains via a real TLS handshake. Reports expiry, chain depth, protocol version, cipher suite, and HSTS presence. Pure TypeScript — no external API. |
-| `status_check_dns` | Resolve DNS records and verify propagation for one or more domains across Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). Reports per-resolver latency and resolver discrepancies. Pure TypeScript — no external API. |
-| `status_suggest_action` | Instruction tool — returns a tailored incident-response playbook and pre-filled follow-up tool calls given a vendor name and optional incident context. No external calls; fully deterministic. |
+| `devops_list_vendors` | List vendors in the built-in registry, optionally filtered by name or category. Returns slug, display name, category, and Statuspage base URL. |
+| `devops_status_check` | Check the current health status for one or more vendors. Returns per-vendor indicator (`none` / `minor` / `major` / `critical`), degraded components, and active incident summaries. |
+| `devops_get_incidents` | Fetch incident history for a vendor — active, resolved, or scheduled maintenance. Returns the full incident timeline with per-update bodies and affected components. |
+| `devops_watch_stack` | Check the health of a named vendor stack persisted in session state. Pass `vendors` once to save the list; subsequent calls reuse it. Returns an aggregate health rollup plus per-vendor detail. |
+| `devops_check_certs` | Inspect SSL/TLS certificate health for one or more domains via a real TLS handshake. Reports expiry, chain depth, protocol version, cipher suite, and HSTS presence. Pure TypeScript — no external API. |
+| `devops_check_dns` | Resolve DNS records and verify propagation for one or more domains across Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). Reports per-resolver latency and resolver discrepancies. Pure TypeScript — no external API. |
+| `devops_suggest_action` | Instruction tool — returns a tailored incident-response playbook and pre-filled follow-up tool calls given a vendor name and optional incident context. No external calls; fully deterministic. |
 
-### `status_list_vendors`
+### `devops_list_vendors`
 
 Discover available vendors before running status checks or configuring a stack.
 
@@ -67,7 +67,7 @@ The registry covers verified public vendors on Atlassian Statuspage. Major cloud
 
 ---
 
-### `status_check`
+### `devops_status_check`
 
 Batch health snapshot across one or more vendors in a single call.
 
@@ -79,7 +79,7 @@ Batch health snapshot across one or more vendors in a single call.
 
 ---
 
-### `status_get_incidents`
+### `devops_get_incidents`
 
 Full incident timeline for a vendor with filter support.
 
@@ -92,7 +92,7 @@ Full incident timeline for a vendor with filter support.
 
 ---
 
-### `status_watch_stack`
+### `devops_watch_stack`
 
 Named, persisted vendor stack for recurring health sweeps.
 
@@ -104,7 +104,7 @@ Named, persisted vendor stack for recurring health sweeps.
 
 ---
 
-### `status_check_certs`
+### `devops_check_certs`
 
 Direct TLS handshake inspection — no external API required.
 
@@ -116,7 +116,7 @@ Direct TLS handshake inspection — no external API required.
 
 ---
 
-### `status_check_dns`
+### `devops_check_dns`
 
 Multi-resolver DNS propagation check — no external API required.
 
@@ -128,7 +128,7 @@ Multi-resolver DNS propagation check — no external API required.
 
 ---
 
-### `status_suggest_action`
+### `devops_suggest_action`
 
 Deterministic incident-response guidance, no external calls.
 
@@ -165,15 +165,15 @@ DevOps-status-specific:
 - **No API keys required** — Atlassian Statuspage is a public API; TLS and DNS use Node.js stdlib (`node:tls`, `node:dns`)
 - 26-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; extendable via raw Statuspage URL passthrough
 - 60-second in-memory cache on Statuspage reads shared across all tenants — prevents thundering-herd on batch calls
-- `status_watch_stack` persists named vendor lists in tenant-scoped state for repeat morning checks or pre-deploy sweeps
-- `status_suggest_action` dispatches category-specific playbooks deterministically — no LLM sampling dependency, works in all clients
+- `devops_watch_stack` persists named vendor lists in tenant-scoped state for repeat morning checks or pre-deploy sweeps
+- `devops_suggest_action` dispatches category-specific playbooks deterministically — no LLM sampling dependency, works in all clients
 
 Agent-friendly output:
 
-- Batch tools (`status_check`, `status_watch_stack`, `status_check_certs`, `status_check_dns`) use `Promise.allSettled` — one failing target never blocks the rest; errors surface as inline `error` fields
+- Batch tools (`devops_status_check`, `devops_watch_stack`, `devops_check_certs`, `devops_check_dns`) use `Promise.allSettled` — one failing target never blocks the rest; errors surface as inline `error` fields
 - `cached: true` / `checked_at` on every Statuspage result — agents know when data was fetched
 - Discriminated indicator and status enums (`none` / `minor` / `major` / `critical`; `operational` / `degraded_performance` / `partial_outage` / `major_outage` / `under_maintenance`) — callers branch on data, not string parsing
-- `nextToolSuggestions` in `status_suggest_action` pre-fills tool arguments from incident context — agents can execute the playbook mechanically
+- `nextToolSuggestions` in `devops_suggest_action` pre-fills tool arguments from incident context — agents can execute the playbook mechanically
 
 ---
 
@@ -297,10 +297,10 @@ No API keys required. All environment variables are optional.
 
 | Variable | Description | Default |
 |:---------|:------------|:--------|
-| `STATUS_CACHE_TTL_MS` | In-memory cache TTL for Statuspage reads in milliseconds. | `60000` |
-| `STATUS_FETCH_TIMEOUT_MS` | Per-request timeout for Statuspage API calls in milliseconds. | `8000` |
-| `STATUS_CERT_TIMEOUT_MS` | Per-domain TLS handshake timeout for `status_check_certs` in milliseconds. | `5000` |
-| `STATUS_DNS_TIMEOUT_MS` | Per-query DNS timeout for `status_check_dns` in milliseconds. | `3000` |
+| `DEVOPS_STATUS_CACHE_TTL_MS` | In-memory cache TTL for Statuspage reads in milliseconds. | `60000` |
+| `DEVOPS_STATUS_FETCH_TIMEOUT_MS` | Per-request timeout for Statuspage API calls in milliseconds. | `8000` |
+| `DEVOPS_STATUS_CERT_TIMEOUT_MS` | Per-domain TLS handshake timeout for `devops_check_certs` in milliseconds. | `5000` |
+| `DEVOPS_STATUS_DNS_TIMEOUT_MS` | Per-query DNS timeout for `devops_check_dns` in milliseconds. | `3000` |
 | `MCP_TRANSPORT_TYPE` | Transport: `stdio` or `http`. | `stdio` |
 | `MCP_HTTP_PORT` | Port for HTTP server. | `3010` |
 | `MCP_AUTH_MODE` | Auth mode: `none`, `jwt`, or `oauth`. | `none` |
@@ -368,7 +368,7 @@ See [`CLAUDE.md`](./CLAUDE.md) for development guidelines and architectural rule
 - Handlers throw, framework catches — no `try/catch` in tool logic
 - Use `ctx.log` for request-scoped logging, `ctx.state` for tenant-scoped storage
 - Register new tools and resources via the barrels in `src/mcp-server/*/definitions/index.ts`
-- `status_check_certs` and `status_check_dns` use only Node.js stdlib — add no external deps for these paths
+- `devops_check_certs` and `devops_check_dns` use only Node.js stdlib — add no external deps for these paths
 
 ---
 

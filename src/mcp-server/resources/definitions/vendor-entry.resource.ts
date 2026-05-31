@@ -11,7 +11,7 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
   name: 'devops-status-vendor',
   description:
     'Full registry entry for a vendor by slug — Statuspage base URL, category, and API type. ' +
-    'Read-only, stable. Use status_list_vendors to discover available slugs.',
+    'Read-only, stable. Use devops_list_vendors to discover available slugs.',
   mimeType: 'application/json',
 
   params: z.object({
@@ -30,7 +30,7 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
     const entry = getVendorRegistryService().getBySlug(params.name);
     if (!entry) {
       throw notFound(
-        `Vendor "${params.name}" not found in the built-in registry. Use status_list_vendors to discover available slugs.`,
+        `Vendor "${params.name}" not found in the built-in registry. Use devops_list_vendors to discover available slugs.`,
         { slug: params.name },
       );
     }

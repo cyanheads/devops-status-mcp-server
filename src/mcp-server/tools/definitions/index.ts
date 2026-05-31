@@ -3,28 +3,28 @@
  * @module mcp-server/tools/definitions/index
  */
 
-export { statusCheck } from './status-check.tool.js';
-export { statusCheckCerts } from './status-check-certs.tool.js';
-export { statusCheckDns } from './status-check-dns.tool.js';
-export { statusGetIncidents } from './status-get-incidents.tool.js';
-export { statusListVendors } from './status-list-vendors.tool.js';
-export { statusSuggestAction } from './status-suggest-action.tool.js';
-export { statusWatchStack } from './status-watch-stack.tool.js';
+export { devopsCheckCerts } from './devops-check-certs.tool.js';
+export { devopsCheckDns } from './devops-check-dns.tool.js';
+export { devopsGetIncidents } from './devops-get-incidents.tool.js';
+export { devopsListVendors } from './devops-list-vendors.tool.js';
+export { devopsStatusCheck } from './devops-status-check.tool.js';
+export { devopsSuggestAction } from './devops-suggest-action.tool.js';
+export { devopsWatchStack } from './devops-watch-stack.tool.js';
 
-import { statusCheck } from './status-check.tool.js';
-import { statusCheckCerts } from './status-check-certs.tool.js';
-import { statusCheckDns } from './status-check-dns.tool.js';
-import { statusGetIncidents } from './status-get-incidents.tool.js';
-import { statusListVendors } from './status-list-vendors.tool.js';
-import { statusSuggestAction } from './status-suggest-action.tool.js';
-import { statusWatchStack } from './status-watch-stack.tool.js';
+import { devopsCheckCerts } from './devops-check-certs.tool.js';
+import { devopsCheckDns } from './devops-check-dns.tool.js';
+import { devopsGetIncidents } from './devops-get-incidents.tool.js';
+import { devopsListVendors } from './devops-list-vendors.tool.js';
+import { devopsStatusCheck } from './devops-status-check.tool.js';
+import { devopsSuggestAction } from './devops-suggest-action.tool.js';
+import { devopsWatchStack } from './devops-watch-stack.tool.js';
 
 export const allToolDefinitions = [
-  statusListVendors,
-  statusCheck,
-  statusGetIncidents,
-  statusWatchStack,
-  statusCheckCerts,
-  statusCheckDns,
-  statusSuggestAction,
+  devopsListVendors,
+  devopsStatusCheck,
+  devopsGetIncidents,
+  devopsWatchStack,
+  devopsCheckCerts,
+  devopsCheckDns,
+  devopsSuggestAction,
 ] as const;

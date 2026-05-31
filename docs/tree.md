@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-05-31 02:20:26
+Generated on: 2026-05-31 04:30:29
 
 ```text
 devops-status-mcp-server/
@@ -20,6 +20,7 @@ devops-status-mcp-server/
 │   └── settings.json
 ├── changelog/
 │   ├── 0.1.x/
+│   ├── 0.2.x/
 │   └── template.md
 ├── docs/
 │   ├── design.md
@@ -121,15 +122,15 @@ devops-status-mcp-server/
 │   │   │       └── vendor-entry.resource.ts
 │   │   └── tools/
 │   │       └── definitions/
-│   │           ├── index.ts
-│   │           ├── status-check-certs.tool.ts
-│   │           ├── status-check-dns.tool.ts
-│   │           ├── status-check.tool.ts
-│   │           ├── status-get-incidents.tool.ts
-│   │           ├── status-list-vendors.tool.ts
-│   │           ├── status-suggest-action.tool.ts
-│   │           ├── status-vendor-result.ts
-│   │           └── status-watch-stack.tool.ts
+│   │           ├── devops-check-certs.tool.ts
+│   │           ├── devops-check-dns.tool.ts
+│   │           ├── devops-get-incidents.tool.ts
+│   │           ├── devops-list-vendors.tool.ts
+│   │           ├── devops-status-check.tool.ts
+│   │           ├── devops-suggest-action.tool.ts
+│   │           ├── devops-vendor-result.ts
+│   │           ├── devops-watch-stack.tool.ts
+│   │           └── index.ts
 │   ├── services/
 │   │   ├── cert/
 │   │   │   └── cert-service.ts
@@ -150,13 +151,13 @@ devops-status-mcp-server/
 │   │   │       └── vendor-entry.resource.test.ts
 │   │   └── tools/
 │   │       └── definitions/
-│   │           ├── status-check-certs.tool.test.ts
-│   │           ├── status-check-dns.tool.test.ts
-│   │           ├── status-check.tool.test.ts
-│   │           ├── status-get-incidents.tool.test.ts
-│   │           ├── status-list-vendors.tool.test.ts
-│   │           ├── status-suggest-action.tool.test.ts
-│   │           └── status-watch-stack.tool.test.ts
+│   │           ├── devops-check-certs.tool.test.ts
+│   │           ├── devops-check-dns.tool.test.ts
+│   │           ├── devops-get-incidents.tool.test.ts
+│   │           ├── devops-list-vendors.tool.test.ts
+│   │           ├── devops-status-check.tool.test.ts
+│   │           ├── devops-suggest-action.tool.test.ts
+│   │           └── devops-watch-stack.tool.test.ts
 │   ├── prompts/
 │   ├── resources/
 │   ├── services/

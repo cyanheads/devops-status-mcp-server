@@ -1,7 +1,7 @@
 /**
  * @fileoverview Tool to resolve DNS records and verify propagation across multiple public resolvers.
  * Pure node:dns — no external APIs.
- * @module mcp-server/tools/definitions/status-check-dns.tool
+ * @module mcp-server/tools/definitions/devops-check-dns.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
@@ -12,7 +12,7 @@ import { getDnsService } from '@/services/dns/dns-service.js';
 const PROTOCOL_RE = /^https?:\/\//i;
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS'] as const;
 
-export const statusCheckDns = tool('status_check_dns', {
+export const devopsCheckDns = tool('devops_check_dns', {
   description:
     'Resolve DNS records and verify propagation for one or more domains across multiple public resolvers. ' +
     'Works for any domain — no vendor registry required. ' +

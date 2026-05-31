@@ -3,7 +3,7 @@
  * addresses for user-supplied targets. Registry vendor URLs are pre-verified public endpoints and
  * bypass this guard at the call site; only user-supplied raw URLs and domain inputs go through it.
  *
- * Opt-in: set STATUS_ALLOW_PRIVATE_TARGETS=true to disable all checks (for local/trusted deployments
+ * Opt-in: set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to disable all checks (for local/trusted deployments
  * where internal endpoint monitoring is the intended use case).
  * @module utils/ssrf-guard
  */
@@ -97,7 +97,7 @@ async function resolveAndCheck(hostname: string, context: string): Promise<void>
       throw new Error(
         `SSRF_BLOCKED: ${context} resolves to ${address} (${label}). ` +
           `Requests to private, loopback, or cloud-metadata addresses are not permitted. ` +
-          `Set STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.`,
+          `Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.`,
       );
     }
   }
@@ -105,13 +105,13 @@ async function resolveAndCheck(hostname: string, context: string): Promise<void>
 
 /** True when the operator has explicitly enabled private-target access. */
 function privateTargetsAllowed(): boolean {
-  return process.env.STATUS_ALLOW_PRIVATE_TARGETS?.toLowerCase() === 'true';
+  return process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS?.toLowerCase() === 'true';
 }
 
 /**
  * Assert that a raw Statuspage URL is safe to fetch.
  * Throws with `SSRF_BLOCKED` prefix if the hostname resolves to a non-public address.
- * No-ops when STATUS_ALLOW_PRIVATE_TARGETS=true.
+ * No-ops when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.
  */
 export async function assertSafeUrl(rawUrl: string): Promise<void> {
   if (privateTargetsAllowed()) return;
@@ -138,7 +138,7 @@ export async function assertSafeUrl(rawUrl: string): Promise<void> {
 /**
  * Assert that a bare domain (no protocol) is safe to connect to.
  * Throws with `SSRF_BLOCKED` prefix if it resolves to a non-public address.
- * No-ops when STATUS_ALLOW_PRIVATE_TARGETS=true.
+ * No-ops when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.
  */
 export async function assertSafeDomain(domain: string): Promise<void> {
   if (privateTargetsAllowed()) return;
@@ -148,7 +148,7 @@ export async function assertSafeDomain(domain: string): Promise<void> {
 /**
  * Assert that a resolver IP address is not in a private range (direct IP, no DNS involved).
  * Throws with `SSRF_BLOCKED` prefix if the IP is private.
- * No-ops when STATUS_ALLOW_PRIVATE_TARGETS=true.
+ * No-ops when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.
  */
 export function assertSafeResolverIp(ip: string): void {
   if (privateTargetsAllowed()) return;
@@ -157,7 +157,7 @@ export function assertSafeResolverIp(ip: string): void {
     throw new Error(
       `SSRF_BLOCKED: Resolver IP "${ip}" is in a private range (${label}). ` +
         `Only public DNS resolvers are permitted. ` +
-        `Set STATUS_ALLOW_PRIVATE_TARGETS=true to allow private resolvers.`,
+        `Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow private resolvers.`,
     );
   }
 }

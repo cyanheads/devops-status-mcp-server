@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "devops-status-mcp-server",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
   "author": { "name": "cyanheads" },
   "server": {
@@ -23,7 +23,7 @@
   "tools_generated": true,
   "prompts_generated": true,
   "user_config": {
-    "STATUS_ALLOW_PRIVATE_TARGETS": {
+    "DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS": {
       "type": "string",
       "title": "Allow Private Targets",
       "description": "When 'true', disables SSRF guards for user-supplied URLs and domains. For trusted local/intranet deployments only. Default: false (guards enabled).",

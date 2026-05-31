@@ -1,6 +1,6 @@
 /**
  * @fileoverview Tool to fetch incident history and scheduled maintenance windows for a vendor.
- * @module mcp-server/tools/definitions/status-get-incidents.tool
+ * @module mcp-server/tools/definitions/devops-get-incidents.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
@@ -56,7 +56,7 @@ function normalizeIncident(i: StatuspageIncident, isScheduled: boolean) {
   };
 }
 
-export const statusGetIncidents = tool('status_get_incidents', {
+export const devopsGetIncidents = tool('devops_get_incidents', {
   description:
     'Fetch incident history and scheduled maintenance windows for a vendor. ' +
     'Returns full incident timeline — each investigator update, affected components, and resolution. ' +
@@ -68,7 +68,7 @@ export const statusGetIncidents = tool('status_get_incidents', {
       .string()
       .min(1)
       .describe(
-        'Vendor slug (e.g., "github") or raw Statuspage base URL. Use status_list_vendors to find slugs.',
+        'Vendor slug (e.g., "github") or raw Statuspage base URL. Use devops_list_vendors to find slugs.',
       ),
     filter: z
       .enum(['all', 'active', 'resolved', 'scheduled'])
@@ -166,14 +166,14 @@ export const statusGetIncidents = tool('status_get_incidents', {
       reason: 'vendor_not_found',
       code: JsonRpcErrorCode.InvalidParams,
       when: 'Vendor slug not in registry and input is not a valid URL.',
-      recovery: 'Call status_list_vendors to browse slugs or pass the full Statuspage base URL.',
+      recovery: 'Call devops_list_vendors to browse slugs or pass the full Statuspage base URL.',
     },
     {
       reason: 'target_blocked',
       code: JsonRpcErrorCode.InvalidParams,
       when: 'A raw URL resolves to a private, loopback, or cloud-metadata address.',
       recovery:
-        'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set STATUS_ALLOW_PRIVATE_TARGETS=true.',
+        'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
     },
     {
       reason: 'statuspage_unavailable',

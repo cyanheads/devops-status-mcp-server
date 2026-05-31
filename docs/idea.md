@@ -51,21 +51,21 @@ Organized around operational workflows, not endpoints.
 
 | Tool | Behavior |
 |:---|:---|
-| `status_check` | "Is X healthy?" One or more vendor names (or raw Statuspage URLs). Returns per-vendor status (`operational` \| `degraded` \| `partial_outage` \| `major_outage`) with affected components and active-incident summaries. Batch-friendly. Mode: `summary` \| `detailed`. |
-| `status_get_incidents` | Incident history for a vendor. Filter by date range, status (`active` \| `resolved` \| `scheduled`), component. Returns timeline (created → updates → resolved), affected components, duration, postmortem link. |
-| `status_watch_stack` | Accepts a vendor list representing your stack; returns a unified health overview — all green, or what's degraded with severity and duration. For "morning check" / "before deploy". May persist the stack via tenant-scoped `ctx.state`. |
-| `status_check_certs` | SSL/TLS health for domains. Pure TS — direct handshake: days-to-expiry (flag < 30), chain completeness, protocol versions (flag TLS 1.0/1.1), cipher strength, HSTS/CT/OCSP. No external API. |
-| `status_check_dns` | DNS health for domains. Pure TS — A/AAAA/CNAME/MX/TXT records, resolution time, propagation across multiple resolvers (Google, Cloudflare, Quad9), DNSSEC status, resolver discrepancies. |
-| `status_suggest_action` | Instruction tool: given a detected incident/degradation, returns mitigation guidance with pre-filled follow-up calls (check origin DNS, verify certs, enable failover, monitor for resolution). Operational playbooks tailored to the incident, not "wait for the vendor." |
-| `status_list_vendors` | List the built-in registry with Statuspage URLs and categories; accepts a search query. Helps users discover what's available and configure their stack. |
+| `devops_status_check` | "Is X healthy?" One or more vendor names (or raw Statuspage URLs). Returns per-vendor status (`operational` \| `degraded` \| `partial_outage` \| `major_outage`) with affected components and active-incident summaries. Batch-friendly. Mode: `summary` \| `detailed`. |
+| `devops_get_incidents` | Incident history for a vendor. Filter by date range, status (`active` \| `resolved` \| `scheduled`), component. Returns timeline (created → updates → resolved), affected components, duration, postmortem link. |
+| `devops_watch_stack` | Accepts a vendor list representing your stack; returns a unified health overview — all green, or what's degraded with severity and duration. For "morning check" / "before deploy". May persist the stack via tenant-scoped `ctx.state`. |
+| `devops_check_certs` | SSL/TLS health for domains. Pure TS — direct handshake: days-to-expiry (flag < 30), chain completeness, protocol versions (flag TLS 1.0/1.1), cipher strength, HSTS/CT/OCSP. No external API. |
+| `devops_check_dns` | DNS health for domains. Pure TS — A/AAAA/CNAME/MX/TXT records, resolution time, propagation across multiple resolvers (Google, Cloudflare, Quad9), DNSSEC status, resolver discrepancies. |
+| `devops_suggest_action` | Instruction tool: given a detected incident/degradation, returns mitigation guidance with pre-filled follow-up calls (check origin DNS, verify certs, enable failover, monitor for resolution). Operational playbooks tailored to the incident, not "wait for the vendor." |
+| `devops_list_vendors` | List the built-in registry with Statuspage URLs and categories; accepts a search query. Helps users discover what's available and configure their stack. |
 
 ## Design Notes & Requirements
 
 - **The vendor registry is the key design challenge** — comprehensive enough to be useful out of the box, extensible via raw Statuspage URLs. Maintain as an in-repo TS data file, not fetched at runtime.
 - **Statuspage has a consistent API** across all vendors that use it (`/api/v2/status.json`, `/api/v2/incidents.json`, …) — covers most tech vendors. Detect the Statuspage convention and fall back to vendor-specific parsing otherwise.
-- **`status_check_certs` and `status_check_dns` are pure TS, zero deps** — they work for any domain, not just registered vendors, and have standalone value even without the status features.
-- **The instruction tool (`status_suggest_action`) is where LLM reasoning shines** — connecting a vendor degradation to actionable, infra-specific steps. Generic monitors show status; this one advises.
-- **`status_watch_stack`** could persist a stack config via tenant-scoped state so users don't re-specify their vendor list each call.
+- **`devops_check_certs` and `devops_check_dns` are pure TS, zero deps** — they work for any domain, not just registered vendors, and have standalone value even without the status features.
+- **The instruction tool (`devops_suggest_action`) is where LLM reasoning shines** — connecting a vendor degradation to actionable, infra-specific steps. Generic monitors show status; this one advises.
+- **`devops_watch_stack`** could persist a stack config via tenant-scoped state so users don't re-specify their vendor list each call.
 - Rate limits aren't a concern — Statuspage APIs are public and built for polling. Be respectful (cache ~60s).
 - Consider a simple uptime/latency check (HTTP HEAD, measure RTT) alongside status-page data — ground truth vs. vendor self-reporting.
 

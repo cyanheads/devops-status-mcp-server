@@ -58,14 +58,14 @@ describe('assertSafeResolverIp (synchronous, no DNS)', () => {
     expect(() => assertSafeResolverIp('2001:4860:4860::8888')).not.toThrow();
   });
 
-  it('is a no-op when STATUS_ALLOW_PRIVATE_TARGETS=true', () => {
-    process.env.STATUS_ALLOW_PRIVATE_TARGETS = 'true';
+  it('is a no-op when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true', () => {
+    process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS = 'true';
     try {
       expect(() => assertSafeResolverIp('127.0.0.1')).not.toThrow();
       expect(() => assertSafeResolverIp('10.0.0.1')).not.toThrow();
       expect(() => assertSafeResolverIp('169.254.169.254')).not.toThrow();
     } finally {
-      delete process.env.STATUS_ALLOW_PRIVATE_TARGETS;
+      delete process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS;
     }
   });
 });
@@ -73,7 +73,7 @@ describe('assertSafeResolverIp (synchronous, no DNS)', () => {
 describe('assertSafeUrl (async, mocked DNS)', () => {
   afterEach(() => {
     vi.clearAllMocks();
-    delete process.env.STATUS_ALLOW_PRIVATE_TARGETS;
+    delete process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS;
   });
 
   it('passes for a URL resolving to a public IP', async () => {
@@ -107,8 +107,8 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
     await expect(assertSafeUrl('not a url')).rejects.toThrow('SSRF_BLOCKED');
   });
 
-  it('passes when STATUS_ALLOW_PRIVATE_TARGETS=true even for private IP', async () => {
-    process.env.STATUS_ALLOW_PRIVATE_TARGETS = 'true';
+  it('passes when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true even for private IP', async () => {
+    process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS = 'true';
     // lookup should NOT be called when guards are disabled
     await expect(assertSafeUrl('http://10.0.0.1/api/v2/summary.json')).resolves.toBeUndefined();
     expect(mockLookup).not.toHaveBeenCalled();
@@ -133,7 +133,7 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
 describe('assertSafeDomain (async, mocked DNS)', () => {
   afterEach(() => {
     vi.clearAllMocks();
-    delete process.env.STATUS_ALLOW_PRIVATE_TARGETS;
+    delete process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS;
   });
 
   it('passes for a public domain', async () => {
@@ -156,8 +156,8 @@ describe('assertSafeDomain (async, mocked DNS)', () => {
     await expect(assertSafeDomain('intranet.corp')).rejects.toThrow('SSRF_BLOCKED');
   });
 
-  it('is a no-op when STATUS_ALLOW_PRIVATE_TARGETS=true', async () => {
-    process.env.STATUS_ALLOW_PRIVATE_TARGETS = 'true';
+  it('is a no-op when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true', async () => {
+    process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS = 'true';
     await expect(assertSafeDomain('localhost')).resolves.toBeUndefined();
     expect(mockLookup).not.toHaveBeenCalled();
   });

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Tool to check current health status for one or more vendors via Statuspage.
- * @module mcp-server/tools/definitions/status-check.tool
+ * @module mcp-server/tools/definitions/devops-status-check.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
@@ -8,14 +8,14 @@ import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getStatuspageService } from '@/services/statuspage/statuspage-service.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 import { assertSafeUrl } from '@/utils/ssrf-guard.js';
-import type { VendorResult } from './status-vendor-result.js';
+import type { VendorResult } from './devops-vendor-result.js';
 import {
   buildVendorResult,
   renderVendorBlock,
   VendorResultSchema,
-} from './status-vendor-result.js';
+} from './devops-vendor-result.js';
 
-export const statusCheck = tool('status_check', {
+export const devopsStatusCheck = tool('devops_status_check', {
   description:
     'Check the current health status for one or more vendors. Accepts registered vendor slugs ' +
     '(e.g., "github", "cloudflare") or raw Statuspage base URLs. Returns per-vendor operational ' +
@@ -31,7 +31,7 @@ export const statusCheck = tool('status_check', {
       .min(1)
       .max(20)
       .describe(
-        'Vendor slugs from the built-in registry (e.g., "github", "cloudflare") or raw Statuspage base URLs. Mix freely. Use status_list_vendors to discover available slugs.',
+        'Vendor slugs from the built-in registry (e.g., "github", "cloudflare") or raw Statuspage base URLs. Mix freely. Use devops_list_vendors to discover available slugs.',
       ),
     mode: z
       .enum(['summary', 'detailed'])
@@ -61,14 +61,14 @@ export const statusCheck = tool('status_check', {
       code: JsonRpcErrorCode.InvalidParams,
       when: 'A vendor slug does not match any entry in the built-in registry and is not a valid URL.',
       recovery:
-        'Call status_list_vendors to browse available slugs, or pass a full Statuspage base URL (e.g., "https://www.githubstatus.com").',
+        'Call devops_list_vendors to browse available slugs, or pass a full Statuspage base URL (e.g., "https://www.githubstatus.com").',
     },
     {
       reason: 'target_blocked',
       code: JsonRpcErrorCode.InvalidParams,
       when: 'A raw URL resolves to a private, loopback, or cloud-metadata address.',
       recovery:
-        'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set STATUS_ALLOW_PRIVATE_TARGETS=true.',
+        'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
     },
     {
       reason: 'statuspage_unavailable',
@@ -90,7 +90,7 @@ export const statusCheck = tool('status_check', {
       if (!r)
         throw ctx.fail(
           'vendor_not_found',
-          `"${v}" is not a known vendor slug and is not a valid URL. Call status_list_vendors to browse.`,
+          `"${v}" is not a known vendor slug and is not a valid URL. Call devops_list_vendors to browse.`,
         );
       return { input: v, ...r };
     });

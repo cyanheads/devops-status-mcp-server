@@ -6,7 +6,7 @@
     "url": "https://github.com/cyanheads/devops-status-mcp-server",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.2.0",
   "remotes": [
     {
       "type": "streamable-http",
@@ -19,7 +19,7 @@
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@cyanheads/devops-status-mcp-server",
       "runtimeHint": "bun",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "packageArguments": [
         {
           "type": "positional",
@@ -39,7 +39,7 @@
           "default": "info"
         },
         {
-          "name": "STATUS_ALLOW_PRIVATE_TARGETS",
+          "name": "DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS",
           "description": "When 'true', disables SSRF guards for user-supplied URLs and domains. For trusted local/intranet deployments only. Leave unset or 'false' for hosted/public deployments.",
           "format": "string",
           "isRequired": false,
@@ -55,7 +55,7 @@
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@cyanheads/devops-status-mcp-server",
       "runtimeHint": "bun",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "packageArguments": [
         {
           "type": "positional",
@@ -103,7 +103,7 @@
           "default": "info"
         },
         {
-          "name": "STATUS_ALLOW_PRIVATE_TARGETS",
+          "name": "DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS",
           "description": "When 'true', disables SSRF guards for user-supplied URLs and domains. For trusted local/intranet deployments only. Leave unset or 'false' for hosted/public deployments.",
           "format": "string",
           "isRequired": false,

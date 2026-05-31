@@ -1,11 +1,11 @@
 /**
- * @fileoverview Tests for the status_check_dns tool.
- * @module tests/mcp-server/tools/definitions/status-check-dns.tool.test
+ * @fileoverview Tests for the devops_check_dns tool.
+ * @module tests/mcp-server/tools/definitions/devops-check-dns.tool.test
  */
 
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { statusCheckDns } from '@/mcp-server/tools/definitions/status-check-dns.tool.js';
+import { devopsCheckDns } from '@/mcp-server/tools/definitions/devops-check-dns.tool.js';
 import type { DnsResult } from '@/services/dns/dns-service.js';
 
 vi.mock('@/services/dns/dns-service.js', () => {
@@ -85,16 +85,16 @@ const ERROR_DNS_RESULT: DnsResult = {
   error: 'ENOTFOUND',
 };
 
-describe('statusCheckDns', () => {
+describe('devopsCheckDns', () => {
   it('returns clean results for a well-propagated domain', async () => {
     const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     _mockCheckDomains.mockResolvedValue([CLEAN_DNS_RESULT]);
 
-    const ctx = createMockContext({ errors: statusCheckDns.errors });
-    const input = statusCheckDns.input.parse({ domains: ['example.com'] });
-    const result = await statusCheckDns.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsCheckDns.errors });
+    const input = devopsCheckDns.input.parse({ domains: ['example.com'] });
+    const result = await devopsCheckDns.handler(input, ctx);
 
     expect(result.results).toHaveLength(1);
     expect(result.results[0]!.domain).toBe('example.com');
@@ -110,9 +110,9 @@ describe('statusCheckDns', () => {
     };
     _mockCheckDomains.mockResolvedValue([DISCREPANCY_DNS_RESULT]);
 
-    const ctx = createMockContext({ errors: statusCheckDns.errors });
-    const input = statusCheckDns.input.parse({ domains: ['migrating.example.com'] });
-    const result = await statusCheckDns.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsCheckDns.errors });
+    const input = devopsCheckDns.input.parse({ domains: ['migrating.example.com'] });
+    const result = await devopsCheckDns.handler(input, ctx);
 
     expect(result.results[0]!.propagation_discrepancies).toHaveLength(1);
     expect(result.results[0]!.propagation_discrepancies[0]!.record_type).toBe('A');
@@ -121,9 +121,9 @@ describe('statusCheckDns', () => {
   });
 
   it('throws invalid_domain for protocol-prefixed input', async () => {
-    const ctx = createMockContext({ errors: statusCheckDns.errors });
-    const input = statusCheckDns.input.parse({ domains: ['https://example.com'] });
-    await expect(statusCheckDns.handler(input, ctx)).rejects.toMatchObject({
+    const ctx = createMockContext({ errors: devopsCheckDns.errors });
+    const input = devopsCheckDns.input.parse({ domains: ['https://example.com'] });
+    await expect(devopsCheckDns.handler(input, ctx)).rejects.toMatchObject({
       data: { reason: 'invalid_domain' },
     });
   });
@@ -134,9 +134,9 @@ describe('statusCheckDns', () => {
     };
     _mockCheckDomains.mockResolvedValue([CLEAN_DNS_RESULT]);
 
-    const ctx = createMockContext({ errors: statusCheckDns.errors });
-    const input = statusCheckDns.input.parse({ domains: ['example.com'], timeout_ms: 5000 });
-    await statusCheckDns.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsCheckDns.errors });
+    const input = devopsCheckDns.input.parse({ domains: ['example.com'], timeout_ms: 5000 });
+    await devopsCheckDns.handler(input, ctx);
 
     expect(_mockCheckDomains).toHaveBeenCalledWith(
       expect.any(Array),
@@ -148,7 +148,7 @@ describe('statusCheckDns', () => {
 
   it('formats output with latency_ms and resolver records', async () => {
     const result = { results: [CLEAN_DNS_RESULT] };
-    const blocks = statusCheckDns.format!(result);
+    const blocks = devopsCheckDns.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('example.com');
     expect(text).toContain('8.8.8.8');
@@ -159,7 +159,7 @@ describe('statusCheckDns', () => {
 
   it('formats discrepancy with resolvers_agree field', () => {
     const result = { results: [DISCREPANCY_DNS_RESULT] };
-    const blocks = statusCheckDns.format!(result);
+    const blocks = devopsCheckDns.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('resolvers_agree');
     expect(text).toContain('false');
@@ -169,7 +169,7 @@ describe('statusCheckDns', () => {
 
   it('formats error domain gracefully', () => {
     const result = { results: [ERROR_DNS_RESULT] };
-    const blocks = statusCheckDns.format!(result);
+    const blocks = devopsCheckDns.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('invalid-.domain');
     expect(text).toContain('ENOTFOUND');

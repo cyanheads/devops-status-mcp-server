@@ -1,6 +1,6 @@
 /**
  * @fileoverview Tool to check health of a named vendor stack, persisted via ctx.state.
- * @module mcp-server/tools/definitions/status-watch-stack.tool
+ * @module mcp-server/tools/definitions/devops-watch-stack.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
@@ -8,12 +8,12 @@ import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getStatuspageService } from '@/services/statuspage/statuspage-service.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 import { assertSafeUrl } from '@/utils/ssrf-guard.js';
-import type { VendorResult } from './status-vendor-result.js';
+import type { VendorResult } from './devops-vendor-result.js';
 import {
   buildVendorResult,
   renderVendorBlock,
   VendorResultSchema,
-} from './status-vendor-result.js';
+} from './devops-vendor-result.js';
 
 const STACK_STATE_PREFIX = 'stack/';
 
@@ -27,7 +27,7 @@ function computeStackHealth(
   return 'all_operational';
 }
 
-export const statusWatchStack = tool('status_watch_stack', {
+export const devopsWatchStack = tool('devops_watch_stack', {
   description:
     'Check the health of a named vendor stack — a saved list of vendors representing your infrastructure dependencies. ' +
     'On the first call, provide vendors to define the stack; subsequent calls can omit vendors to reuse the persisted list. ' +
@@ -90,14 +90,14 @@ export const statusWatchStack = tool('status_watch_stack', {
       code: JsonRpcErrorCode.InvalidParams,
       when: 'A vendor slug is not in the registry and is not a valid URL.',
       recovery:
-        'Call status_list_vendors to find available slugs or pass a full Statuspage base URL.',
+        'Call devops_list_vendors to find available slugs or pass a full Statuspage base URL.',
     },
     {
       reason: 'target_blocked',
       code: JsonRpcErrorCode.InvalidParams,
       when: 'A raw URL in the stack resolves to a private, loopback, or cloud-metadata address.',
       recovery:
-        'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set STATUS_ALLOW_PRIVATE_TARGETS=true.',
+        'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
     },
   ],
 

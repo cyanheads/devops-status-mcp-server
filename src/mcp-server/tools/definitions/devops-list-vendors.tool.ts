@@ -1,6 +1,6 @@
 /**
  * @fileoverview Tool to list vendors in the built-in registry, with optional filtering.
- * @module mcp-server/tools/definitions/status-list-vendors.tool
+ * @module mcp-server/tools/definitions/devops-list-vendors.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
@@ -17,7 +17,7 @@ const CATEGORIES = [
   'ai',
 ] as const;
 
-export const statusListVendors = tool('status_list_vendors', {
+export const devopsListVendors = tool('devops_list_vendors', {
   description:
     'List vendors in the built-in registry, optionally filtered by category or name search. ' +
     'Returns slug, display name, category, and Statuspage base URL for each entry. ' +

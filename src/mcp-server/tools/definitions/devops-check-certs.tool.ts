@@ -1,7 +1,7 @@
 /**
  * @fileoverview Tool to inspect SSL/TLS certificate health for one or more domains.
  * Pure node:tls — no external APIs.
- * @module mcp-server/tools/definitions/status-check-certs.tool
+ * @module mcp-server/tools/definitions/devops-check-certs.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
@@ -11,7 +11,7 @@ import { getCertService } from '@/services/cert/cert-service.js';
 /** Regex for a bare hostname (no protocol). */
 const PROTOCOL_RE = /^https?:\/\//i;
 
-export const statusCheckCerts = tool('status_check_certs', {
+export const devopsCheckCerts = tool('devops_check_certs', {
   description:
     'Inspect SSL/TLS certificate health for one or more domains by performing a real TLS handshake. ' +
     'Works for any internet-accessible domain — no vendor registry required. ' +

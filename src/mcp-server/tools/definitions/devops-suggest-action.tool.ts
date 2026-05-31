@@ -1,7 +1,7 @@
 /**
  * @fileoverview Instruction tool — returns an incident-response playbook tailored to a vendor degradation.
  * No external calls; fully static and deterministic.
- * @module mcp-server/tools/definitions/status-suggest-action.tool
+ * @module mcp-server/tools/definitions/devops-suggest-action.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
@@ -40,8 +40,8 @@ const PLAYBOOKS: Record<string, string> = {
 3. Update your DNS TTLs to short values (30–60s) to enable rapid failover
 
 **Diagnostic checks:**
-- \`status_check_dns\` — verify DNS resolution is consistent across resolvers
-- \`status_check_certs\` — confirm your origin certificate is still valid if bypassing CDN
+- \`devops_check_dns\` — verify DNS resolution is consistent across resolvers
+- \`devops_check_certs\` — confirm your origin certificate is still valid if bypassing CDN
 - Test origin directly by hitting your origin IP or bypassing CDN via Host header
 
 **Mitigation:**
@@ -153,7 +153,7 @@ const PLAYBOOKS: Record<string, string> = {
 
 **Mitigation:**
 - Enable basic uptime monitoring via external ping service (UptimeRobot, StatusCake)
-- Use \`status_check_certs\` and \`status_check_dns\` for ground-truth checks on critical endpoints
+- Use \`devops_check_certs\` and \`devops_check_dns\` for ground-truth checks on critical endpoints
 - Increase logging verbosity in application to compensate for reduced telemetry
 
 **Monitor for:**
@@ -189,8 +189,8 @@ const DEFAULT_PLAYBOOK = `## Service Outage — Generic Incident Response
 3. Notify stakeholders with current status and expected investigation timeline
 
 **Diagnostic checks:**
-- \`status_check_dns\` — verify DNS resolution is consistent
-- \`status_check_certs\` — confirm TLS is valid if you can reach the service
+- \`devops_check_dns\` — verify DNS resolution is consistent
+- \`devops_check_certs\` — confirm TLS is valid if you can reach the service
 - Test the service directly via curl or ping to distinguish network vs. service failure
 
 **Mitigation:**
@@ -202,11 +202,11 @@ const DEFAULT_PLAYBOOK = `## Service Outage — Generic Incident Response
 - Status page indicator transitioning from "investigating" to "identified"
 - Partial recovery (some regions/components may recover before others)`;
 
-export const statusSuggestAction = tool('status_suggest_action', {
+export const devopsSuggestAction = tool('devops_suggest_action', {
   description:
     'Return an incident-response playbook tailored to a vendor degradation, with pre-filled follow-up tool calls. ' +
     'Synthesizes category-specific guidance (cloud, CDN, dev-platform, auth, etc.) from built-in incident knowledge and the provided context. ' +
-    'Use after status_check or status_get_incidents surfaces a problem to determine what to investigate next.',
+    'Use after devops_status_check or devops_get_incidents surfaces a problem to determine what to investigate next.',
   annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true },
 
   input: z.object({
@@ -220,13 +220,13 @@ export const statusSuggestAction = tool('status_suggest_action', {
       .string()
       .optional()
       .describe(
-        'Latest incident description or update body from status_get_incidents. Paste the most recent update to get more targeted advice.',
+        'Latest incident description or update body from devops_get_incidents. Paste the most recent update to get more targeted advice.',
       ),
     affected_components: z
       .array(z.string())
       .optional()
       .describe(
-        'Component names affected (from status_check degraded_components or status_get_incidents affected_components). Used to tailor suggestions to the impacted subsystem.',
+        'Component names affected (from devops_status_check degraded_components or devops_get_incidents affected_components). Used to tailor suggestions to the impacted subsystem.',
       ),
     your_domain: z
       .string()
@@ -274,7 +274,7 @@ export const statusSuggestAction = tool('status_suggest_action', {
           .object({
             toolName: z
               .string()
-              .describe('Tool to call next (e.g., "status_check_dns", "status_check_certs").'),
+              .describe('Tool to call next (e.g., "devops_check_dns", "devops_check_certs").'),
             reason: z.string().describe('Why this step is recommended given the incident context.'),
             args: z
               .record(z.string(), z.unknown())
@@ -303,7 +303,7 @@ export const statusSuggestAction = tool('status_suggest_action', {
 
     // Always suggest checking incidents
     suggestions.push({
-      toolName: 'status_get_incidents',
+      toolName: 'devops_get_incidents',
       reason:
         'Get full incident timeline with all investigator updates and affected component history.',
       args: {
@@ -318,7 +318,7 @@ export const statusSuggestAction = tool('status_suggest_action', {
       input.your_domain?.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') ?? null;
     if (domainToCheck) {
       suggestions.push({
-        toolName: 'status_check_dns',
+        toolName: 'devops_check_dns',
         reason:
           'Verify DNS propagation for your domain — an outage may cause stale records to linger.',
         args: {
@@ -327,7 +327,7 @@ export const statusSuggestAction = tool('status_suggest_action', {
         },
       });
       suggestions.push({
-        toolName: 'status_check_certs',
+        toolName: 'devops_check_certs',
         reason:
           'Confirm your SSL/TLS certificate is valid and HSTS is configured before re-routing traffic.',
         args: {
@@ -340,7 +340,7 @@ export const statusSuggestAction = tool('status_suggest_action', {
     // If CDN/edge outage, suggest checking the vendor's own domain as a cert check target
     if (category === 'cdn-edge' && entry && domainToCheck) {
       suggestions.push({
-        toolName: 'status_check',
+        toolName: 'devops_status_check',
         reason:
           'Re-check vendor status to detect partial recovery (CDN outages often recover region by region).',
         args: {

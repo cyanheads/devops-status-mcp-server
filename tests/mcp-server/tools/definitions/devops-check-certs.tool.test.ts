@@ -1,11 +1,11 @@
 /**
- * @fileoverview Tests for the status_check_certs tool.
- * @module tests/mcp-server/tools/definitions/status-check-certs.tool.test
+ * @fileoverview Tests for the devops_check_certs tool.
+ * @module tests/mcp-server/tools/definitions/devops-check-certs.tool.test
  */
 
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { statusCheckCerts } from '@/mcp-server/tools/definitions/status-check-certs.tool.js';
+import { devopsCheckCerts } from '@/mcp-server/tools/definitions/devops-check-certs.tool.js';
 import type { CertResult } from '@/services/cert/cert-service.js';
 
 vi.mock('@/services/cert/cert-service.js', () => {
@@ -77,16 +77,16 @@ const ERROR_CERT: CertResult = {
   error: 'ECONNREFUSED',
 };
 
-describe('statusCheckCerts', () => {
+describe('devopsCheckCerts', () => {
   it('returns ok status for a healthy certificate', async () => {
     const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     _mockCheckDomains.mockResolvedValue([VALID_CERT]);
 
-    const ctx = createMockContext({ errors: statusCheckCerts.errors });
-    const input = statusCheckCerts.input.parse({ domains: ['example.com'] });
-    const result = await statusCheckCerts.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsCheckCerts.errors });
+    const input = devopsCheckCerts.input.parse({ domains: ['example.com'] });
+    const result = await devopsCheckCerts.handler(input, ctx);
 
     expect(result.results).toHaveLength(1);
     expect(result.results[0]!.status).toBe('ok');
@@ -102,9 +102,9 @@ describe('statusCheckCerts', () => {
     };
     _mockCheckDomains.mockResolvedValue([CRITICAL_CERT]);
 
-    const ctx = createMockContext({ errors: statusCheckCerts.errors });
-    const input = statusCheckCerts.input.parse({ domains: ['expiring.example.com'] });
-    const result = await statusCheckCerts.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsCheckCerts.errors });
+    const input = devopsCheckCerts.input.parse({ domains: ['expiring.example.com'] });
+    const result = await devopsCheckCerts.handler(input, ctx);
 
     expect(result.results[0]!.status).toBe('critical');
     expect(result.results[0]!.flags).toContain('Expires in 3 days (CRITICAL)');
@@ -116,9 +116,9 @@ describe('statusCheckCerts', () => {
     };
     _mockCheckDomains.mockResolvedValue([ERROR_CERT]);
 
-    const ctx = createMockContext({ errors: statusCheckCerts.errors });
-    const input = statusCheckCerts.input.parse({ domains: ['unreachable.example.com'] });
-    const result = await statusCheckCerts.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsCheckCerts.errors });
+    const input = devopsCheckCerts.input.parse({ domains: ['unreachable.example.com'] });
+    const result = await devopsCheckCerts.handler(input, ctx);
 
     expect(result.results[0]!.status).toBe('error');
     expect(result.results[0]!.error).toBe('ECONNREFUSED');
@@ -126,12 +126,12 @@ describe('statusCheckCerts', () => {
   });
 
   it('throws invalid_domain for protocol-prefixed input (bypassing Zod schema)', async () => {
-    const ctx = createMockContext({ errors: statusCheckCerts.errors });
+    const ctx = createMockContext({ errors: devopsCheckCerts.errors });
     // Bypass Zod validation to test the handler's belt-and-suspenders PROTOCOL_RE check
     const input = { domains: ['https://example.com'], port: 443, timeout_ms: 5000 } as Parameters<
-      typeof statusCheckCerts.handler
+      typeof devopsCheckCerts.handler
     >[0];
-    await expect(statusCheckCerts.handler(input, ctx)).rejects.toMatchObject({
+    await expect(devopsCheckCerts.handler(input, ctx)).rejects.toMatchObject({
       data: { reason: 'invalid_domain' },
     });
   });
@@ -161,9 +161,9 @@ describe('statusCheckCerts', () => {
     };
     _mockCheckDomains.mockResolvedValue([WARNING_CERT]);
 
-    const ctx = createMockContext({ errors: statusCheckCerts.errors });
-    const input = statusCheckCerts.input.parse({ domains: ['almost-expired.example.com'] });
-    const result = await statusCheckCerts.handler(input, ctx);
+    const ctx = createMockContext({ errors: devopsCheckCerts.errors });
+    const input = devopsCheckCerts.input.parse({ domains: ['almost-expired.example.com'] });
+    const result = await devopsCheckCerts.handler(input, ctx);
 
     expect(result.results[0]!.status).toBe('warning');
     expect(result.results[0]!.flags.some((f) => f.includes('warning'))).toBe(true);
@@ -176,11 +176,11 @@ describe('statusCheckCerts', () => {
     };
     _mockCheckDomains.mockResolvedValue([VALID_CERT, ERROR_CERT]);
 
-    const ctx = createMockContext({ errors: statusCheckCerts.errors });
-    const input = statusCheckCerts.input.parse({
+    const ctx = createMockContext({ errors: devopsCheckCerts.errors });
+    const input = devopsCheckCerts.input.parse({
       domains: ['example.com', 'unreachable.example.com'],
     });
-    const result = await statusCheckCerts.handler(input, ctx);
+    const result = await devopsCheckCerts.handler(input, ctx);
 
     expect(result.results).toHaveLength(2);
     expect(_mockCheckDomains).toHaveBeenCalledWith(
@@ -192,7 +192,7 @@ describe('statusCheckCerts', () => {
 
   it('formats output with cert subject and expiry', async () => {
     const result = { results: [VALID_CERT] };
-    const blocks = statusCheckCerts.format!(result);
+    const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('example.com');
     expect(text).toContain('ok');
@@ -202,7 +202,7 @@ describe('statusCheckCerts', () => {
 
   it('formats error result gracefully (null cert)', () => {
     const result = { results: [ERROR_CERT] };
-    const blocks = statusCheckCerts.format!(result);
+    const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('error');
     expect(text).toContain('ECONNREFUSED');

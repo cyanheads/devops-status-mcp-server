@@ -6,14 +6,20 @@
     "url": "https://github.com/cyanheads/devops-status-mcp-server",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://devops-status.caseyjhand.com/mcp"
+    }
+  ],
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@cyanheads/devops-status-mcp-server",
       "runtimeHint": "bun",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "packageArguments": [
         {
           "type": "positional",
@@ -49,7 +55,7 @@
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@cyanheads/devops-status-mcp-server",
       "runtimeHint": "bun",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "packageArguments": [
         {
           "type": "positional",

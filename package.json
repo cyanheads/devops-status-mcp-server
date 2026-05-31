@@ -1,6 +1,6 @@
 {
   "name": "@cyanheads/devops-status-mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "mcpName": "io.github.cyanheads/devops-status-mcp-server",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks via MCP. STDIO or Streamable HTTP.",
   "type": "module",

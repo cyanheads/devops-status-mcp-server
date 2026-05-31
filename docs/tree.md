@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-05-30 13:15:55
+Generated on: 2026-05-31 02:20:26
 
 ```text
 devops-status-mcp-server/
@@ -140,6 +140,8 @@ devops-status-mcp-server/
 │   │   │   └── types.ts
 │   │   └── vendor-registry/
 │   │       └── vendor-registry-service.ts
+│   ├── utils/
+│   │   └── ssrf-guard.ts
 │   └── index.ts
 ├── tests/
 │   ├── mcp-server/
@@ -166,7 +168,9 @@ devops-status-mcp-server/
 │   │   │   └── statuspage-service.test.ts
 │   │   └── vendor-registry/
 │   │       └── vendor-registry-service.test.ts
-│   └── tools/
+│   ├── tools/
+│   └── utils/
+│       └── ssrf-guard.test.ts
 ├── .dockerignore
 ├── .env.example
 ├── .gitignore

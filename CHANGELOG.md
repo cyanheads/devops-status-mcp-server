@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.2.1](changelog/0.2.x/0.2.1.md) — 2026-06-02
+
+Adopt @cyanheads/mcp-ts-core 0.9.21: per-request log context fix, secret-stripping in fetchWithTimeout, withRetry fail-fast on non-retryable errors.
+
 ## [0.2.0](changelog/0.2.x/0.2.0.md) — 2026-05-30 · ⚠️ Breaking
 
 Rename status_* tool prefix → devops_* and STATUS_* env prefix → DEVOPS_STATUS_*.

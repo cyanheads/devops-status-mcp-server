@@ -1,6 +1,6 @@
 {
   "name": "@cyanheads/devops-status-mcp-server",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "mcpName": "io.github.cyanheads/devops-status-mcp-server",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks via MCP. STDIO or Streamable HTTP.",
   "type": "module",
@@ -38,6 +38,7 @@
     "start": "bun ./dist/index.js",
     "start:stdio": "MCP_TRANSPORT_TYPE=stdio bun ./dist/index.js",
     "start:http": "MCP_TRANSPORT_TYPE=http bun ./dist/index.js",
+    "release:github": "tsx scripts/release-github.ts",
     "publish-mcp": "mcp-publisher login github -token \"$(security find-generic-password -a \"$USER\" -s mcp-publisher-github-pat -w)\" && mcp-publisher publish"
   },
   "keywords": [
@@ -74,17 +75,17 @@
     "access": "public"
   },
   "dependencies": {
-    "@cyanheads/mcp-ts-core": "^0.9.16",
+    "@cyanheads/mcp-ts-core": "^0.9.21",
     "pino-pretty": "^13.1.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.7",
-    "@types/node": "^25.6.0",
+    "@biomejs/biome": "^2.4.16",
+    "@types/node": "^25.9.1",
     "depcheck": "^1.4.7",
     "ignore": "^7.0.5",
-    "tsc-alias": "^1.8.16",
+    "tsc-alias": "^1.8.17",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.8"
   }
 }

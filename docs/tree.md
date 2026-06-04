@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-06-02 14:08:29
+Generated on: 2026-06-04 09:18:52
 
 ```text
 devops-status-mcp-server/
@@ -124,6 +124,7 @@ devops-status-mcp-server/
 │   ├── config/
 │   │   └── server-config.ts
 │   ├── data/
+│   │   └── vendor-registry.ts
 │   ├── mcp-server/
 │   │   ├── prompts/
 │   │   │   └── definitions/

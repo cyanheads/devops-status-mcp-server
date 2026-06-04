@@ -19,7 +19,7 @@ await createApp({
   instructions:
     'Infrastructure health and incident intelligence for DevOps agents. ' +
     'No API keys required — fully public data sources. ' +
-    'Vendor registry: 26 verified vendors across cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories. ' +
+    'Vendor registry: 48 verified vendors across cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories. ' +
     'Workflow: devops_list_vendors (discover slugs) → devops_status_check (health snapshot) → devops_get_incidents (incident history) → devops_suggest_action (response playbook). ' +
     'devops_watch_stack persists a named vendor list in session state for repeat health sweeps. ' +
     'devops_check_certs and devops_check_dns work for any domain — not just registered vendors.',

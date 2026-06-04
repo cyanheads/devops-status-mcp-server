@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.2.1-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^5.9.3-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.2.2-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^5.9.3-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -29,7 +29,7 @@
 
 ## Tools
 
-Seven tools in three capability groups — vendor status (Atlassian Statuspage, 26 built-in vendors + raw-URL passthrough), pure-TypeScript cert/DNS checks (any domain), and incident-response guidance:
+Seven tools in three capability groups — vendor status (Atlassian Statuspage, 48 built-in vendors + raw-URL passthrough), pure-TypeScript cert/DNS checks (any domain), and incident-response guidance:
 
 | Tool | Description |
 |:-----|:------------|
@@ -48,7 +48,7 @@ Discover available vendors before running status checks or configuring a stack.
 - Accepts an optional free-text `query` (matches name and slug, case-insensitive) and an optional `category` filter
 - Eight categories: `cloud`, `cdn-edge`, `dev-platform`, `data`, `comms`, `auth`, `monitoring`, `ai`
 - Returns slug (what to pass to other tools), display name, category, and Statuspage base URL
-- 26 built-in entries — well-known public vendors with verified Statuspage `/api/v2/status.json` endpoints
+- 48 built-in entries — well-known public vendors with verified Statuspage `/api/v2/status.json` endpoints
 
 Built-in vendor registry:
 
@@ -56,12 +56,12 @@ Built-in vendor registry:
 |:---------|:--------|
 | `cloud` | digitalocean, linode |
 | `cdn-edge` | cloudflare, akamai |
-| `dev-platform` | github, npm, vercel, netlify, render, fly-io |
-| `data` | mongodb-atlas, planetscale, supabase, neon, redis-cloud |
-| `comms` | slack, discord, twilio, sendgrid, mailgun |
-| `auth` | auth0, clerk |
-| `monitoring` | datadog, sentry |
-| `ai` | openai, anthropic |
+| `dev-platform` | github, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, figma, launchdarkly |
+| `data` | mongodb-atlas, planetscale, supabase, neon, redis-cloud, elastic, influxdb, upstash, cloudinary, segment |
+| `comms` | slack, discord, twilio, sendgrid, mailgun, hubspot, brevo, courier, loops |
+| `auth` | auth0, clerk, workos |
+| `monitoring` | datadog, sentry, new-relic, grafana-cloud, honeycomb |
+| `ai` | openai, anthropic, elevenlabs, pinecone, cohere |
 
 The registry covers verified public vendors on Atlassian Statuspage. Major cloud providers (AWS, GCP, Azure) use custom status pages and are not in the registry — they can still be reached by passing their raw Statuspage-compatible URL if one exists.
 
@@ -163,7 +163,7 @@ Built on [`@cyanheads/mcp-ts-core`](https://www.npmjs.com/package/@cyanheads/mcp
 DevOps-status-specific:
 
 - **No API keys required** — Atlassian Statuspage is a public API; TLS and DNS use Node.js stdlib (`node:tls`, `node:dns`)
-- 26-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; extendable via raw Statuspage URL passthrough
+- 48-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; extendable via raw Statuspage URL passthrough
 - 60-second in-memory cache on Statuspage reads shared across all tenants — prevents thundering-herd on batch calls
 - `devops_watch_stack` persists named vendor lists in tenant-scoped state for repeat morning checks or pre-deploy sweeps
 - `devops_suggest_action` dispatches category-specific playbooks deterministically — no LLM sampling dependency, works in all clients

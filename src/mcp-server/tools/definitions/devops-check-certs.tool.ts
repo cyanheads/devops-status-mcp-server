@@ -116,7 +116,7 @@ export const devopsCheckCerts = tool('devops_check_certs', {
   errors: [
     {
       reason: 'invalid_domain',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'A domain string contains a protocol prefix or invalid characters.',
       recovery:
         'Remove "https://" and pass the bare hostname only (e.g., "api.github.com" not "https://api.github.com").',

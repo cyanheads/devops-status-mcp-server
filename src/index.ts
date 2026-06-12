@@ -13,6 +13,8 @@ import { initStatuspageService } from './services/statuspage/statuspage-service.
 import { initVendorRegistryService } from './services/vendor-registry/vendor-registry-service.js';
 
 await createApp({
+  name: 'devops-status-mcp-server',
+  title: 'devops-status-mcp-server',
   tools: [...allToolDefinitions],
   resources: [...allResourceDefinitions],
   prompts: [],

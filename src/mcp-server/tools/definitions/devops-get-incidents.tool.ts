@@ -161,16 +161,22 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     statuspage_url: z.string().describe('Statuspage base URL used.'),
   }),
 
+  enrichment: {
+    truncated: z.boolean().describe('True when more incidents matched than the limit returned.'),
+    shown: z.number().describe('Number of incidents returned after applying the limit.'),
+    cap: z.number().describe('The limit that was applied.'),
+  },
+
   errors: [
     {
       reason: 'vendor_not_found',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.NotFound,
       when: 'Vendor slug not in registry and input is not a valid URL.',
       recovery: 'Call devops_list_vendors to browse slugs or pass the full Statuspage base URL.',
     },
     {
       reason: 'target_blocked',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'A raw URL resolves to a private, loopback, or cloud-metadata address.',
       recovery:
         'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
@@ -238,6 +244,13 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     }
 
     const limited = incidents.slice(0, input.limit);
+    if (incidents.length > input.limit) {
+      ctx.enrich.truncated({
+        shown: limited.length,
+        cap: input.limit,
+        guidance: 'Raise limit (max 50) or filter by status to narrow the incident set.',
+      });
+    }
     ctx.log.info('Incidents fetched', {
       vendor: input.vendor,
       filter: input.filter,

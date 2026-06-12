@@ -81,20 +81,20 @@ export const devopsWatchStack = tool('devops_watch_stack', {
   errors: [
     {
       reason: 'no_stack',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.NotFound,
       when: 'No vendors provided and no saved stack found for stack_name.',
       recovery: 'Provide a vendors list to define the stack. It will be saved for future calls.',
     },
     {
       reason: 'vendor_not_found',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.NotFound,
       when: 'A vendor slug is not in the registry and is not a valid URL.',
       recovery:
         'Call devops_list_vendors to find available slugs or pass a full Statuspage base URL.',
     },
     {
       reason: 'target_blocked',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'A raw URL in the stack resolves to a private, loopback, or cloud-metadata address.',
       recovery:
         'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',

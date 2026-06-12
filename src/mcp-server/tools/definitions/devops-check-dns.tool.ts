@@ -117,7 +117,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
   errors: [
     {
       reason: 'invalid_domain',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'A domain string contains a protocol prefix or invalid format.',
       recovery:
         'Pass bare hostnames without "https://" (e.g., "example.com" not "https://example.com").',

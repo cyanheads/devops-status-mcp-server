@@ -58,14 +58,14 @@ export const devopsStatusCheck = tool('devops_status_check', {
   errors: [
     {
       reason: 'vendor_not_found',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.NotFound,
       when: 'A vendor slug does not match any entry in the built-in registry and is not a valid URL.',
       recovery:
         'Call devops_list_vendors to browse available slugs, or pass a full Statuspage base URL (e.g., "https://www.githubstatus.com").',
     },
     {
       reason: 'target_blocked',
-      code: JsonRpcErrorCode.InvalidParams,
+      code: JsonRpcErrorCode.ValidationError,
       when: 'A raw URL resolves to a private, loopback, or cloud-metadata address.',
       recovery:
         'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',

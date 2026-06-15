@@ -1,6 +1,6 @@
 {
   "name": "devops-status-mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.3",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
   "author": {
     "name": "cyanheads",

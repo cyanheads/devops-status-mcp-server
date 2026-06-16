@@ -19,11 +19,21 @@ const ServerConfigSchema = z.object({
     .describe('TLS handshake timeout per domain in milliseconds.'),
   dnsTimeoutMs: z.coerce.number().default(3_000).describe('DNS query timeout in milliseconds.'),
   allowPrivateTargets: z
-    .string()
-    .optional()
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true')
     .describe(
       'When "true", disables SSRF guards for user-supplied URLs and domains. ' +
         'For trusted local/intranet deployments only. Defaults to false (guards enabled).',
+    ),
+  disableActiveProbes: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true')
+    .describe(
+      'When "true", the arbitrary-target probe tools (devops_check_dns, devops_check_certs) are ' +
+        'omitted from the registered tool surface. The five vendor-registry/incident tools remain. ' +
+        'For shared/public multi-tenant instances. Defaults to false (both tools registered).',
     ),
 });
 
@@ -38,6 +48,7 @@ export function getServerConfig(): ServerConfig {
     certTimeoutMs: 'DEVOPS_STATUS_CERT_TIMEOUT_MS',
     dnsTimeoutMs: 'DEVOPS_STATUS_DNS_TIMEOUT_MS',
     allowPrivateTargets: 'DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS',
+    disableActiveProbes: 'DEVOPS_STATUS_DISABLE_ACTIVE_PROBES',
   });
   return _config;
 }

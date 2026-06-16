@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "devops-status-mcp-server",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
   "author": { "name": "cyanheads" },
   "server": {
@@ -27,6 +27,13 @@
       "type": "string",
       "title": "Allow Private Targets",
       "description": "When 'true', disables SSRF guards for user-supplied URLs and domains. For trusted local/intranet deployments only. Default: false (guards enabled).",
+      "required": false,
+      "default": "false"
+    },
+    "DEVOPS_STATUS_DISABLE_ACTIVE_PROBES": {
+      "type": "string",
+      "title": "Disable Active Probes",
+      "description": "When 'true', omits the arbitrary-target probe tools (devops_check_dns, devops_check_certs) from the registered tool surface; the five vendor-registry/incident tools remain. For shared/public multi-tenant instances. Default: false (both tools registered).",
       "required": false,
       "default": "false"
     }

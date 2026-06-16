@@ -9,6 +9,7 @@
  */
 
 import { lookup } from 'node:dns/promises';
+import { getServerConfig } from '@/config/server-config.js';
 
 /** CIDR blocks that are non-routable or typically internal. */
 const PRIVATE_RANGES: Array<{ base: bigint; mask: bigint; label: string }> = (() => {
@@ -105,7 +106,7 @@ async function resolveAndCheck(hostname: string, context: string): Promise<void>
 
 /** True when the operator has explicitly enabled private-target access. */
 function privateTargetsAllowed(): boolean {
-  return process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS?.toLowerCase() === 'true';
+  return getServerConfig().allowPrivateTargets;
 }
 
 /**

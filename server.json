@@ -6,7 +6,7 @@
     "url": "https://github.com/cyanheads/devops-status-mcp-server",
     "source": "github"
   },
-  "version": "0.2.3",
+  "version": "0.2.4",
   "remotes": [
     {
       "type": "streamable-http",
@@ -19,7 +19,7 @@
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@cyanheads/devops-status-mcp-server",
       "runtimeHint": "bun",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "packageArguments": [
         {
           "type": "positional",
@@ -44,6 +44,13 @@
           "format": "string",
           "isRequired": false,
           "default": "false"
+        },
+        {
+          "name": "DEVOPS_STATUS_DISABLE_ACTIVE_PROBES",
+          "description": "When 'true', omits the arbitrary-target probe tools (devops_check_dns, devops_check_certs) from the registered tool surface; the five vendor-registry/incident tools remain. For shared/public multi-tenant instances. Leave unset or 'false' to register both tools.",
+          "format": "string",
+          "isRequired": false,
+          "default": "false"
         }
       ],
       "transport": {
@@ -55,7 +62,7 @@
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@cyanheads/devops-status-mcp-server",
       "runtimeHint": "bun",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "packageArguments": [
         {
           "type": "positional",
@@ -105,6 +112,13 @@
         {
           "name": "DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS",
           "description": "When 'true', disables SSRF guards for user-supplied URLs and domains. For trusted local/intranet deployments only. Leave unset or 'false' for hosted/public deployments.",
+          "format": "string",
+          "isRequired": false,
+          "default": "false"
+        },
+        {
+          "name": "DEVOPS_STATUS_DISABLE_ACTIVE_PROBES",
+          "description": "When 'true', omits the arbitrary-target probe tools (devops_check_dns, devops_check_certs) from the registered tool surface; the five vendor-registry/incident tools remain. For shared/public multi-tenant instances. Leave unset or 'false' to register both tools.",
           "format": "string",
           "isRequired": false,
           "default": "false"

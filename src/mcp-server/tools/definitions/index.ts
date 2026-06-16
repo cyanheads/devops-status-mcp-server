@@ -28,3 +28,13 @@ export const allToolDefinitions = [
   devopsCheckDns,
   devopsSuggestAction,
 ] as const;
+
+/**
+ * Names of the arbitrary-target probe tools — caller-controlled outbound DNS queries
+ * and TLS handshakes to any host/port. Gated out of the registered tool surface when
+ * `DEVOPS_STATUS_DISABLE_ACTIVE_PROBES=true` (see `src/index.ts`).
+ */
+export const ACTIVE_PROBE_TOOL_NAMES: ReadonlySet<string> = new Set([
+  devopsCheckCerts.name,
+  devopsCheckDns.name,
+]);

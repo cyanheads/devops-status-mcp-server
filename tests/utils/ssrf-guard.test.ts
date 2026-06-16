@@ -7,6 +7,22 @@ import * as dnsPromises from 'node:dns/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { assertSafeDomain, assertSafeResolverIp, assertSafeUrl } from '@/utils/ssrf-guard.js';
 
+/**
+ * The guard reads `getServerConfig().allowPrivateTargets`, not `process.env`. Mock the config
+ * module so each test drives the parsed flag directly — the real `getServerConfig` caches a
+ * singleton, so mutating `process.env` mid-suite would have no effect after the first parse.
+ */
+vi.mock('@/config/server-config.js', () => ({
+  getServerConfig: vi.fn(() => ({ allowPrivateTargets })),
+}));
+
+let allowPrivateTargets = false;
+
+/** Drive the parsed `allowPrivateTargets` config flag for the current test. */
+function setAllowPrivateTargets(value: boolean): void {
+  allowPrivateTargets = value;
+}
+
 // We mock dns.lookup so tests run offline and are deterministic.
 vi.mock('node:dns/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof dnsPromises>();
@@ -21,6 +37,11 @@ function mockAddresses(addresses: Array<{ address: string; family: 4 | 6 }>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mockLookup.mockResolvedValue(addresses as any);
 }
+
+afterEach(() => {
+  vi.clearAllMocks();
+  setAllowPrivateTargets(false);
+});
 
 describe('assertSafeResolverIp (synchronous, no DNS)', () => {
   it('passes for public IPv4', () => {
@@ -58,24 +79,15 @@ describe('assertSafeResolverIp (synchronous, no DNS)', () => {
     expect(() => assertSafeResolverIp('2001:4860:4860::8888')).not.toThrow();
   });
 
-  it('is a no-op when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true', () => {
-    process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS = 'true';
-    try {
-      expect(() => assertSafeResolverIp('127.0.0.1')).not.toThrow();
-      expect(() => assertSafeResolverIp('10.0.0.1')).not.toThrow();
-      expect(() => assertSafeResolverIp('169.254.169.254')).not.toThrow();
-    } finally {
-      delete process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS;
-    }
+  it('is a no-op when allowPrivateTargets is true (config-driven)', () => {
+    setAllowPrivateTargets(true);
+    expect(() => assertSafeResolverIp('127.0.0.1')).not.toThrow();
+    expect(() => assertSafeResolverIp('10.0.0.1')).not.toThrow();
+    expect(() => assertSafeResolverIp('169.254.169.254')).not.toThrow();
   });
 });
 
 describe('assertSafeUrl (async, mocked DNS)', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-    delete process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS;
-  });
-
   it('passes for a URL resolving to a public IP', async () => {
     mockAddresses([{ address: '185.199.108.153', family: 4 }]);
     await expect(assertSafeUrl('https://www.githubstatus.com')).resolves.toBeUndefined();
@@ -107,8 +119,8 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
     await expect(assertSafeUrl('not a url')).rejects.toThrow('SSRF_BLOCKED');
   });
 
-  it('passes when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true even for private IP', async () => {
-    process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS = 'true';
+  it('passes when allowPrivateTargets is true even for private IP (config-driven)', async () => {
+    setAllowPrivateTargets(true);
     // lookup should NOT be called when guards are disabled
     await expect(assertSafeUrl('http://10.0.0.1/api/v2/summary.json')).resolves.toBeUndefined();
     expect(mockLookup).not.toHaveBeenCalled();
@@ -131,11 +143,6 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
 });
 
 describe('assertSafeDomain (async, mocked DNS)', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-    delete process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS;
-  });
-
   it('passes for a public domain', async () => {
     mockAddresses([{ address: '93.184.216.34', family: 4 }]);
     await expect(assertSafeDomain('example.com')).resolves.toBeUndefined();
@@ -156,8 +163,8 @@ describe('assertSafeDomain (async, mocked DNS)', () => {
     await expect(assertSafeDomain('intranet.corp')).rejects.toThrow('SSRF_BLOCKED');
   });
 
-  it('is a no-op when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true', async () => {
-    process.env.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS = 'true';
+  it('is a no-op when allowPrivateTargets is true (config-driven)', async () => {
+    setAllowPrivateTargets(true);
     await expect(assertSafeDomain('localhost')).resolves.toBeUndefined();
     expect(mockLookup).not.toHaveBeenCalled();
   });

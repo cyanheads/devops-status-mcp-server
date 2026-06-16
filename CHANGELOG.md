@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.2.4](changelog/0.2.x/0.2.4.md) — 2026-06-15 · 🛡️ Security
+
+DEVOPS_STATUS_DISABLE_ACTIVE_PROBES gates the arbitrary-target probe tools out of the surface for shared/public instances; SSRF guard now reads the parsed config instead of process.env, with allowPrivateTargets tightened to a strict boolean.
+
 ## [0.2.3](changelog/0.2.x/0.2.3.md) — 2026-06-12
 
 Adopt mcp-ts-core ^0.10.6: semantic error codes across the tool surface, incident-count truncation enrichment on devops_get_incidents, explicit display identity, and an MCPB post-pack bundle cleaner.

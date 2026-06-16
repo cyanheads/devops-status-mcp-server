@@ -1,5 +1,5 @@
 {
-  "@cyanheads/devops-status-mcp-server": {
+  "devops-status-mcp-server": {
     "command": "npx",
     "args": ["-y", "@cyanheads/devops-status-mcp-server"],
     "env": {

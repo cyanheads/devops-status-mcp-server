@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.2.5](changelog/0.2.x/0.2.5.md) — 2026-06-20
+
+Adopt @cyanheads/mcp-ts-core ^0.10.9 — ctx.content media collector, Canvas SQL invalid_sql classification, DuckdbProvider.describe() filter fix, two new devcheck guards (dependency specifiers, plugin marketplace manifests); typescript ^6.0.3, @types/node ^26.
+
 ## [0.2.4](changelog/0.2.x/0.2.4.md) — 2026-06-15 · 🛡️ Security
 
 DEVOPS_STATUS_DISABLE_ACTIVE_PROBES gates the arbitrary-target probe tools out of the surface for shared/public instances; SSRF guard now reads the parsed config instead of process.env, with allowPrivateTargets tightened to a strict boolean.

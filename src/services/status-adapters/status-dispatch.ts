@@ -18,6 +18,11 @@ import {
   fetchAwsSummary,
 } from './aws-adapter.js';
 import {
+  fetchFirehydrantIncidents,
+  fetchFirehydrantScheduledMaintenances,
+  fetchFirehydrantSummary,
+} from './firehydrant-adapter.js';
+import {
   fetchSlackIncidents,
   fetchSlackScheduledMaintenances,
   fetchSlackSummary,
@@ -41,6 +46,8 @@ export function fetchVendorSummary(
       return fetchSlackSummary(vendor);
     case 'aws':
       return fetchAwsSummary(vendor);
+    case 'firehydrant':
+      return fetchFirehydrantSummary(vendor);
   }
 }
 
@@ -57,6 +64,8 @@ export function fetchVendorIncidents(
       return fetchSlackIncidents(vendor);
     case 'aws':
       return fetchAwsIncidents(vendor);
+    case 'firehydrant':
+      return fetchFirehydrantIncidents(vendor);
   }
 }
 
@@ -73,5 +82,7 @@ export function fetchVendorScheduledMaintenances(
       return fetchSlackScheduledMaintenances(vendor);
     case 'aws':
       return fetchAwsScheduledMaintenances(vendor);
+    case 'firehydrant':
+      return fetchFirehydrantScheduledMaintenances(vendor);
   }
 }

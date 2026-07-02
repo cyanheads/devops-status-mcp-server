@@ -30,7 +30,7 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
     api_type: z
       .string()
       .describe(
-        'Status backend: "statuspage" (Atlassian Statuspage), "statusio" (Status.io), "slack" (Slack status API), or "aws" (AWS Health Dashboard).',
+        'Status backend: "statuspage" (Atlassian Statuspage), "statusio" (Status.io), "slack" (Slack status API), "aws" (AWS Health Dashboard), or "firehydrant" (Firehydrant-hosted status page).',
       ),
   }),
 

@@ -17,7 +17,7 @@ export type ResolvedVendor = {
   name: string;
   slug: string | null;
 } & (
-  | { api_type: 'statuspage' | 'slack' | 'aws' }
+  | { api_type: 'statuspage' | 'slack' | 'aws' | 'firehydrant' }
   | { api_type: 'statusio'; statusio_page_id: string }
 );
 

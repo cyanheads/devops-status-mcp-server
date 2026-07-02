@@ -1,0 +1,346 @@
+{
+  "config": {
+    "companyName": "Redis Service Health",
+    "title": "Redis Service Health",
+    "operationalMessage": "Currently, there are no active incidents.",
+    "uiVersion": 2
+  },
+  "conditions": {
+    "Degraded": "DEGRADED",
+    "Operational": "OPERATIONAL",
+    "Unavailable": "OFFLINE",
+    "Maintenance": "DEGRADED"
+  },
+  "components": [
+    {
+      "name": "Admin Console",
+      "id": "38b0dea6-11f5-4c11-9705-1ded7fa68e33"
+    },
+    {
+      "name": "Heroku Integration",
+      "id": "e0ee0ba0-9ee6-4ecd-8fbd-1acc817d888a"
+    },
+    {
+      "name": "REST API",
+      "id": "4c9d20f7-9257-46be-b188-923a0177b5f1"
+    },
+    {
+      "name": "Support Site",
+      "id": "d169e220-b47d-4d60-85c5-fd0c5fea3e77"
+    },
+    {
+      "name": "DNS Resolvers",
+      "id": "4bb3dbbb-f84a-40b9-87b7-9a3b51295f26"
+    },
+    {
+      "name": "LangCache",
+      "id": "43ea3816-2e73-454f-8cda-6472ade0744e"
+    }
+  ],
+  "incidents": [
+    {
+      "id": "2f3423b7-2311-4f64-a6fa-297daaff63e4",
+      "title": "AWS me-central-1 Zone Issue",
+      "timestamps": {
+        "started": "2026-03-01T14:33:58Z",
+        "detected": "2026-03-01T14:33:58Z",
+        "resolved": "2026-03-03T21:29:30Z",
+        "acknowledged": "2026-03-23T23:08:00Z"
+      },
+      "timeline": [
+        {
+          "time": "2026-03-23T23:08:09.436021Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Resolved** — UPDATE — The issue impacting availability in the AWS Middle East (UAE) Region (me-central-1) remains ongoing at the cloud provider level. While recovery efforts continue, the timeline for full restoration remains unclear. At this stage, Redis Cloud services are operating within the current regional constraints, and we are resolving this incident from active monitoring.\n\nWe recommend following AWS's current guidance, which is for customers to consider migrating workloads to alternate regions while recovery efforts continue. Redis Cloud supports workloads across multiple AWS and GCP regions, and customers may consider deploying in alternative locations such as ap-south-1 (Mumbai) or other unaffected regions.\n\nCustomers should continue monitoring updates via the AWS Health Dashboard:\nhttps://health.console.aws.amazon.com/\n\nIf you require assistance planning or executing migrations, please contact support@redis.com. Our teams will also proactively reach out to impacted customers with additional best practices and support."
+          },
+          "occurredAt": "2026-03-03T21:29:30.794Z"
+        },
+        {
+          "time": "2026-03-23T23:08:08.488007Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Identified** — Update — The issue impacting multiple Availability Zones in the me-central-1 (UAE) region remains ongoing. Recovery efforts are continuing, and restoration timelines may be extended due to the nature of the underlying infrastructure disruption.\n\nCustomers with workloads in mec1-az2 and mec1-az3 may continue to experience service degradation or availability issues. The mec1-az1 Availability Zone remains operational; however, capacity and deployment options may currently be limited. Customers are encouraged to follow AWS guidance and consider deploying workloads in alternate regions while recovery efforts continue.\n\nAWS customers can continue monitoring updates directly via the AWS Account Health Dashboard - https://health.console.aws.amazon.com/\n\nIf you require assistance creating new subscriptions or migrating workloads to unaffected capacity, please contact Redis Support at support@redis.com.\n\nWe will continue to provide updates as more information becomes available."
+          },
+          "occurredAt": "2026-03-03T03:22:06Z"
+        },
+        {
+          "time": "2026-03-23T23:08:07.486795Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Identified** — The issue impacting an availability zone in the me-central-1 region (zone ID: mec1az2) is still ongoing. Restoration efforts are in progress.\n\nSome Redis Cloud clusters in this zone may continue to experience connectivity issues or increased latency while service is being restored. We will provide further updates as more information becomes available.\n\nFor further assistance, please contact our Support team."
+          },
+          "occurredAt": "2026-03-02T13:22:48Z"
+        },
+        {
+          "time": "2026-03-23T23:08:06.467472Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Identified** — The issue impacting an availability zone in the me-central-1 region (zone ID: mec1az2) is still ongoing. AWS continues working toward full service restoration.\n\nSome Redis Cloud clusters in this zone may still experience connectivity issues or increased latency. We will continue to share updates as more information becomes available.\n\nFor further assistance, please contact our Support team."
+          },
+          "occurredAt": "2026-03-01T20:47:47Z"
+        },
+        {
+          "time": "2026-03-23T23:08:05.459839Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Investigating** — Update-\n\nAWS is actively working to restore service following an ongoing disruption affecting an availability zone in the me-central-1 region (zone ID: mec1az2).\n\nSome Redis Cloud clusters in this zone may continue to experience connectivity issues or increased latency while recovery is in progress. \nWe will provide additional updates as more information becomes available.\n\nFor further assistance, please contact our Support team."
+          },
+          "occurredAt": "2026-03-01T16:59:47Z"
+        },
+        {
+          "time": "2026-03-23T23:08:04.514337Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Investigating** — Type - network issues \nStatus - investigating  \n\nWe are aware of an ongoing AWS service disruption impacting an availability zone within the me-central-1 region (zone ID: mec1az2). This zone may appear under different availability zone names across AWS accounts. As a result, some Redis Cloud clusters located in this zone may experience connectivity issues, increased latency, or temporary service interruptions.\n\nOur teams are actively tracking the situation and working closely with AWS as they work toward full service restoration. We will continue to share updates as more information becomes available.\n\nIf you have any questions or are experiencing issues, please contact our Support team."
+          },
+          "occurredAt": "2026-03-01T14:33:58Z"
+        }
+      ],
+      "statusPageId": "eb1d52db-e4b0-4ed1-af1e-f08cf964f9c2",
+      "severitySlug": "SEV2",
+      "lifecyclePhases": [
+        {
+          "id": "ee1fb501-ca1b-42e3-b729-afec3ded4c66",
+          "name": "Started",
+          "type": "STARTED",
+          "milestones": [
+            {
+              "id": "b2de5269-97ea-43a2-8749-c8d8296eb0b7",
+              "name": "Detected",
+              "slug": "detected",
+              "occurredAt": "2026-03-01T14:33:58Z"
+            },
+            {
+              "id": "613eb587-5639-45e5-af83-c71f37bb0842",
+              "name": "Started",
+              "slug": "started",
+              "occurredAt": "2026-03-01T14:33:58Z"
+            }
+          ]
+        },
+        {
+          "id": "3db29f1c-7caa-41cf-909a-16362f5551e5",
+          "name": "Active",
+          "type": "ACTIVE",
+          "milestones": [
+            {
+              "id": "4861e550-320f-47ff-81a0-3d5c36fa4a1e",
+              "name": "Acknowledged",
+              "slug": "acknowledged",
+              "occurredAt": "2026-03-23T23:08:00.465519Z"
+            },
+            {
+              "id": "fa7c6d74-33d9-4ae2-8964-7b497eb80e13",
+              "name": "Investigating",
+              "slug": "investigating"
+            },
+            {
+              "id": "5020f019-ea50-4dd0-996b-b3e9d37e4487",
+              "name": "Identified",
+              "slug": "identified"
+            },
+            {
+              "id": "9e1c4547-d189-4a10-a5d7-de18924474ce",
+              "name": "Mitigated",
+              "slug": "mitigated"
+            },
+            {
+              "id": "cbf534bf-09ec-43d3-8ba7-7fda808c8751",
+              "name": "Pending Customer",
+              "slug": "pending-customer-response"
+            },
+            {
+              "id": "f4dbb8e7-7f92-4c52-a10f-7f5f46287da4",
+              "name": "Monitoring",
+              "slug": "monitoring"
+            }
+          ]
+        },
+        {
+          "id": "71c9e362-7d3a-43c8-8f0e-40354ec1dbfd",
+          "name": "Post-Incident",
+          "type": "POST_INCIDENT",
+          "milestones": [
+            {
+              "id": "0ba29047-f2f2-4c90-a622-7b1e89f615d4",
+              "name": "Resolved",
+              "slug": "resolved",
+              "occurredAt": "2026-03-03T21:29:30.794Z"
+            },
+            {
+              "id": "76483e81-7b2c-4463-9cd1-3fb90aacb479",
+              "name": "Retrospective Started",
+              "slug": "postmortem_started"
+            },
+            {
+              "id": "93e50511-9e77-4abb-aec8-283c8f16e2bb",
+              "name": "Retrospective Completed",
+              "slug": "postmortem_completed"
+            },
+            {
+              "id": "d8153639-e9c7-48f7-b8b9-c8c1fa6814d2",
+              "name": "Monitoring Maintenance",
+              "slug": "monitoring-maintenance"
+            }
+          ]
+        },
+        {
+          "id": "a3abb584-83df-43b5-ae25-b710d4465673",
+          "name": "Closed",
+          "type": "CLOSED",
+          "milestones": [
+            {
+              "id": "61bd9032-35f7-4f7b-9483-0d5e1771fdc2",
+              "name": "Closed",
+              "slug": "closed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "79a12500-5452-4148-a0e1-d3cbce47dbb1",
+      "title": "Upcoming status page platform transition",
+      "timestamps": {
+        "started": "2026-02-24T04:52:19Z",
+        "detected": "2026-02-24T04:52:19Z",
+        "resolved": "2026-02-24T04:52:19Z",
+        "acknowledged": "2026-03-23T23:07:30Z"
+      },
+      "componentConditions": {
+        "Support Site": "Degraded",
+        "Admin Console": "Degraded",
+        "Heroku Integration": "Degraded",
+        "DNS Resolvers": "Degraded",
+        "REST API": "Degraded"
+      },
+      "timeline": [
+        {
+          "time": "2026-03-23T23:07:35.364191Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Resolved** — Dear customer, \n\nWe’re transitioning our customer status page to a new platform on March 23 2026, to improve reliability and the overall experience.\n\nWhat to expect:\n    - No impact to Redis services is expected from this change.\n    - If you’re subscribed to status notifications, you will receive a one-time subscription notification email during the transition. This is expected and confirms your subscription on the new platform.\n\nRSS subscribers – action required:\nIf you follow updates via RSS, please update your feed URL to:\nhttps://status.redis.io/data/rss.xml\n\nWe’ll post an update here when the transition is complete."
+          },
+          "occurredAt": "2026-02-24T04:52:19.546Z"
+        }
+      ],
+      "statusPageId": "a2e8b4a9-09a0-45f3-a7e3-e0a094dbf527",
+      "severitySlug": "MAINTENANCE",
+      "components": [
+        {
+          "name": "Admin Console",
+          "id": "38b0dea6-11f5-4c11-9705-1ded7fa68e33",
+          "condition": "Degraded"
+        },
+        {
+          "name": "Heroku Integration",
+          "id": "e0ee0ba0-9ee6-4ecd-8fbd-1acc817d888a",
+          "condition": "Degraded"
+        },
+        {
+          "name": "Support Site",
+          "id": "d169e220-b47d-4d60-85c5-fd0c5fea3e77",
+          "condition": "Degraded"
+        },
+        {
+          "name": "REST API",
+          "id": "4c9d20f7-9257-46be-b188-923a0177b5f1",
+          "condition": "Degraded"
+        },
+        {
+          "name": "DNS Resolvers",
+          "id": "4bb3dbbb-f84a-40b9-87b7-9a3b51295f26",
+          "condition": "Degraded"
+        }
+      ]
+    },
+    {
+      "id": "c41455be-535b-4bdf-8194-97305b6a03d5",
+      "title": "Urgent maintenance",
+      "timestamps": {
+        "started": "2026-01-08T15:41:13Z",
+        "detected": "2026-01-08T15:41:13Z",
+        "resolved": "2026-01-08T16:06:48Z",
+        "acknowledged": "2026-03-23T23:07:29Z"
+      },
+      "timeline": [
+        {
+          "time": "2026-03-23T23:07:34.348175Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Resolved** — This incident has been resolved."
+          },
+          "occurredAt": "2026-01-08T16:06:48.848Z"
+        },
+        {
+          "time": "2026-03-23T23:07:33.517012Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.Note",
+            "note": "➡️ **Monitoring** — Urgent maintenance applies to all of the resources with the following pattern in their endpoint: c289"
+          },
+          "occurredAt": "2026-01-08T15:41:13.996Z"
+        }
+      ],
+      "statusPageId": "585bff26-3f81-454d-99ab-9963730ba670",
+      "severitySlug": "UNSET"
+    },
+    {
+      "id": "e192b971-a298-45cd-b574-627923f0170b",
+      "title": "Network Issues",
+      "timestamps": {
+        "started": "2026-03-26T19:46:58Z",
+        "detected": "2026-03-26T19:46:58Z",
+        "resolved": "2026-03-26T19:48:41Z",
+        "investigating": "2026-03-26T19:47:03Z",
+        "acknowledged": "2026-03-26T19:46:58Z"
+      },
+      "timeline": [
+        {
+          "time": "2026-03-26T19:49:16.057925Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.BulkImpactUpdate",
+            "note": {
+              "note": "Resolved - Incident has been resolved."
+            }
+          },
+          "occurredAt": "2026-03-26T19:49:16.068351Z"
+        },
+        {
+          "time": "2026-03-26T19:48:41.785296Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.BulkImpactUpdate",
+            "milestoneUpdate": {
+              "originalMilestone": "investigating",
+              "currentMilestone": "resolved"
+            }
+          },
+          "occurredAt": "2026-03-26T19:48:41.790035Z"
+        },
+        {
+          "time": "2026-03-26T19:47:06.226665Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.BulkImpactUpdate",
+            "note": {
+              "note": "We are currently investigating network issues to some resources that have the following pattern in their endpoint: fcrce190\n"
+            }
+          },
+          "occurredAt": "2026-03-26T19:47:06.230152Z"
+        },
+        {
+          "time": "2026-03-26T19:47:03.952759Z",
+          "details": {
+            "@type": "type.googleapis.com/firehydrant.nunc.TimelineEvent.BulkImpactUpdate",
+            "milestoneUpdate": {
+              "originalMilestone": "acknowledged",
+              "currentMilestone": "investigating"
+            }
+          },
+          "occurredAt": "2026-03-26T19:47:03.958509Z"
+        }
+      ],
+      "statusPageId": "d653db30-b353-4d1c-a371-adf935780bde",
+      "severitySlug": "SEV4"
+    }
+  ]
+}

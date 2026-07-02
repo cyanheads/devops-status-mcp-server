@@ -39,6 +39,7 @@ describe('VendorRegistryService', () => {
     expect(service.resolve('github')?.api_type).toBe('statuspage');
     expect(service.resolve('slack')?.api_type).toBe('slack');
     expect(service.resolve('aws')?.api_type).toBe('aws');
+    expect(service.resolve('redis-cloud')?.api_type).toBe('firehydrant');
 
     const gitlab = service.resolve('gitlab');
     expect(gitlab?.api_type).toBe('statusio');

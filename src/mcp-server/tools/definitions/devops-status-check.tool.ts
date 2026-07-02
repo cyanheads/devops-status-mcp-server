@@ -19,7 +19,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
   description:
     'Check the current health status for one or more vendors. Accepts registered vendor slugs ' +
     '(e.g., "github", "aws", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served ' +
-    "by each vendor's native status API (Statuspage, Status.io, Slack, AWS Health) and normalized to one shape. " +
+    "by each vendor's native status API (Statuspage, Status.io, Slack, AWS Health, Firehydrant) and normalized to one shape. " +
     'Returns per-vendor operational indicator (none = all clear, minor, major, critical), degraded components, and active incidents. ' +
     'Use mode: "detailed" for full component lists and maintenance windows. Batch-friendly — pass a list to check your full stack in one call.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },

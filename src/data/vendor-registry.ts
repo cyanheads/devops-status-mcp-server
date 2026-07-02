@@ -14,7 +14,7 @@ export type VendorCategory =
   | 'ai';
 
 /** Status backend the vendor's page runs on — selects the adapter in src/services/status-adapters/. */
-export type VendorApiType = 'statuspage' | 'statusio' | 'slack' | 'aws';
+export type VendorApiType = 'statuspage' | 'statusio' | 'slack' | 'aws' | 'firehydrant';
 
 interface VendorEntryBase {
   category: VendorCategory;
@@ -31,7 +31,7 @@ interface VendorEntryBase {
 }
 
 export type VendorEntry =
-  | (VendorEntryBase & { api_type: 'statuspage' | 'slack' | 'aws' })
+  | (VendorEntryBase & { api_type: 'statuspage' | 'slack' | 'aws' | 'firehydrant' })
   | (VendorEntryBase & {
       api_type: 'statusio';
       /** Status.io page ID — keys https://status-api.hostedstatus.com/1.0/status/{id}. */
@@ -40,9 +40,9 @@ export type VendorEntry =
 
 /**
  * 50-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
- * entries with api_type 'statusio' | 'slack' | 'aws' are served through native-API
- * adapters (src/services/status-adapters/) that normalize into the Statuspage shapes.
- * Probe every entry for drift with `bun run verify:registry`.
+ * entries with api_type 'statusio' | 'slack' | 'aws' | 'firehydrant' are served through
+ * native-API adapters (src/services/status-adapters/) that normalize into the Statuspage
+ * shapes. Probe every entry for drift with `bun run verify:registry`.
  */
 export const VENDOR_REGISTRY: readonly VendorEntry[] = [
   // cloud
@@ -211,8 +211,9 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     slug: 'redis-cloud',
     name: 'Redis Cloud',
     category: 'data',
+    // The page moved from Atlassian Statuspage to Firehydrant; the adapter fetches /data/payload.json.
     statuspage_url: 'https://status.redis.io',
-    api_type: 'statuspage',
+    api_type: 'firehydrant',
   },
   {
     slug: 'elastic',

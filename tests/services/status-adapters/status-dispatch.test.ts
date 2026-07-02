@@ -43,6 +43,12 @@ const STATUSIO_BODY = {
   },
 };
 
+const FIREHYDRANT_BODY = {
+  components: [],
+  conditions: {},
+  incidents: [],
+};
+
 function lastUrl(): string {
   const calls = vi.mocked(fetch).mock.calls;
   return String(calls[calls.length - 1]?.[0]);
@@ -57,11 +63,13 @@ beforeEach(() => {
       const u = String(url);
       const body = u.includes('hostedstatus.com')
         ? STATUSIO_BODY
-        : u.includes('/api/v2.0.0/history')
-          ? []
-          : u.includes('/api/v2.0.0/')
-            ? { status: 'ok', active_incidents: [] }
-            : STATUSPAGE_BODY;
+        : u.includes('/data/payload.json')
+          ? FIREHYDRANT_BODY
+          : u.includes('/api/v2.0.0/history')
+            ? []
+            : u.includes('/api/v2.0.0/')
+              ? { status: 'ok', active_incidents: [] }
+              : STATUSPAGE_BODY;
       return Promise.resolve({
         ok: true,
         json: vi.fn().mockResolvedValue(body),
@@ -117,6 +125,12 @@ describe('fetchVendorSummary dispatch', () => {
     expect(data.status.indicator).toBe('none');
     expect(lastUrl()).toBe('https://health.aws.amazon.com/public/currentevents');
   });
+
+  it('firehydrant vendor (redis-cloud) hits the page payload feed', async () => {
+    const { data } = await fetchVendorSummary(resolve('redis-cloud'));
+    expect(data.status.indicator).toBe('none');
+    expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
+  });
 });
 
 describe('fetchVendorIncidents / fetchVendorScheduledMaintenances dispatch', () => {
@@ -132,6 +146,13 @@ describe('fetchVendorIncidents / fetchVendorScheduledMaintenances dispatch', () 
     expect(lastUrl()).toBe('https://status.slack.com/api/v2.0.0/history');
     await fetchVendorIncidents(resolve('aws'));
     expect(lastUrl()).toBe('https://health.aws.amazon.com/public/currentevents');
+  });
+
+  it('firehydrant incidents and maintenances both read the payload feed', async () => {
+    await fetchVendorIncidents(resolve('redis-cloud'));
+    expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
+    await fetchVendorScheduledMaintenances(resolve('redis-cloud'));
+    expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
   });
 
   it('slack and aws maintenances are empty and skip the network', async () => {

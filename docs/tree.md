@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-07-02 12:29:13
+Generated on: 2026-07-02 12:55:26
 
 ```text
 devops-status-mcp-server/
@@ -180,6 +180,7 @@ devops-status-mcp-server/
 │   │           ├── devops-status-check.tool.test.ts
 │   │           ├── devops-suggest-action.tool.test.ts
 │   │           ├── devops-watch-stack.tool.test.ts
+│   │           ├── probe-timeout-defaults.test.ts
 │   │           └── tool-surface.test.ts
 │   ├── prompts/
 │   ├── resources/

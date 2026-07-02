@@ -1,0 +1,86 @@
+[
+  {
+    "id": 1571,
+    "title": "Chat functionality unavailable on Slack Help page ",
+    "type": "incident",
+    "status": "resolved",
+    "url": "https://slack-status.com/2026-06/4e79ab0c89aa4be0",
+    "date_created": "2026-06-26T02:12:20-07:00",
+    "date_updated": "2026-06-26T03:09:39-07:00",
+    "notes": [
+      {
+        "body": "<p>We're aware of an issue affecting users ability to reach our Slack Support team via the Chat functionality on the Slack Help page. Users will be unable to click on the ‘Chat’ option and will see a ‘Chat is temporarily unavailable. Please send us a message or check back later’ error message.&nbsp;</p><p>We're working to resolve this issue and will provide an update in 30 minutes or sooner if additional information becomes available.&nbsp;</p>",
+        "date_created": "2026-06-26T02:12:20-07:00"
+      },
+      {
+        "body": "<p>Additional Slack engineers have been engaged and are investigating this issue.</p><p>As a workaround, if users require support, they can use the ‘Send us a Message’ functionality on the Slack Help Center page here: <a href=\"https://slack.com/intl/en-gb/help/requests/new\"><span style=\"text-decoration: underline;\">https://slack.com/intl/en-gb/help/requests/new</span></a> . A member of the Slack team will then be in touch.&nbsp;</p><p>We're working to resolve this issue and will provide an update in 30 minutes or sooner if additional information becomes available.</p><p><br><br></p>",
+        "date_created": "2026-06-26T02:41:18-07:00"
+      },
+      {
+        "body": "<p>We've resolved the issue and users can now use the Chat feature on the Slack Help Center. We performed a configuration change, which brought the feature back online and have validated that it's functioning as expected. &nbsp;</p><p><br></p><p>We apologize for how this incident may have affected you and your business.</p><p><br><br></p>",
+        "date_created": "2026-06-26T03:09:39-07:00"
+      }
+    ],
+    "services": []
+  },
+  {
+    "id": 1568,
+    "title": "Trouble submitting workflow forms with file attachments on Android.",
+    "type": "incident",
+    "status": "resolved",
+    "url": "https://slack-status.com/2026-06/83210c13677ffff1",
+    "date_created": "2026-06-16T08:50:09-07:00",
+    "date_updated": "2026-06-22T13:39:26-07:00",
+    "notes": [
+      {
+        "body": "<p>We are aware that some users on the Slack Android app are unable to submit workflow forms that contain a required file upload field. After a file is selected, the Submit button becomes disabled and the form cannot be completed. Users on Slack for iOS and Slack for web are not affected. We are actively investigating the issue and working to identify the root cause. We'll provide an update in 60 minutes or sooner if additional information becomes available.</p>",
+        "date_created": "2026-06-16T08:50:09-07:00"
+      },
+      {
+        "body": "<p>We have identified the cause of this issue and confirmed it affects a small subset of users on a single version of the Slack Android app. Users on other Android versions, iOS, and web are not affected. A fix is already available and will begin rolling out to Android users tomorrow. We will provide an update as soon as additional information becomes available.</p>",
+        "date_created": "2026-06-16T09:48:02-07:00"
+      },
+      {
+        "body": "<p>A fix for this issue has been delivered in a new version of the Slack Android app, and rollout has now begun. Android users will start seeing the updated app version become available in the Google Play Store as the rollout progresses.</p><p>Once updated, users who were experiencing issues submitting workflow forms containing a required file upload field will be able to do so successfully.&nbsp;</p><p>We will continue to monitor the rollout and provide another update as additional information becomes available.</p>",
+        "date_created": "2026-06-17T12:38:43-07:00"
+      },
+      {
+        "body": "<p>The rollout of the new version of the Slack Android app is ongoing and may take up to several days to fully complete. We continue to monitor the rollout and will provide another update when we have more information to share. Thank you for your patience with us while we work through this.&nbsp;</p>",
+        "date_created": "2026-06-18T15:30:57-07:00"
+      },
+      {
+        "body": "<p>We continue to monitor the rollout of the new version of Slack for Android. We'll provide another update when we have further information to share. Thank you for your continued patience.&nbsp;</p>",
+        "date_created": "2026-06-21T10:33:48-07:00"
+      },
+      {
+        "body": "<p>This issue has been resolved. Android users who were experiencing issues submitting workflow forms containing a required file upload field can now do so successfully. A fix was delivered via a new update to the Slack Android app. Users who are still experiencing this issue should update the Slack app from the Google Play Store to resolve it. No other action is required.&nbsp;<br><br>We apologize for the inconvenience and thank you for your patience.<br><br></p>",
+        "date_created": "2026-06-22T13:39:26-07:00"
+      }
+    ],
+    "services": ["Workflows"]
+  },
+  {
+    "id": 1570,
+    "title": "Trouble loading SSO configuration settings for some workspace admins",
+    "type": "incident",
+    "status": "resolved",
+    "url": "https://slack-status.com/2026-06/66c001cc76d073f8",
+    "date_created": "2026-06-17T15:33:29-07:00",
+    "date_updated": "2026-06-17T21:14:39-07:00",
+    "notes": [
+      {
+        "body": "<p>Some workspace admins on standalone (non-Enterprise Grid) workspaces may be experiencing an issue where the SSO and authentication configuration page does not display current settings as expected. Admins may see a blank value for the \"Require SSO authentication for\" field on the admin SSO settings page, which does not accurately reflect the actual backend configuration — SSO settings remain intact and in effect.<br><br>We are actively investigating this issue and will provide an update as soon as we have more information to share. We apologize for the inconvenience.</p>",
+        "date_created": "2026-06-17T15:33:29-07:00"
+      },
+      {
+        "body": "<p>We have identified the trigger and developed a fix. We are currently deploying this fix and expect to resolve the issue shortly. We will provide another update once the deployment is complete.&nbsp;<br>We apologize for the inconvenience.</p>",
+        "date_created": "2026-06-17T18:49:59-07:00"
+      },
+      {
+        "body": "<p>We have successfully deployed the fix to production and the issue is resolved. <br>The Admin SSO and Authentication Configuration page for standalone workspaces should now display the correct settings. If you continue to see outdated information, refresh the SSO Admin page to load the latest changes.</p><p><br></p>",
+        "date_created": "2026-06-17T21:14:39-07:00"
+      }
+    ],
+    "services": ["Login/SSO"]
+  }
+]

@@ -8,11 +8,14 @@ import { z } from '@cyanheads/mcp-ts-core';
 import { parseEnvConfig } from '@cyanheads/mcp-ts-core/config';
 
 const ServerConfigSchema = z.object({
-  cacheTtlMs: z.coerce.number().default(60_000).describe('Statuspage cache TTL in milliseconds.'),
+  cacheTtlMs: z.coerce
+    .number()
+    .default(60_000)
+    .describe('Vendor status read cache TTL (all backends) in milliseconds.'),
   fetchTimeoutMs: z.coerce
     .number()
     .default(8_000)
-    .describe('Statuspage request timeout in milliseconds.'),
+    .describe('Vendor status API request timeout (all backends) in milliseconds.'),
   certTimeoutMs: z.coerce
     .number()
     .default(5_000)

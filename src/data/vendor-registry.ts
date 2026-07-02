@@ -1,5 +1,5 @@
 /**
- * @fileoverview Curated vendor registry mapping slugs to Statuspage base URLs.
+ * @fileoverview Curated vendor registry mapping slugs to status-API endpoints.
  * @module data/vendor-registry
  */
 
@@ -13,19 +13,37 @@ export type VendorCategory =
   | 'monitoring'
   | 'ai';
 
-export interface VendorEntry {
-  /** API type — future: 'custom' for bespoke adapters. */
-  api_type: 'statuspage';
+/** Status backend the vendor's page runs on — selects the adapter in src/services/status-adapters/. */
+export type VendorApiType = 'statuspage' | 'statusio' | 'slack' | 'aws';
+
+interface VendorEntryBase {
   category: VendorCategory;
   /** Display name (e.g., "GitHub", "Cloudflare"). */
   name: string;
   /** Canonical identifier used in tool inputs (e.g., "github", "cloudflare"). */
   slug: string;
-  /** Statuspage base URL — typically https:// but may be http:// for some vendors (e.g., auth0). */
+  /**
+   * Status page base URL. For api_type 'statuspage' this is the Atlassian Statuspage
+   * API base (/api/v2/*.json is appended); for other backends it is the vendor's
+   * public status page URL — the adapter owns the actual API endpoint.
+   */
   statuspage_url: string;
 }
 
-/** 48-entry verified starter list. Only includes vendors with confirmed working Statuspage /api/v2/status.json endpoints. */
+export type VendorEntry =
+  | (VendorEntryBase & { api_type: 'statuspage' | 'slack' | 'aws' })
+  | (VendorEntryBase & {
+      api_type: 'statusio';
+      /** Status.io page ID — keys https://status-api.hostedstatus.com/1.0/status/{id}. */
+      statusio_page_id: string;
+    });
+
+/**
+ * 50-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
+ * entries with api_type 'statusio' | 'slack' | 'aws' are served through native-API
+ * adapters (src/services/status-adapters/) that normalize into the Statuspage shapes.
+ * Probe every entry for drift with `bun run verify:registry`.
+ */
 export const VENDOR_REGISTRY: readonly VendorEntry[] = [
   // cloud
   {
@@ -41,6 +59,14 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     category: 'cloud',
     statuspage_url: 'https://status.linode.com',
     api_type: 'statuspage',
+  },
+  {
+    slug: 'aws',
+    name: 'Amazon Web Services',
+    category: 'cloud',
+    // Public AWS Health Dashboard — adapter fetches /public/currentevents (UTF-16 feed).
+    statuspage_url: 'https://health.aws.amazon.com',
+    api_type: 'aws',
   },
   // cdn-edge
   {
@@ -58,6 +84,14 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     api_type: 'statuspage',
   },
   // dev-platform
+  {
+    slug: 'gitlab',
+    name: 'GitLab',
+    category: 'dev-platform',
+    statuspage_url: 'https://status.gitlab.com',
+    api_type: 'statusio',
+    statusio_page_id: '5b36dc6502d06804c08349f7',
+  },
   {
     slug: 'github',
     name: 'GitHub',
@@ -168,9 +202,10 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     slug: 'neon',
     name: 'Neon',
     category: 'data',
-    // Note: status.neon.tech returned a 522 (Cloudflare timeout) during verification — may be unstable.
-    statuspage_url: 'https://status.neon.tech',
-    api_type: 'statuspage',
+    // neonstatus.com is a Status.io page (the former status.neon.tech Statuspage is gone).
+    statuspage_url: 'https://neonstatus.com',
+    api_type: 'statusio',
+    statusio_page_id: '6878fc85709daa75be6c7e3c',
   },
   {
     slug: 'redis-cloud',
@@ -219,8 +254,9 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     slug: 'slack',
     name: 'Slack',
     category: 'comms',
+    // Slack's own status API (/api/v2.0.0/*) — requests 301 to slack-status.com; the adapter follows redirects.
     statuspage_url: 'https://status.slack.com',
-    api_type: 'statuspage',
+    api_type: 'slack',
   },
   {
     slug: 'discord',
@@ -283,8 +319,8 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     slug: 'auth0',
     name: 'Auth0',
     category: 'auth',
-    // HTTP (not HTTPS) — verified endpoint.
-    statuspage_url: 'http://status.auth0.com',
+    // status.auth0.com is now a custom page; the live Statuspage moved to auth0.statuspage.io.
+    statuspage_url: 'https://auth0.statuspage.io',
     api_type: 'statuspage',
   },
   {

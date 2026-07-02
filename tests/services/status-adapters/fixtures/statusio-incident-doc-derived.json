@@ -1,0 +1,122 @@
+{
+  "result": {
+    "status_overall": {
+      "updated": "2021-12-06T16:49:49.455Z",
+      "status": "Planned Maintenance",
+      "status_code": 200
+    },
+    "status": [
+      {
+        "id": "5a89ef6740eba40d1c3bb4a8",
+        "name": "Website",
+        "updated": "2021-12-06T16:49:49.455Z",
+        "status": "Planned Maintenance",
+        "status_code": 200,
+        "containers": [
+          {
+            "id": "5a89ef6740eba40d1c3bb4a7",
+            "name": "Virginia",
+            "updated": "2021-12-06T16:49:03.891Z",
+            "status": "Planned Maintenance",
+            "status_code": 200
+          }
+        ]
+      },
+      {
+        "id": "61ae3d57e3e33c05d23d5249",
+        "name": "Mobile App",
+        "updated": "2021-12-06T16:49:49.455Z",
+        "status": "Planned Maintenance",
+        "status_code": 200,
+        "containers": [
+          {
+            "id": "5a89ef6740eba40d1c3bb4a7",
+            "name": "Virginia",
+            "updated": "2021-12-06T16:49:03.890Z",
+            "status": "Planned Maintenance",
+            "status_code": 200
+          },
+          {
+            "id": "61ae3d3da163f805d867f0b5",
+            "name": "Ireland",
+            "updated": "2021-12-06T16:49:03.887Z",
+            "status": "Planned Maintenance",
+            "status_code": 200
+          }
+        ]
+      }
+    ],
+    "incidents": [
+      {
+        "name": "Authentication Issues",
+        "_id": "61ae3daa9c768905d9f0f6fd",
+        "datetime_open": "2021-12-06T16:43:22.431Z",
+        "messages": [
+          {
+            "details": "Investigating authentication errors.",
+            "state": 100,
+            "status": 300,
+            "datetime": "2021-12-06T16:43:22.457Z"
+          },
+          {
+            "details": "The issue has been identified.",
+            "state": 200,
+            "status": 300,
+            "datetime": "2021-12-06T16:45:19.810Z"
+          }
+        ],
+        "containers_affected": [
+          { "name": "Virginia", "_id": "5a89ef6740eba40d1c3bb4a7" },
+          { "name": "Ireland", "_id": "61ae3d3da163f805d867f0b5" }
+        ],
+        "components_affected": [{ "name": "Mobile App", "_id": "61ae3d57e3e33c05d23d5249" }]
+      }
+    ],
+    "maintenance": {
+      "active": [
+        {
+          "name": "Network Upgrade",
+          "_id": "61ae3ef0a163f805d867f0b6",
+          "datetime_open": "2021-12-06T16:48:48.491Z",
+          "datetime_planned_start": "2021-12-06T16:50:00.000Z",
+          "datetime_planned_end": "2021-12-06T17:50:00.000Z",
+          "messages": [
+            {
+              "details": "Network upgrades will be performed during this maintenance. No downtime is expected.",
+              "state": 100,
+              "status": 200,
+              "datetime": "2021-12-06T16:48:48.508Z"
+            },
+            {
+              "details": "Starting maintenance now.",
+              "state": 200,
+              "status": 200,
+              "datetime": "2021-12-06T16:49:03.798Z"
+            }
+          ],
+          "containers_affected": [{ "name": "Virginia", "_id": "5a89ef6740eba40d1c3bb4a7" }],
+          "components_affected": [{ "name": "Website", "_id": "5a89ef6740eba40d1c3bb4a8" }]
+        }
+      ],
+      "upcoming": [
+        {
+          "name": "Mobile App Upgrade",
+          "_id": "61ae3e9ee3e33c05d23d524f",
+          "datetime_open": "2021-12-06T16:47:26.677Z",
+          "datetime_planned_start": "2021-12-22T15:00:00.000Z",
+          "datetime_planned_end": "2021-12-22T15:15:00.000Z",
+          "messages": [
+            {
+              "details": "The mobile app will be upgraded.",
+              "state": 100,
+              "status": 200,
+              "datetime": "2021-12-06T16:47:26.695Z"
+            }
+          ],
+          "containers_affected": [{ "name": "Virginia", "_id": "5a89ef6740eba40d1c3bb4a7" }],
+          "components_affected": [{ "name": "Mobile App", "_id": "61ae3d57e3e33c05d23d5249" }]
+        }
+      ]
+    }
+  }
+}

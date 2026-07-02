@@ -25,7 +25,8 @@ const tools = disableActiveProbes
 const baseInstructions =
   'Infrastructure health and incident intelligence for DevOps agents. ' +
   'No API keys required — fully public data sources. ' +
-  'Vendor registry: 48 verified vendors across cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories. ' +
+  'Vendor registry: 50 verified vendors across cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories — ' +
+  'Atlassian Statuspage plus native adapters for AWS Health, Status.io (GitLab, Neon), and Slack, all normalized to one shape. ' +
   'Workflow: devops_list_vendors (discover slugs) → devops_status_check (health snapshot) → devops_get_incidents (incident history) → devops_suggest_action (response playbook). ' +
   'devops_watch_stack persists a named vendor list in session state for repeat health sweeps.';
 

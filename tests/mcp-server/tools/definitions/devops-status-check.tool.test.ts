@@ -313,6 +313,34 @@ describe('devopsStatusCheck', () => {
     expect(result.results[0]!.degraded_components[0]!.name).toBe('Real Component');
   });
 
+  it('adapter-backed vendor (aws) resolves without touching the Statuspage service (#12)', async () => {
+    // The aws slug dispatches to the AWS Health adapter — global fetch serves the
+    // (UTF-16) feed and the mocked Statuspage service must stay untouched.
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockClear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array(Buffer.from('[]', 'utf16le')).buffer),
+      }),
+    );
+    try {
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const input = devopsStatusCheck.input.parse({ vendors: ['aws'] });
+      const result = await devopsStatusCheck.handler(input, ctx);
+
+      expect(result.results[0]!.indicator).toBe('none');
+      expect(result.results[0]!.name).toBe('Amazon Web Services');
+      expect(result.results[0]!.error).toBeUndefined();
+      expect(_mockFetchSummary).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   describe('SSRF guard integration', () => {
     afterEach(() => vi.clearAllMocks());
 

@@ -37,7 +37,7 @@ export const VendorResultSchema = z
       .array(
         z
           .object({
-            id: z.string().describe('Unique incident identifier from Statuspage.'),
+            id: z.string().describe("Unique incident identifier from the vendor's status API."),
             name: z.string().describe('Incident title.'),
             impact: z
               .enum(['none', 'minor', 'major', 'critical'])
@@ -88,7 +88,7 @@ export const VendorResultSchema = z
       .describe('All components including operational ones. Present in detailed mode only.'),
     cached: z.boolean().describe('True when this result was served from the 60s in-memory cache.'),
     checked_at: z.string().describe('ISO 8601 UTC timestamp of this check.'),
-    statuspage_url: z.string().describe('Statuspage base URL used for this vendor.'),
+    statuspage_url: z.string().describe('Status page base URL used for this vendor.'),
     error: z
       .string()
       .optional()

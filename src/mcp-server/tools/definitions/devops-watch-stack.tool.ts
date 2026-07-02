@@ -5,7 +5,7 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
-import { getStatuspageService } from '@/services/statuspage/statuspage-service.js';
+import { fetchVendorSummary } from '@/services/status-adapters/status-dispatch.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 import { assertSafeUrl } from '@/utils/ssrf-guard.js';
 import type { VendorResult } from './devops-vendor-result.js';
@@ -45,10 +45,12 @@ export const devopsWatchStack = tool('devops_watch_stack', {
 
   input: z.object({
     vendors: z
-      .array(z.string().describe('A vendor slug (e.g., "github") or raw Statuspage base URL.'))
+      .array(
+        z.string().describe('A vendor slug (e.g., "github") or raw Atlassian Statuspage base URL.'),
+      )
       .optional()
       .describe(
-        'Vendor slugs or raw Statuspage URLs. When provided, saves this list as the stack. When omitted, uses the previously saved list for stack_name.',
+        'Vendor slugs (e.g., "github", "aws") or raw Atlassian Statuspage base URLs. When provided, saves this list as the stack. When omitted, uses the previously saved list for stack_name.',
       ),
     stack_name: z
       .string()
@@ -111,7 +113,6 @@ export const devopsWatchStack = tool('devops_watch_stack', {
 
   async handler(input, ctx) {
     const registry = getVendorRegistryService();
-    const statuspage = getStatuspageService();
 
     const stateKey = `${STACK_STATE_PREFIX}${input.stack_name}`;
     let vendorList: string[];
@@ -135,21 +136,21 @@ export const devopsWatchStack = tool('devops_watch_stack', {
 
     // Validate all vendors
     const resolved = vendorList.map((v) => {
-      const r = registry.resolve(v);
-      if (!r)
+      const target = registry.resolve(v);
+      if (!target)
         throw ctx.fail(
           'vendor_not_found',
           `"${v}" is not a known vendor slug and is not a valid URL.`,
           { ...ctx.recoveryFor('vendor_not_found') },
         );
-      return { input: v, ...r };
+      return { input: v, target };
     });
 
     // SSRF guard: only raw URL inputs need checking — registry entries are pre-verified public URLs.
     for (const r of resolved) {
-      if (r.slug === null) {
+      if (r.target.slug === null) {
         try {
-          await assertSafeUrl(r.url);
+          await assertSafeUrl(r.target.url);
         } catch (err) {
           const msg = (err as Error).message;
           if (msg.startsWith('SSRF_BLOCKED')) {
@@ -164,8 +165,8 @@ export const devopsWatchStack = tool('devops_watch_stack', {
 
     const fetched = await Promise.allSettled(
       resolved.map(async (r) => {
-        const { data, cached } = await statuspage.fetchSummary(r.url);
-        return buildVendorResult(r.input, r.url, r.name, data, cached, input.mode);
+        const { data, cached } = await fetchVendorSummary(r.target);
+        return buildVendorResult(r.input, r.target.url, r.target.name, data, cached, input.mode);
       }),
     );
 
@@ -174,14 +175,14 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       const res = resolved[i];
       return {
         vendor: res?.input ?? '',
-        name: res?.name ?? '',
+        name: res?.target.name ?? '',
         indicator: 'none' as const,
         description: 'Unknown',
         degraded_components: [],
         active_incidents: [],
         cached: false,
         checked_at: new Date().toISOString(),
-        statuspage_url: res?.url ?? '',
+        statuspage_url: res?.target.url ?? '',
         error: (r.reason as Error).message,
       };
     });

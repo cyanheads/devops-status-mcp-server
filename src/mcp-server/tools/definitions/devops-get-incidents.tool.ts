@@ -5,7 +5,10 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
-import { getStatuspageService } from '@/services/statuspage/statuspage-service.js';
+import {
+  fetchVendorIncidents,
+  fetchVendorScheduledMaintenances,
+} from '@/services/status-adapters/status-dispatch.js';
 import type { StatuspageIncident } from '@/services/statuspage/types.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 import { assertSafeUrl } from '@/utils/ssrf-guard.js';
@@ -71,7 +74,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .string()
       .min(1)
       .describe(
-        'Vendor slug (e.g., "github") or raw Statuspage base URL. Use devops_list_vendors to find slugs.',
+        'Vendor slug (e.g., "github", "aws") or raw Atlassian Statuspage base URL. Use devops_list_vendors to find slugs.',
       ),
     filter: z
       .enum(['all', 'active', 'resolved', 'scheduled'])
@@ -86,7 +89,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .max(50)
       .default(20)
       .describe(
-        'Maximum incidents to return. Statuspage returns at most 50 per call. Use a lower limit for recent-history queries.',
+        'Maximum incidents to return. Vendor status APIs return at most ~50 recent entries per call. Use a lower limit for recent-history queries.',
       ),
   }),
 
@@ -97,7 +100,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .array(
         z
           .object({
-            id: z.string().describe('Unique incident identifier from Statuspage.'),
+            id: z.string().describe("Unique incident identifier from the vendor's status API."),
             name: z.string().describe('Incident title.'),
             impact: z
               .enum(['none', 'minor', 'major', 'critical', 'maintenance'])
@@ -162,7 +165,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       )
       .describe('Matching incidents.'),
     total_returned: z.number().describe('Number of incidents in the response.'),
-    statuspage_url: z.string().describe('Statuspage base URL used.'),
+    statuspage_url: z.string().describe('Status page base URL used.'),
   }),
 
   enrichment: {
@@ -200,7 +203,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     {
       reason: 'statuspage_unavailable',
       code: JsonRpcErrorCode.ServiceUnavailable,
-      when: 'Statuspage API returned an error or timed out.',
+      when: "The vendor's status API returned an error or timed out.",
       recovery: 'Retry after 30s. If it persists, check the status page URL in a browser.',
       retryable: true,
     },
@@ -208,7 +211,6 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
 
   async handler(input, ctx) {
     const registry = getVendorRegistryService();
-    const statuspage = getStatuspageService();
 
     const resolved = registry.resolve(input.vendor);
     if (!resolved) {
@@ -237,23 +239,23 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     let incidents: ReturnType<typeof normalizeIncident>[] = [];
 
     if (input.filter === 'scheduled') {
-      const { data } = await statuspage.fetchScheduledMaintenances(resolved.url);
+      const { data } = await fetchVendorScheduledMaintenances(resolved);
       incidents = data.scheduled_maintenances.map((i) => normalizeIncident(i, true));
     } else if (input.filter === 'active') {
-      const { data } = await statuspage.fetchIncidents(resolved.url);
+      const { data } = await fetchVendorIncidents(resolved);
       incidents = data.incidents
         .filter((i) => ['investigating', 'identified', 'monitoring'].includes(i.status))
         .map((i) => normalizeIncident(i, false));
     } else if (input.filter === 'resolved') {
-      const { data } = await statuspage.fetchIncidents(resolved.url);
+      const { data } = await fetchVendorIncidents(resolved);
       incidents = data.incidents
         .filter((i) => ['resolved', 'postmortem'].includes(i.status))
         .map((i) => normalizeIncident(i, false));
     } else {
       // all
       const [incData, mainData] = await Promise.all([
-        statuspage.fetchIncidents(resolved.url),
-        statuspage.fetchScheduledMaintenances(resolved.url),
+        fetchVendorIncidents(resolved),
+        fetchVendorScheduledMaintenances(resolved),
       ]);
       const inc = incData.data.incidents.map((i) => normalizeIncident(i, false));
       const maint = mainData.data.scheduled_maintenances.map((i) => normalizeIncident(i, true));

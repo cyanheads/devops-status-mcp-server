@@ -4,6 +4,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
+import { VENDOR_REGISTRY } from '@/data/vendor-registry.js';
 import {
   getVendorRegistryService,
   initVendorRegistryService,
@@ -23,13 +24,32 @@ describe('VendorRegistryService', () => {
     expect(result?.slug).toBe('github');
   });
 
-  it('resolves a raw URL passthrough', () => {
+  it('resolves a raw URL passthrough as api_type statuspage', () => {
     const service = getVendorRegistryService();
     const url = 'https://status.example.com';
     const result = service.resolve(url);
     expect(result).not.toBeNull();
     expect(result?.url).toBe(url);
     expect(result?.slug).toBeNull();
+    expect(result?.api_type).toBe('statuspage');
+  });
+
+  it('resolves adapter-backed slugs with their api_type', () => {
+    const service = getVendorRegistryService();
+    expect(service.resolve('github')?.api_type).toBe('statuspage');
+    expect(service.resolve('slack')?.api_type).toBe('slack');
+    expect(service.resolve('aws')?.api_type).toBe('aws');
+
+    const gitlab = service.resolve('gitlab');
+    expect(gitlab?.api_type).toBe('statusio');
+    if (gitlab?.api_type === 'statusio') {
+      expect(gitlab.statusio_page_id).toBe('5b36dc6502d06804c08349f7');
+    }
+    const neon = service.resolve('neon');
+    expect(neon?.api_type).toBe('statusio');
+    if (neon?.api_type === 'statusio') {
+      expect(neon.statusio_page_id).toBe('6878fc85709daa75be6c7e3c');
+    }
   });
 
   it('returns null for unknown slug', () => {
@@ -88,5 +108,30 @@ describe('VendorRegistryService', () => {
     const service = getVendorRegistryService();
     const all = service.getAll();
     expect(all.length).toBeGreaterThan(10);
+  });
+});
+
+describe('VENDOR_REGISTRY integrity', () => {
+  it('has 50 entries with unique slugs', () => {
+    expect(VENDOR_REGISTRY).toHaveLength(50);
+    const slugs = VENDOR_REGISTRY.map((v) => v.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it('every entry has an https URL (the auth0 http exception is gone)', () => {
+    for (const v of VENDOR_REGISTRY) {
+      expect(v.statuspage_url, v.slug).toMatch(/^https:\/\//);
+    }
+    expect(VENDOR_REGISTRY.find((v) => v.slug === 'auth0')?.statuspage_url).toBe(
+      'https://auth0.statuspage.io',
+    );
+  });
+
+  it('every statusio entry carries a page ID', () => {
+    const statusio = VENDOR_REGISTRY.filter((v) => v.api_type === 'statusio');
+    expect(statusio.map((v) => v.slug).sort()).toEqual(['gitlab', 'neon']);
+    for (const v of statusio) {
+      if (v.api_type === 'statusio') expect(v.statusio_page_id).toMatch(/^[0-9a-f]{24}$/);
+    }
   });
 });

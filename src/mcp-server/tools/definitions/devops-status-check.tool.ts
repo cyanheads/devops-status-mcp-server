@@ -1,11 +1,11 @@
 /**
- * @fileoverview Tool to check current health status for one or more vendors via Statuspage.
+ * @fileoverview Tool to check current health status for one or more vendors via their status APIs.
  * @module mcp-server/tools/definitions/devops-status-check.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
-import { getStatuspageService } from '@/services/statuspage/statuspage-service.js';
+import { fetchVendorSummary } from '@/services/status-adapters/status-dispatch.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 import { assertSafeUrl } from '@/utils/ssrf-guard.js';
 import type { VendorResult } from './devops-vendor-result.js';
@@ -18,20 +18,24 @@ import {
 export const devopsStatusCheck = tool('devops_status_check', {
   description:
     'Check the current health status for one or more vendors. Accepts registered vendor slugs ' +
-    '(e.g., "github", "cloudflare") or raw Statuspage base URLs. Returns per-vendor operational ' +
-    'indicator (none = all clear, minor, major, critical), degraded components, and active incidents. ' +
+    '(e.g., "github", "aws", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served ' +
+    "by each vendor's native status API (Statuspage, Status.io, Slack, AWS Health) and normalized to one shape. " +
+    'Returns per-vendor operational indicator (none = all clear, minor, major, critical), degraded components, and active incidents. ' +
     'Use mode: "detailed" for full component lists and maintenance windows. Batch-friendly — pass a list to check your full stack in one call.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
     vendors: z
       .array(
-        z.string().min(1).describe('A vendor slug (e.g., "github") or raw Statuspage base URL.'),
+        z
+          .string()
+          .min(1)
+          .describe('A vendor slug (e.g., "github") or raw Atlassian Statuspage base URL.'),
       )
       .min(1)
       .max(20)
       .describe(
-        'Vendor slugs from the built-in registry (e.g., "github", "cloudflare") or raw Statuspage base URLs. Mix freely. Use devops_list_vendors to discover available slugs.',
+        'Vendor slugs from the built-in registry (e.g., "github", "aws") or raw Atlassian Statuspage base URLs (non-Statuspage backends are supported via registry slugs only). Mix freely. Use devops_list_vendors to discover available slugs.',
       ),
     mode: z
       .enum(['summary', 'detailed'])
@@ -73,7 +77,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
     {
       reason: 'statuspage_unavailable',
       code: JsonRpcErrorCode.ServiceUnavailable,
-      when: 'A Statuspage endpoint returned an error or timed out.',
+      when: "A vendor's status API returned an error or timed out.",
       recovery:
         'The vendor status page may be unreachable. Retry after 30s. If it persists, check the URL directly in a browser.',
       retryable: true,
@@ -82,25 +86,24 @@ export const devopsStatusCheck = tool('devops_status_check', {
 
   async handler(input, ctx) {
     const registry = getVendorRegistryService();
-    const statuspage = getStatuspageService();
 
     // Validate all vendors first
     const resolved = input.vendors.map((v) => {
-      const r = registry.resolve(v);
-      if (!r)
+      const target = registry.resolve(v);
+      if (!target)
         throw ctx.fail(
           'vendor_not_found',
           `"${v}" is not a known vendor slug and is not a valid URL. Call devops_list_vendors to browse.`,
           { ...ctx.recoveryFor('vendor_not_found') },
         );
-      return { input: v, ...r };
+      return { input: v, target };
     });
 
     // SSRF guard: only raw URL inputs need checking — registry entries are pre-verified public URLs.
     for (const r of resolved) {
-      if (r.slug === null) {
+      if (r.target.slug === null) {
         try {
-          await assertSafeUrl(r.url);
+          await assertSafeUrl(r.target.url);
         } catch (err) {
           const msg = (err as Error).message;
           if (msg.startsWith('SSRF_BLOCKED')) {
@@ -115,8 +118,8 @@ export const devopsStatusCheck = tool('devops_status_check', {
 
     const fetched = await Promise.allSettled(
       resolved.map(async (r) => {
-        const { data, cached } = await statuspage.fetchSummary(r.url);
-        return buildVendorResult(r.input, r.url, r.name, data, cached, input.mode);
+        const { data, cached } = await fetchVendorSummary(r.target);
+        return buildVendorResult(r.input, r.target.url, r.target.name, data, cached, input.mode);
       }),
     );
 
@@ -126,14 +129,14 @@ export const devopsStatusCheck = tool('devops_status_check', {
       const res = resolved[i] as (typeof resolved)[number];
       return {
         vendor: res.input,
-        name: res.name,
+        name: res.target.name,
         indicator: 'none' as const,
         description: 'Unknown',
         degraded_components: [],
         active_incidents: [],
         cached: false,
         checked_at: new Date().toISOString(),
-        statuspage_url: res.url,
+        statuspage_url: res.target.url,
         error: (r.reason as Error).message,
       };
     });

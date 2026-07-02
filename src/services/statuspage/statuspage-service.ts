@@ -4,64 +4,19 @@
  */
 
 import { getServerConfig } from '@/config/server-config.js';
+import { fetchJsonCached } from '@/utils/cached-fetch.js';
 import type {
   StatuspageIncidentsResponse,
   StatuspageScheduledMaintenancesResponse,
   StatuspageSummaryResponse,
 } from './types.js';
 
-interface CacheEntry<T> {
-  expiresAt: number;
-  value: T;
-}
-
-/** Shared in-memory cache across all tenants — Statuspage data is public. */
-const CACHE = new Map<string, CacheEntry<unknown>>();
-
-function cacheGet<T>(key: string): T | null {
-  const entry = CACHE.get(key) as CacheEntry<T> | undefined;
-  if (!entry || Date.now() > entry.expiresAt) {
-    CACHE.delete(key);
-    return null;
-  }
-  return entry.value;
-}
-
-function cacheSet<T>(key: string, value: T, ttlMs: number): void {
-  CACHE.set(key, { value, expiresAt: Date.now() + ttlMs });
-}
-
-/** Fetch a Statuspage endpoint, with timeout and cache. */
-async function fetchStatuspage<T>(
-  url: string,
-  ttlMs: number,
-  timeoutMs: number,
-): Promise<{ data: T; cached: boolean }> {
-  const cached = cacheGet<T>(url);
-  if (cached !== null) return { data: cached, cached: true };
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-    const data = (await res.json()) as T;
-    cacheSet(url, data, ttlMs);
-    return { data, cached: false };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export class StatuspageService {
   async fetchSummary(
     baseUrl: string,
   ): Promise<{ data: StatuspageSummaryResponse; cached: boolean }> {
     const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
-    return await fetchStatuspage<StatuspageSummaryResponse>(
+    return await fetchJsonCached<StatuspageSummaryResponse>(
       `${baseUrl}/api/v2/summary.json`,
       cacheTtlMs,
       fetchTimeoutMs,
@@ -72,7 +27,7 @@ export class StatuspageService {
     baseUrl: string,
   ): Promise<{ data: StatuspageIncidentsResponse; cached: boolean }> {
     const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
-    return await fetchStatuspage<StatuspageIncidentsResponse>(
+    return await fetchJsonCached<StatuspageIncidentsResponse>(
       `${baseUrl}/api/v2/incidents.json`,
       cacheTtlMs,
       fetchTimeoutMs,
@@ -83,7 +38,7 @@ export class StatuspageService {
     baseUrl: string,
   ): Promise<{ data: StatuspageScheduledMaintenancesResponse; cached: boolean }> {
     const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
-    return await fetchStatuspage<StatuspageScheduledMaintenancesResponse>(
+    return await fetchJsonCached<StatuspageScheduledMaintenancesResponse>(
       `${baseUrl}/api/v2/scheduled-maintenances.json`,
       cacheTtlMs,
       fetchTimeoutMs,

@@ -8,6 +8,19 @@ import { VENDOR_REGISTRY, type VendorEntry } from '@/data/vendor-registry.js';
 /** Regex matching a raw URL (starts with http:// or https://). */
 const URL_RE = /^https?:\/\//i;
 
+/**
+ * A resolved vendor target — carries the api_type (plus adapter-specific fields)
+ * so the status dispatch layer can route to the right adapter.
+ */
+export type ResolvedVendor = {
+  url: string;
+  name: string;
+  slug: string | null;
+} & (
+  | { api_type: 'statuspage' | 'slack' | 'aws' }
+  | { api_type: 'statusio'; statusio_page_id: string }
+);
+
 export class VendorRegistryService {
   private readonly bySlug: Map<string, VendorEntry> = new Map();
   private readonly all: readonly VendorEntry[] = VENDOR_REGISTRY;
@@ -19,19 +32,28 @@ export class VendorRegistryService {
   }
 
   /**
-   * Resolve a vendor input to a Statuspage base URL and display name.
-   * Input may be a slug ("github") or a raw Statuspage base URL.
+   * Resolve a vendor input to a status endpoint target.
+   * Input may be a slug ("github") or a raw Atlassian Statuspage base URL —
+   * raw URLs always resolve as api_type 'statuspage'.
    * Returns null when not found and not a URL.
    */
-  resolve(input: string): { url: string; name: string; slug: string | null } | null {
+  resolve(input: string): ResolvedVendor | null {
     const lower = input.trim().toLowerCase();
     const entry = this.bySlug.get(lower);
     if (entry) {
-      return { url: entry.statuspage_url, name: entry.name, slug: entry.slug };
+      const base = { url: entry.statuspage_url, name: entry.name, slug: entry.slug };
+      return entry.api_type === 'statusio'
+        ? { ...base, api_type: 'statusio', statusio_page_id: entry.statusio_page_id }
+        : { ...base, api_type: entry.api_type };
     }
     // Raw URL passthrough
     if (URL_RE.test(input.trim())) {
-      return { url: input.trim().replace(/\/$/, ''), name: input.trim(), slug: null };
+      return {
+        url: input.trim().replace(/\/$/, ''),
+        name: input.trim(),
+        slug: null,
+        api_type: 'statuspage',
+      };
     }
     return null;
   }

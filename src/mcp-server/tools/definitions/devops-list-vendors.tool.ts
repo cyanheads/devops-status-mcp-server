@@ -20,7 +20,7 @@ const CATEGORIES = [
 export const devopsListVendors = tool('devops_list_vendors', {
   description:
     'List vendors in the built-in registry, optionally filtered by category or name search. ' +
-    'Returns slug, display name, category, and Statuspage base URL for each entry. ' +
+    'Returns slug, display name, category, and status page URL for each entry. ' +
     'Use to discover the correct slug to pass to other tools, or to see which vendors are available before configuring a stack.',
   annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true },
 
@@ -47,7 +47,11 @@ export const devopsListVendors = tool('devops_list_vendors', {
             slug: z.string().describe('Use this as the vendor identifier in other tools.'),
             name: z.string().describe('Display name of the vendor.'),
             category: z.string().describe('Vendor category (e.g., "dev-platform", "ai").'),
-            statuspage_url: z.string().describe('Statuspage base URL used to fetch status data.'),
+            statuspage_url: z
+              .string()
+              .describe(
+                'Status page base URL — the Statuspage API base for Statuspage-backed vendors, the public status page URL for adapter-backed vendors (aws, gitlab, slack, neon).',
+              ),
           })
           .describe('A vendor entry from the built-in registry.'),
       )

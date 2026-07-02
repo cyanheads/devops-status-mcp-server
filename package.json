@@ -1,6 +1,6 @@
 {
   "name": "@cyanheads/devops-status-mcp-server",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "mcpName": "io.github.cyanheads/devops-status-mcp-server",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks via MCP. STDIO or Streamable HTTP.",
   "type": "module",
@@ -31,6 +31,7 @@
     "format:unsafe": "biome check --write --unsafe .",
     "lint:mcp": "bun run scripts/lint-mcp.ts",
     "lint:packaging": "bun run scripts/lint-packaging.ts",
+    "verify:registry": "bun run scripts/verify-registry.ts",
     "bundle": "bun run build && npx -y @anthropic-ai/mcpb pack . dist/devops-status-mcp-server.mcpb && bun run scripts/clean-mcpb.ts dist/devops-status-mcp-server.mcpb",
     "changelog:build": "bun run scripts/build-changelog.ts",
     "changelog:check": "bun run scripts/build-changelog.ts --check",

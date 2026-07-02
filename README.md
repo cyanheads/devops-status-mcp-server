@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.3.1-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^6.0.3-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.4.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^6.0.3-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -29,11 +29,11 @@
 
 ## Tools
 
-Seven tools in three capability groups — vendor status (Atlassian Statuspage, 48 built-in vendors + raw-URL passthrough), pure-TypeScript cert/DNS checks (any domain), and incident-response guidance:
+Seven tools in three capability groups — vendor status (50 built-in vendors across Atlassian Statuspage, Status.io, Slack, and AWS Health backends, normalized to one shape, + raw Statuspage URL passthrough), pure-TypeScript cert/DNS checks (any domain), and incident-response guidance:
 
 | Tool | Description |
 |:-----|:------------|
-| `devops_list_vendors` | List vendors in the built-in registry, optionally filtered by name or category. Returns slug, display name, category, and Statuspage base URL. |
+| `devops_list_vendors` | List vendors in the built-in registry, optionally filtered by name or category. Returns slug, display name, category, and status page URL. |
 | `devops_status_check` | Check the current health status for one or more vendors. Returns per-vendor indicator (`none` / `minor` / `major` / `critical`), degraded components, and active incident summaries. |
 | `devops_get_incidents` | Fetch incident history for a vendor — active, resolved, or scheduled maintenance. Returns the full incident timeline with per-update bodies and affected components. |
 | `devops_watch_stack` | Check the health of a named vendor stack persisted in session state. Pass `vendors` once to save the list; subsequent calls reuse it. Returns an aggregate health rollup plus per-vendor detail. |
@@ -47,23 +47,23 @@ Discover available vendors before running status checks or configuring a stack.
 
 - Accepts an optional free-text `query` (matches name and slug, case-insensitive) and an optional `category` filter
 - Eight categories: `cloud`, `cdn-edge`, `dev-platform`, `data`, `comms`, `auth`, `monitoring`, `ai`
-- Returns slug (what to pass to other tools), display name, category, and Statuspage base URL
-- 48 built-in entries — well-known public vendors with verified Statuspage `/api/v2/status.json` endpoints
+- Returns slug (what to pass to other tools), display name, category, and status page URL
+- 50 built-in entries — well-known public vendors with verified status endpoints (most on Atlassian Statuspage; `aws`, `gitlab`, `neon`, and `slack` served through native-API adapters)
 
 Built-in vendor registry:
 
 | Category | Vendors |
 |:---------|:--------|
-| `cloud` | digitalocean, linode |
+| `cloud` | digitalocean, linode, aws |
 | `cdn-edge` | cloudflare, akamai |
-| `dev-platform` | github, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, figma, launchdarkly |
+| `dev-platform` | gitlab, github, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, figma, launchdarkly |
 | `data` | mongodb-atlas, planetscale, supabase, neon, redis-cloud, elastic, influxdb, upstash, cloudinary, segment |
 | `comms` | slack, discord, twilio, sendgrid, mailgun, hubspot, brevo, courier, loops |
 | `auth` | auth0, clerk, workos |
 | `monitoring` | datadog, sentry, new-relic, grafana-cloud, honeycomb |
 | `ai` | openai, anthropic, elevenlabs, pinecone, cohere |
 
-The registry covers verified public vendors on Atlassian Statuspage. Major cloud providers (AWS, GCP, Azure) use custom status pages and are not in the registry — they can still be reached by passing their raw Statuspage-compatible URL if one exists.
+Most registry entries are Atlassian Statuspage endpoints; `aws` (AWS Health Dashboard), `gitlab` / `neon` (Status.io), and `slack` (Slack's own status API) are served through adapters that normalize into the same shapes, so every tool works identically for them. GCP and Azure publish no keyless machine-readable feed and remain out of the registry — Statuspage-compatible pages can still be reached by passing a raw base URL.
 
 ---
 
@@ -71,7 +71,7 @@ The registry covers verified public vendors on Atlassian Statuspage. Major cloud
 
 Batch health snapshot across one or more vendors in a single call.
 
-- Accepts registered vendor slugs (e.g., `"github"`) or raw Statuspage base URLs (e.g., `"https://www.githubstatus.com"`) — mix freely
+- Accepts registered vendor slugs (e.g., `"github"`, `"aws"`) or raw Atlassian Statuspage base URLs (e.g., `"https://www.githubstatus.com"`) — mix freely
 - `mode: "summary"` (default): indicator + degraded components + active incidents
 - `mode: "detailed"`: adds full component list and scheduled maintenance windows
 - `Promise.allSettled` fan-out — one failing vendor does not block the rest; errors surface inline
@@ -88,7 +88,8 @@ Full incident timeline for a vendor with filter support.
 - `filter: "resolved"`: only fully resolved incidents
 - `filter: "scheduled"`: only scheduled maintenance windows
 - Returns per-update bodies in chronological order, affected component names, duration in minutes (resolved incidents), and a direct shortlink to the incident page
-- Configurable `limit` (1–50); Statuspage returns at most 50 per call
+- Configurable `limit` (1–50); vendor status APIs return at most ~50 recent entries per call
+- AWS exposes only currently-open events (no history feed) — `filter: "resolved"` and `filter: "scheduled"` are always empty for `aws`
 
 ---
 
@@ -145,7 +146,7 @@ Deterministic incident-response guidance, no external calls.
 
 | Type | Name | Description |
 |:-----|:-----|:------------|
-| Resource | `devops-status://vendors/{name}` | Full registry entry for a vendor by slug — Statuspage base URL, category, API type. |
+| Resource | `devops-status://vendors/{name}` | Full registry entry for a vendor by slug — status page URL, category, API type. |
 
 All resource data is also reachable via tools. Tool-only agents are fully supported.
 
@@ -164,16 +165,16 @@ Built on [`@cyanheads/mcp-ts-core`](https://www.npmjs.com/package/@cyanheads/mcp
 
 DevOps-status-specific:
 
-- **No API keys required** — Atlassian Statuspage is a public API; TLS and DNS use Node.js stdlib (`node:tls`, `node:dns`)
-- 48-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; extendable via raw Statuspage URL passthrough
-- 60-second in-memory cache on Statuspage reads shared across all tenants — prevents thundering-herd on batch calls
+- **No API keys required** — every status backend is a public API; TLS and DNS use Node.js stdlib (`node:tls`, `node:dns`)
+- 50-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; adapter layer normalizes Status.io, Slack, and AWS Health backends into the Statuspage shapes; extendable via raw Statuspage URL passthrough
+- 60-second in-memory cache on status reads shared across all tenants — prevents thundering-herd on batch calls
 - `devops_watch_stack` persists named vendor lists in tenant-scoped state for repeat morning checks or pre-deploy sweeps
 - `devops_suggest_action` dispatches category-specific playbooks deterministically — no LLM sampling dependency, works in all clients
 
 Agent-friendly output:
 
 - Batch tools (`devops_status_check`, `devops_watch_stack`, `devops_check_certs`, `devops_check_dns`) use `Promise.allSettled` — one failing target never blocks the rest; errors surface as inline `error` fields
-- `cached: true` / `checked_at` on every Statuspage result — agents know when data was fetched
+- `cached: true` / `checked_at` on every status result — agents know when data was fetched
 - Discriminated indicator and status enums (`none` / `minor` / `major` / `critical`; `operational` / `degraded_performance` / `partial_outage` / `major_outage` / `under_maintenance`) — callers branch on data, not string parsing
 - `nextToolSuggestions` in `devops_suggest_action` pre-fills tool arguments from incident context — agents can execute the playbook mechanically
 
@@ -299,8 +300,8 @@ No API keys required. All environment variables are optional.
 
 | Variable | Description | Default |
 |:---------|:------------|:--------|
-| `DEVOPS_STATUS_CACHE_TTL_MS` | In-memory cache TTL for Statuspage reads in milliseconds. | `60000` |
-| `DEVOPS_STATUS_FETCH_TIMEOUT_MS` | Per-request timeout for Statuspage API calls in milliseconds. | `8000` |
+| `DEVOPS_STATUS_CACHE_TTL_MS` | In-memory cache TTL for vendor status reads (all backends) in milliseconds. | `60000` |
+| `DEVOPS_STATUS_FETCH_TIMEOUT_MS` | Per-request timeout for vendor status API calls (all backends) in milliseconds. | `8000` |
 | `DEVOPS_STATUS_CERT_TIMEOUT_MS` | Default `timeout_ms` for `devops_check_certs` (per-domain TLS handshake, milliseconds). A caller-passed `timeout_ms` overrides it. | `5000` |
 | `DEVOPS_STATUS_DNS_TIMEOUT_MS` | Default `timeout_ms` for `devops_check_dns` (per domain+resolver query, milliseconds). A caller-passed `timeout_ms` overrides it. | `3000` |
 | `DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS` | When `true`, disables SSRF guards for user-supplied URLs and domains. For trusted local/intranet deployments only. | `false` |
@@ -359,6 +360,7 @@ The Dockerfile defaults to HTTP transport, stateless session mode, and logs to `
 | `src/services/cert/` | `node:tls` — TLS handshake, X.509 parsing, expiry and protocol flagging. |
 | `src/services/dns/` | `node:dns` — multi-resolver DNS fan-out, propagation discrepancy detection. |
 | `src/services/statuspage/` | Statuspage public API client with 60-second in-memory cache. |
+| `src/services/status-adapters/` | Native-API adapters (Status.io, Slack, AWS Health) + `api_type` dispatch, normalizing into the Statuspage shapes. |
 | `src/services/vendor-registry/` | In-memory vendor registry loaded from `src/data/vendor-registry.ts`. |
 | `src/data/` | Static vendor registry data file (`vendor-registry.ts`). |
 | `tests/` | Vitest tests mirroring `src/`. |

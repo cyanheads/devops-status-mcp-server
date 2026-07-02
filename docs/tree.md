@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-07-02 12:55:26
+Generated on: 2026-07-02 13:38:41
 
 ```text
 devops-status-mcp-server/
@@ -23,6 +23,7 @@ devops-status-mcp-server/
 │   ├── 0.1.x/
 │   ├── 0.2.x/
 │   ├── 0.3.x/
+│   ├── 0.4.x/
 │   └── template.md
 ├── docs/
 │   ├── design.md
@@ -42,7 +43,8 @@ devops-status-mcp-server/
 │   ├── lint-packaging.ts
 │   ├── list-skills.ts
 │   ├── release-github.ts
-│   └── tree.ts
+│   ├── tree.ts
+│   └── verify-registry.ts
 ├── skills/
 │   ├── add-app-tool/
 │   │   └── SKILL.md
@@ -156,12 +158,18 @@ devops-status-mcp-server/
 │   │   │   └── cert-service.ts
 │   │   ├── dns/
 │   │   │   └── dns-service.ts
+│   │   ├── status-adapters/
+│   │   │   ├── aws-adapter.ts
+│   │   │   ├── slack-adapter.ts
+│   │   │   ├── status-dispatch.ts
+│   │   │   └── statusio-adapter.ts
 │   │   ├── statuspage/
 │   │   │   ├── statuspage-service.ts
 │   │   │   └── types.ts
 │   │   └── vendor-registry/
 │   │       └── vendor-registry-service.ts
 │   ├── utils/
+│   │   ├── cached-fetch.ts
 │   │   └── ssrf-guard.ts
 │   └── index.ts
 ├── tests/
@@ -189,6 +197,17 @@ devops-status-mcp-server/
 │   │   │   └── cert-service.test.ts
 │   │   ├── dns/
 │   │   │   └── dns-service.test.ts
+│   │   ├── status-adapters/
+│   │   │   ├── fixtures/
+│   │   │   │   ├── aws-currentevents.utf16be.bin
+│   │   │   │   ├── slack-current.json
+│   │   │   │   ├── slack-history.json
+│   │   │   │   ├── statusio-gitlab.json
+│   │   │   │   └── statusio-incident-doc-derived.json
+│   │   │   ├── aws-adapter.test.ts
+│   │   │   ├── slack-adapter.test.ts
+│   │   │   ├── status-dispatch.test.ts
+│   │   │   └── statusio-adapter.test.ts
 │   │   ├── statuspage/
 │   │   │   └── statuspage-service.test.ts
 │   │   └── vendor-registry/

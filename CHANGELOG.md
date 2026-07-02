@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.4.0](changelog/0.4.x/0.4.0.md) — 2026-07-02
+
+Status-API adapter layer (Status.io, Slack, AWS Health) normalizes native feeds into the Statuspage shapes — aws and gitlab join the registry, slack and neon move onto their real backends (48 → 50 vendors), auth0 URL fixed, plus a verify:registry drift probe.
+
 ## [0.3.1](changelog/0.3.x/0.3.1.md) — 2026-07-02
 
 devops_watch_stack annotations corrected (readOnlyHint: false); DEVOPS_STATUS_CERT_TIMEOUT_MS / DEVOPS_STATUS_DNS_TIMEOUT_MS now drive the probe timeout_ms defaults; ctx.recoveryFor spread at all 9 ctx.fail sites so data.recovery.hint reaches the wire.

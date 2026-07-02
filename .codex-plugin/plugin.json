@@ -1,6 +1,6 @@
 {
   "name": "devops-status-mcp-server",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
   "author": {
     "name": "cyanheads",
@@ -29,7 +29,7 @@
   "interface": {
     "displayName": "devops-status-mcp-server",
     "shortDescription": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
-    "longDescription": "Infrastructure health and incident intelligence. Check 50 built-in vendors (GitHub, Cloudflare, OpenAI, AWS, GitLab, Slack, and more) across Atlassian Statuspage, Status.io, Slack, and AWS Health backends, inspect SSL/TLS certificates and DNS propagation for any domain, and get deterministic incident-response playbooks — all without API keys.",
+    "longDescription": "Infrastructure health and incident intelligence. Check 50 built-in vendors (GitHub, Cloudflare, OpenAI, AWS, GitLab, Slack, and more) across Atlassian Statuspage, Status.io, Slack, AWS Health, and Firehydrant backends, inspect SSL/TLS certificates and DNS propagation for any domain, and get deterministic incident-response playbooks — all without API keys.",
     "developerName": "cyanheads",
     "category": "developer-tools",
     "capabilities": ["Read"],

@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.5.0](changelog/0.5.x/0.5.0.md) — 2026-07-02
+
+Firehydrant status-page adapter — redis-cloud moves off the dead Statuspage API onto the page's own payload feed; registry stays at 50 vendors.
+
 ## [0.4.0](changelog/0.4.x/0.4.0.md) — 2026-07-02
 
 Status-API adapter layer (Status.io, Slack, AWS Health) normalizes native feeds into the Statuspage shapes — aws and gitlab join the registry, slack and neon move onto their real backends (48 → 50 vendors), auth0 URL fixed, plus a verify:registry drift probe.

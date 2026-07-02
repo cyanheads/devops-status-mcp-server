@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.3.0](changelog/0.3.x/0.3.0.md) — 2026-07-02 · 🛡️ Security
+
+devops_suggest_action gains an optional vendor_indicator severity input and honors DEVOPS_STATUS_DISABLE_ACTIVE_PROBES; devops_get_incidents enrichment + duration guards; transitive re-resolve clears all 9 bun audit advisories (hono 4.12.27, vite 8.1.3, js-yaml 3.15.0); mcp-ts-core ^0.10.10.
+
 ## [0.2.5](changelog/0.2.x/0.2.5.md) — 2026-06-20
 
 Adopt @cyanheads/mcp-ts-core ^0.10.9 — ctx.content media collector, Canvas SQL invalid_sql classification, DuckdbProvider.describe() filter fix, two new devcheck guards (dependency specifiers, plugin marketplace manifests); typescript ^6.0.3, @types/node ^26.

@@ -3,7 +3,7 @@
  * @module tests/mcp-server/tools/definitions/devops-get-incidents.tool.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { devopsGetIncidents } from '@/mcp-server/tools/definitions/devops-get-incidents.tool.js';
 import type {
@@ -263,6 +263,117 @@ describe('devopsGetIncidents', () => {
     expect(result.incidents[0]!.shortlink).toBeNull();
     // duration_minutes should be null when started_at is absent (can't compute elapsed time)
     expect(result.incidents[0]!.duration_minutes).toBeNull();
+  });
+
+  it('non-truncated results pass the effective-output parse without enrichment (#5)', async () => {
+    // Regression for #5: enrichment fields are populated only when the cap is hit,
+    // so they must be optional — a non-truncated (here: empty) result must validate
+    // against output.extend(enrichment) with no enrichment written.
+    const { _mockFetchIncidents } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as {
+      _mockFetchIncidents: ReturnType<typeof vi.fn>;
+    };
+    // Only a resolved incident — the active filter yields an empty, non-truncated set.
+    _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
+
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'active', limit: 3 });
+    const result = await devopsGetIncidents.handler(input, ctx);
+
+    expect(result.incidents).toHaveLength(0);
+    expect(result.total_returned).toBe(0);
+    expect(getEnrichment(ctx)).toEqual({});
+
+    const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+    expect(() => effectiveOutput.parse({ ...result, ...getEnrichment(ctx) })).not.toThrow();
+  });
+
+  it('writes truncation enrichment when more incidents matched than the limit', async () => {
+    const TWO_INCIDENTS: StatuspageIncidentsResponse = {
+      ...RESOLVED_INCIDENT,
+      incidents: [
+        RESOLVED_INCIDENT.incidents[0]!,
+        { ...RESOLVED_INCIDENT.incidents[0]!, id: 'inc-002', name: 'Second Incident' },
+      ],
+    };
+    const { _mockFetchIncidents } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as {
+      _mockFetchIncidents: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchIncidents.mockResolvedValue({ data: TWO_INCIDENTS, cached: false });
+
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({
+      vendor: 'github',
+      filter: 'resolved',
+      limit: 1,
+    });
+    const result = await devopsGetIncidents.handler(input, ctx);
+
+    expect(result.incidents).toHaveLength(1);
+    expect(getEnrichment(ctx)).toMatchObject({ truncated: true, shown: 1, cap: 1 });
+  });
+
+  it('returns null duration_minutes when resolved_at precedes started_at (#6)', async () => {
+    // Regression for #6: vendor-authored Statuspage data can carry inverted
+    // timestamps; the derived duration must be null, never negative.
+    const INVERTED: StatuspageIncidentsResponse = {
+      ...RESOLVED_INCIDENT,
+      incidents: [
+        {
+          ...RESOLVED_INCIDENT.incidents[0]!,
+          id: 'inc-inverted',
+          started_at: '2026-06-19T14:38:09.691Z',
+          resolved_at: '2026-06-17T19:00:00.000Z',
+        },
+      ],
+    };
+    const { _mockFetchIncidents } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as {
+      _mockFetchIncidents: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchIncidents.mockResolvedValue({ data: INVERTED, cached: false });
+
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved' });
+    const result = await devopsGetIncidents.handler(input, ctx);
+
+    expect(result.incidents).toHaveLength(1);
+    expect(result.incidents[0]!.duration_minutes).toBeNull();
+  });
+
+  it('format omits the duration when duration_minutes is null', () => {
+    const result = {
+      vendor: 'github',
+      name: 'GitHub',
+      incidents: [
+        {
+          id: 'inc-nodur',
+          name: 'Webhook Incident',
+          impact: 'minor' as const,
+          status: 'resolved',
+          created_at: '2026-06-17T19:00:00.000Z',
+          started_at: '2026-06-19T14:38:09.691Z',
+          resolved_at: '2026-06-17T19:00:00.000Z',
+          scheduled_for: null,
+          scheduled_until: null,
+          duration_minutes: null,
+          shortlink: null,
+          affected_components: [],
+          updates: [],
+        },
+      ],
+      total_returned: 1,
+      statuspage_url: 'https://www.githubstatus.com',
+    };
+    const blocks = devopsGetIncidents.format!(result);
+    const text = (blocks[0] as { text: string }).text;
+    expect(text).toContain('**Resolved:** 2026-06-17T19:00:00.000Z');
+    expect(text).not.toMatch(/\(-?\d+ min\)/);
+    expect(text).not.toContain('? min');
   });
 
   it('throws statuspage_unavailable when fetch rejects', async () => {

@@ -18,6 +18,9 @@ function durationMinutes(
   const start = new Date(startedAt).getTime();
   const end = new Date(resolvedAt).getTime();
   if (Number.isNaN(start) || Number.isNaN(end)) return null;
+  // Statuspage data is vendor-authored — inverted timestamps (resolved_at before
+  // started_at) occur in the wild and would yield a nonsense negative duration.
+  if (end < start) return null;
   return Math.round((end - start) / 60_000);
 }
 
@@ -131,7 +134,8 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
               .number()
               .nullable()
               .describe(
-                'Minutes from started_at to resolved_at. Null for active or scheduled incidents.',
+                'Minutes from started_at to resolved_at. Null for active or scheduled incidents, ' +
+                  'or when the vendor-authored timestamps are missing, invalid, or inverted.',
               ),
             shortlink: z
               .string()
@@ -162,9 +166,21 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
   }),
 
   enrichment: {
-    truncated: z.boolean().describe('True when more incidents matched than the limit returned.'),
-    shown: z.number().describe('Number of incidents returned after applying the limit.'),
-    cap: z.number().describe('The limit that was applied.'),
+    // Populated only via ctx.enrich.truncated() when the cap is actually hit —
+    // all fields must be optional so non-truncated results pass the effective-output parse.
+    truncated: z
+      .boolean()
+      .optional()
+      .describe(
+        'True when more incidents matched than the limit returned. Absent when the result was not capped.',
+      ),
+    shown: z
+      .number()
+      .optional()
+      .describe(
+        'Number of incidents returned after applying the limit. Present only when truncated.',
+      ),
+    cap: z.number().optional().describe('The limit that was applied. Present only when truncated.'),
   },
 
   errors: [
@@ -283,8 +299,10 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       lines.push(
         `**Impact:** ${inc.impact} | **Status:** ${inc.status} | **Created:** ${inc.created_at}${inc.started_at ? ` | **Started:** ${inc.started_at}` : ''}`,
       );
-      if (inc.resolved_at)
-        lines.push(`**Resolved:** ${inc.resolved_at} (${inc.duration_minutes ?? '?'} min)`);
+      if (inc.resolved_at) {
+        const duration = inc.duration_minutes !== null ? ` (${inc.duration_minutes} min)` : '';
+        lines.push(`**Resolved:** ${inc.resolved_at}${duration}`);
+      }
       if (inc.scheduled_for)
         lines.push(`**Scheduled:** ${inc.scheduled_for} → ${inc.scheduled_until}`);
       if (inc.affected_components.length > 0) {

@@ -124,7 +124,10 @@ describe('devopsCheckDns', () => {
     const ctx = createMockContext({ errors: devopsCheckDns.errors });
     const input = devopsCheckDns.input.parse({ domains: ['https://example.com'] });
     await expect(devopsCheckDns.handler(input, ctx)).rejects.toMatchObject({
-      data: { reason: 'invalid_domain' },
+      data: {
+        reason: 'invalid_domain',
+        recovery: { hint: expect.stringContaining('bare hostname') },
+      },
     });
   });
 

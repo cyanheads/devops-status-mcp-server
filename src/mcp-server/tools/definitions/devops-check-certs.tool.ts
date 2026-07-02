@@ -6,6 +6,7 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { getServerConfig } from '@/config/server-config.js';
 import { getCertService } from '@/services/cert/cert-service.js';
 
 /** Regex for a bare hostname (no protocol). */
@@ -49,9 +50,12 @@ export const devopsCheckCerts = tool('devops_check_certs', {
       .int()
       .min(1000)
       .max(15000)
-      .default(5000)
+      // Lazy default — resolved at parse time from server config, so the
+      // DEVOPS_STATUS_CERT_TIMEOUT_MS env var takes effect without baking a
+      // value in at module load. An explicit timeout_ms always wins.
+      .default(() => getServerConfig().certTimeoutMs)
       .describe(
-        'Connection timeout per domain in milliseconds. Increase for slow or geographically distant endpoints.',
+        'Connection timeout per domain in milliseconds. Defaults to the DEVOPS_STATUS_CERT_TIMEOUT_MS env var (5000 when unset). Increase for slow or geographically distant endpoints.',
       ),
   }),
 
@@ -132,6 +136,7 @@ export const devopsCheckCerts = tool('devops_check_certs', {
         throw ctx.fail(
           'invalid_domain',
           `Domain "${domain}" must not include a protocol prefix. Pass the bare hostname (e.g., "github.com").`,
+          { ...ctx.recoveryFor('invalid_domain') },
         );
       }
     }

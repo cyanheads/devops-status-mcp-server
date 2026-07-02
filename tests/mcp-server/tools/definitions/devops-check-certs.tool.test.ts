@@ -132,7 +132,10 @@ describe('devopsCheckCerts', () => {
       typeof devopsCheckCerts.handler
     >[0];
     await expect(devopsCheckCerts.handler(input, ctx)).rejects.toMatchObject({
-      data: { reason: 'invalid_domain' },
+      data: {
+        reason: 'invalid_domain',
+        recovery: { hint: expect.stringContaining('bare hostname') },
+      },
     });
   });
 

@@ -138,7 +138,10 @@ describe('devopsGetIncidents', () => {
     const ctx = createMockContext({ errors: devopsGetIncidents.errors });
     const input = devopsGetIncidents.input.parse({ vendor: 'unknown-xyz', filter: 'all' });
     await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
-      data: { reason: 'vendor_not_found' },
+      data: {
+        reason: 'vendor_not_found',
+        recovery: { hint: expect.stringContaining('devops_list_vendors') },
+      },
     });
   });
 

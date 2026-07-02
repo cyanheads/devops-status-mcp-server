@@ -112,7 +112,10 @@ describe('devopsWatchStack', () => {
     const ctx = createMockContext({ tenantId: 'test-tenant', errors: devopsWatchStack.errors });
     const input = devopsWatchStack.input.parse({ stack_name: 'empty-stack-xyz' });
     await expect(devopsWatchStack.handler(input, ctx)).rejects.toMatchObject({
-      data: { reason: 'no_stack' },
+      data: {
+        reason: 'no_stack',
+        recovery: { hint: expect.stringContaining('Provide a vendors list') },
+      },
     });
   });
 
@@ -140,7 +143,10 @@ describe('devopsWatchStack', () => {
       stack_name: 'err-stack',
     });
     await expect(devopsWatchStack.handler(input, ctx)).rejects.toMatchObject({
-      data: { reason: 'vendor_not_found' },
+      data: {
+        reason: 'vendor_not_found',
+        recovery: { hint: expect.stringContaining('devops_list_vendors') },
+      },
     });
   });
 

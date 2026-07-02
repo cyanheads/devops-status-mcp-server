@@ -153,7 +153,10 @@ describe('devopsStatusCheck', () => {
     const ctx = createMockContext({ errors: devopsStatusCheck.errors });
     const input = devopsStatusCheck.input.parse({ vendors: ['totally-unknown-slug-xyz'] });
     await expect(devopsStatusCheck.handler(input, ctx)).rejects.toMatchObject({
-      data: { reason: 'vendor_not_found' },
+      data: {
+        reason: 'vendor_not_found',
+        recovery: { hint: expect.stringContaining('devops_list_vendors') },
+      },
     });
   });
 

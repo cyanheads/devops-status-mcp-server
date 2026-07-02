@@ -33,7 +33,15 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     'On the first call, provide vendors to define the stack; subsequent calls can omit vendors to reuse the persisted list. ' +
     'Returns a unified health snapshot with an aggregate rollup plus per-vendor detail. ' +
     'Ideal for morning status checks or pre-deploy sweeps. Multiple stacks can coexist (e.g., "production", "staging").',
-  annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
+  // Not read-only: providing `vendors` persists the stack list via ctx.state.set.
+  // Not destructive: the only write is an upsert of the caller-named stack key.
+  // Idempotent: repeating a call with the same arguments re-saves the same list.
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
 
   input: z.object({
     vendors: z
@@ -119,6 +127,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         throw ctx.fail(
           'no_stack',
           `No saved stack found for "${input.stack_name}". Provide a vendors list.`,
+          { ...ctx.recoveryFor('no_stack') },
         );
       }
       vendorList = saved;
@@ -131,6 +140,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         throw ctx.fail(
           'vendor_not_found',
           `"${v}" is not a known vendor slug and is not a valid URL.`,
+          { ...ctx.recoveryFor('vendor_not_found') },
         );
       return { input: v, ...r };
     });
@@ -143,7 +153,9 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         } catch (err) {
           const msg = (err as Error).message;
           if (msg.startsWith('SSRF_BLOCKED')) {
-            throw ctx.fail('target_blocked', msg.replace('SSRF_BLOCKED: ', ''));
+            throw ctx.fail('target_blocked', msg.replace('SSRF_BLOCKED: ', ''), {
+              ...ctx.recoveryFor('target_blocked'),
+            });
           }
           throw err;
         }

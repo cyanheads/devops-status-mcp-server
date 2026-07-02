@@ -59,3 +59,21 @@ describe('registered tool surface', () => {
     expect(names).toHaveLength(ALWAYS_REGISTERED.length);
   });
 });
+
+describe('tool annotations match handler behavior', () => {
+  it('devops_watch_stack is not read-only — providing vendors persists stack state', () => {
+    const watchStack = allToolDefinitions.find((t) => t.name === 'devops_watch_stack');
+    expect(watchStack?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    });
+  });
+
+  it('every other tool advertises readOnlyHint: true — none of them write state', () => {
+    for (const t of allToolDefinitions.filter((t) => t.name !== 'devops_watch_stack')) {
+      expect(t.annotations?.readOnlyHint, `${t.name} readOnlyHint`).toBe(true);
+    }
+  });
+});

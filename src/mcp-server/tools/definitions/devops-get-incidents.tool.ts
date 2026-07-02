@@ -215,6 +215,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       throw ctx.fail(
         'vendor_not_found',
         `"${input.vendor}" is not a known vendor slug and is not a valid URL.`,
+        { ...ctx.recoveryFor('vendor_not_found') },
       );
     }
 
@@ -225,7 +226,9 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       } catch (err) {
         const msg = (err as Error).message;
         if (msg.startsWith('SSRF_BLOCKED')) {
-          throw ctx.fail('target_blocked', msg.replace('SSRF_BLOCKED: ', ''));
+          throw ctx.fail('target_blocked', msg.replace('SSRF_BLOCKED: ', ''), {
+            ...ctx.recoveryFor('target_blocked'),
+          });
         }
         throw err;
       }

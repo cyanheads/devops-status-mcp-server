@@ -6,6 +6,7 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { getServerConfig } from '@/config/server-config.js';
 import type { RecordType } from '@/services/dns/dns-service.js';
 import { getDnsService } from '@/services/dns/dns-service.js';
 
@@ -47,8 +48,13 @@ export const devopsCheckDns = tool('devops_check_dns', {
       .int()
       .min(1000)
       .max(10000)
-      .default(3000)
-      .describe('Query timeout per domain+resolver combination in milliseconds.'),
+      // Lazy default — resolved at parse time from server config, so the
+      // DEVOPS_STATUS_DNS_TIMEOUT_MS env var takes effect without baking a
+      // value in at module load. An explicit timeout_ms always wins.
+      .default(() => getServerConfig().dnsTimeoutMs)
+      .describe(
+        'Query timeout per domain+resolver combination in milliseconds. Defaults to the DEVOPS_STATUS_DNS_TIMEOUT_MS env var (3000 when unset).',
+      ),
   }),
 
   output: z.object({
@@ -133,6 +139,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
         throw ctx.fail(
           'invalid_domain',
           `Domain "${domain}" must not include a protocol prefix. Pass the bare hostname.`,
+          { ...ctx.recoveryFor('invalid_domain') },
         );
       }
     }

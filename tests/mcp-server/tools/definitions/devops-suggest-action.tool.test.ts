@@ -4,12 +4,29 @@
  */
 
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
 import { initVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 
+const mockConfigState = vi.hoisted(() => ({ disableActiveProbes: false }));
+
+vi.mock('@/config/server-config.js', () => ({
+  getServerConfig: () => ({
+    cacheTtlMs: 60_000,
+    fetchTimeoutMs: 8_000,
+    certTimeoutMs: 5_000,
+    dnsTimeoutMs: 3_000,
+    allowPrivateTargets: false,
+    disableActiveProbes: mockConfigState.disableActiveProbes,
+  }),
+}));
+
 beforeAll(() => {
   initVendorRegistryService();
+});
+
+afterEach(() => {
+  mockConfigState.disableActiveProbes = false;
 });
 
 describe('devopsSuggestAction', () => {
@@ -117,6 +134,103 @@ describe('devopsSuggestAction', () => {
     const blocks = devopsSuggestAction.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('Chat API');
+  });
+
+  it('playbook references probe tools by name when active probes are enabled', () => {
+    const ctx = createMockContext();
+    const input = devopsSuggestAction.input.parse({ vendor: 'cloudflare' });
+    const result = devopsSuggestAction.handler(input, ctx);
+    expect(result.guidance).toContain('devops_check_dns');
+    expect(result.guidance).toContain('devops_check_certs');
+    // Placeholder tokens must never leak into rendered guidance
+    expect(result.guidance).not.toContain('{{');
+  });
+
+  describe('active probes disabled (#7)', () => {
+    it('omits devops_check_dns / devops_check_certs suggestions even with your_domain', () => {
+      mockConfigState.disableActiveProbes = true;
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'cloudflare',
+        your_domain: 'example.com',
+      });
+      const result = devopsSuggestAction.handler(input, ctx);
+      const toolNames = result.nextToolSuggestions.map((s) => s.toolName);
+      expect(toolNames).not.toContain('devops_check_dns');
+      expect(toolNames).not.toContain('devops_check_certs');
+      // The registered incident tool is still suggested
+      expect(toolNames).toContain('devops_get_incidents');
+    });
+
+    it('replaces probe tool names in the playbook with manual commands', () => {
+      mockConfigState.disableActiveProbes = true;
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'cloudflare' });
+      const result = devopsSuggestAction.handler(input, ctx);
+      expect(result.guidance).not.toContain('devops_check_dns');
+      expect(result.guidance).not.toContain('devops_check_certs');
+      expect(result.guidance).toContain('dig');
+      expect(result.guidance).toContain('openssl s_client');
+      expect(result.guidance).not.toContain('{{');
+    });
+
+    it('default playbook for unknown vendors also avoids probe tool names', () => {
+      mockConfigState.disableActiveProbes = true;
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'unknown-vendor-xyz' });
+      const result = devopsSuggestAction.handler(input, ctx);
+      expect(result.guidance).not.toContain('devops_check_dns');
+      expect(result.guidance).not.toContain('devops_check_certs');
+      const blocks = devopsSuggestAction.format!(result);
+      const text = (blocks[0] as { text: string }).text;
+      expect(text).not.toContain('devops_check_dns');
+      expect(text).not.toContain('devops_check_certs');
+    });
+  });
+
+  describe('vendor_indicator input (#10)', () => {
+    it('echoes the indicator and leads guidance with severity framing when provided', () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'github',
+        vendor_indicator: 'critical',
+      });
+      const result = devopsSuggestAction.handler(input, ctx);
+      expect(result.diagnostics_summary.vendor_indicator).toBe('critical');
+      expect(result.guidance.startsWith('**Reported severity: critical')).toBe(true);
+      const blocks = devopsSuggestAction.format!(result);
+      const text = (blocks[0] as { text: string }).text;
+      expect(text).toContain('**Vendor indicator:** critical');
+    });
+
+    it('tailors the severity framing per indicator value', () => {
+      const ctx = createMockContext();
+      for (const indicator of ['none', 'minor', 'major', 'critical'] as const) {
+        const input = devopsSuggestAction.input.parse({
+          vendor: 'github',
+          vendor_indicator: indicator,
+        });
+        const result = devopsSuggestAction.handler(input, ctx);
+        expect(result.guidance).toContain(`Reported severity: ${indicator}`);
+      }
+    });
+
+    it('returns null indicator and unmodified guidance when omitted', () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'github' });
+      const result = devopsSuggestAction.handler(input, ctx);
+      expect(result.diagnostics_summary.vendor_indicator).toBeNull();
+      expect(result.guidance).not.toContain('Reported severity');
+      const blocks = devopsSuggestAction.format!(result);
+      const text = (blocks[0] as { text: string }).text;
+      expect(text).toContain('not specified');
+    });
+
+    it('rejects values outside the indicator enum', () => {
+      expect(() =>
+        devopsSuggestAction.input.parse({ vendor: 'github', vendor_indicator: 'severe' }),
+      ).toThrow();
+    });
   });
 
   it('all registered vendor categories produce category-specific guidance', () => {

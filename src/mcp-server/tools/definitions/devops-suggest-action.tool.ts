@@ -5,7 +5,37 @@
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
+import { getServerConfig } from '@/config/server-config.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
+
+/**
+ * Playbook templates reference the active-probe tools via placeholder tokens.
+ * When DEVOPS_STATUS_DISABLE_ACTIVE_PROBES removes those tools from the surface,
+ * the tokens render as equivalent manual commands instead of unregistered tool names.
+ */
+const DNS_TOOL_TOKEN = '{{DNS_TOOL}}';
+const CERT_TOOL_TOKEN = '{{CERT_TOOL}}';
+
+function renderPlaybook(template: string, probesEnabled: boolean): string {
+  const dns = probesEnabled
+    ? '`devops_check_dns`'
+    : '`dig <domain>` against multiple resolvers (e.g. `@1.1.1.1` and `@8.8.8.8`)';
+  const certs = probesEnabled
+    ? '`devops_check_certs`'
+    : '`openssl s_client -connect <domain>:443 -servername <domain>`';
+  return template.replaceAll(DNS_TOOL_TOKEN, dns).replaceAll(CERT_TOOL_TOKEN, certs);
+}
+
+/** Severity-tailored urgency framing, keyed by the vendor_indicator input. */
+const SEVERITY_GUIDANCE: Record<'none' | 'minor' | 'major' | 'critical', string> = {
+  none: '**Reported severity: none.** The vendor reports normal operations — verify the problem from your side first; the cause may be local (config, credentials, network) rather than vendor-wide.',
+  minor:
+    '**Reported severity: minor (degraded performance).** Run the diagnostic checks before disruptive mitigations — confirm your own error rates justify failover.',
+  major:
+    '**Reported severity: major (partial outage).** Prioritize the immediate steps for your affected components and prepare failover paths now.',
+  critical:
+    '**Reported severity: critical (full outage).** Execute the immediate steps and activate failover or degraded modes now — do not wait for the next vendor update.',
+};
 
 /** Category-specific incident response playbooks. */
 const PLAYBOOKS: Record<string, string> = {
@@ -40,8 +70,8 @@ const PLAYBOOKS: Record<string, string> = {
 3. Update your DNS TTLs to short values (30–60s) to enable rapid failover
 
 **Diagnostic checks:**
-- \`devops_check_dns\` — verify DNS resolution is consistent across resolvers
-- \`devops_check_certs\` — confirm your origin certificate is still valid if bypassing CDN
+- ${DNS_TOOL_TOKEN} — verify DNS resolution is consistent across resolvers
+- ${CERT_TOOL_TOKEN} — confirm your origin certificate is still valid if bypassing CDN
 - Test origin directly by hitting your origin IP or bypassing CDN via Host header
 
 **Mitigation:**
@@ -153,7 +183,7 @@ const PLAYBOOKS: Record<string, string> = {
 
 **Mitigation:**
 - Enable basic uptime monitoring via external ping service (UptimeRobot, StatusCake)
-- Use \`devops_check_certs\` and \`devops_check_dns\` for ground-truth checks on critical endpoints
+- Use ${CERT_TOOL_TOKEN} and ${DNS_TOOL_TOKEN} for ground-truth checks on critical endpoints
 - Increase logging verbosity in application to compensate for reduced telemetry
 
 **Monitor for:**
@@ -189,8 +219,8 @@ const DEFAULT_PLAYBOOK = `## Service Outage — Generic Incident Response
 3. Notify stakeholders with current status and expected investigation timeline
 
 **Diagnostic checks:**
-- \`devops_check_dns\` — verify DNS resolution is consistent
-- \`devops_check_certs\` — confirm TLS is valid if you can reach the service
+- ${DNS_TOOL_TOKEN} — verify DNS resolution is consistent
+- ${CERT_TOOL_TOKEN} — confirm TLS is valid if you can reach the service
 - Test the service directly via curl or ping to distinguish network vs. service failure
 
 **Mitigation:**
@@ -234,6 +264,13 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
       .describe(
         'Your own domain or service URL. When provided, nextToolSuggestions will be pre-filled with your domain for cert and DNS checks.',
       ),
+    vendor_indicator: z
+      .enum(['none', 'minor', 'major', 'critical'])
+      .optional()
+      .describe(
+        'Overall vendor status indicator from a prior devops_status_check call (its indicator field). ' +
+          'When provided, the playbook leads with severity-tailored urgency guidance. Omit if status has not been checked yet.',
+      ),
   }),
 
   output: z.object({
@@ -247,15 +284,15 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
     guidance: z
       .string()
       .describe(
-        'Markdown playbook — immediate steps, diagnostic checks, mitigation options, and what to monitor for resolution. Tailored to the vendor category and affected components.',
+        'Markdown playbook — immediate steps, diagnostic checks, mitigation options, and what to monitor for resolution. Tailored to the vendor category, reported severity, and affected components.',
       ),
     diagnostics_summary: z
       .object({
         vendor_indicator: z
-          .string()
+          .enum(['none', 'minor', 'major', 'critical'])
           .nullable()
           .describe(
-            'Overall vendor indicator from the calling context, or null when not provided as input.',
+            'Vendor status indicator echoed from the vendor_indicator input, or null when not provided.',
           ),
         affected_components: z
           .array(z.string())
@@ -289,10 +326,15 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
 
   handler(input, ctx) {
     const registry = getVendorRegistryService();
+    const { disableActiveProbes } = getServerConfig();
     const entry = registry.getBySlug(input.vendor.toLowerCase().replace(/\s+/g, '-'));
     const category = entry?.category ?? null;
 
-    const playbook = category ? (PLAYBOOKS[category] ?? DEFAULT_PLAYBOOK) : DEFAULT_PLAYBOOK;
+    const template = category ? (PLAYBOOKS[category] ?? DEFAULT_PLAYBOOK) : DEFAULT_PLAYBOOK;
+    const playbook = renderPlaybook(template, !disableActiveProbes);
+    const guidance = input.vendor_indicator
+      ? `${SEVERITY_GUIDANCE[input.vendor_indicator]}\n\n${playbook}`
+      : playbook;
 
     // Build nextToolSuggestions based on context
     const suggestions: Array<{
@@ -313,10 +355,11 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
       },
     });
 
-    // Suggest DNS and cert checks if a domain is provided or can be inferred
+    // Suggest DNS and cert checks if a domain is provided or can be inferred —
+    // but never when active probes are disabled (those tools are not registered).
     const domainToCheck =
       input.your_domain?.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') ?? null;
-    if (domainToCheck) {
+    if (domainToCheck && !disableActiveProbes) {
       suggestions.push({
         toolName: 'devops_check_dns',
         reason:
@@ -359,9 +402,9 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
     return {
       vendor: input.vendor,
       vendor_category: category,
-      guidance: playbook,
+      guidance,
       diagnostics_summary: {
-        vendor_indicator: null,
+        vendor_indicator: input.vendor_indicator ?? null,
         affected_components: input.affected_components ?? [],
         incident_snippet: incidentSnippet,
       },

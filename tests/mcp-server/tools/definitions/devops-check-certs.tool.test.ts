@@ -125,18 +125,41 @@ describe('devopsCheckCerts', () => {
     expect(result.results[0]!.cert).toBeNull();
   });
 
-  it('throws invalid_domain for protocol-prefixed input (bypassing Zod schema)', async () => {
+  it('throws invalid_domain for protocol-prefixed input', async () => {
     const ctx = createMockContext({ errors: devopsCheckCerts.errors });
-    // Bypass Zod validation to test the handler's belt-and-suspenders PROTOCOL_RE check
-    const input = { domains: ['https://example.com'], port: 443, timeout_ms: 5000 } as Parameters<
-      typeof devopsCheckCerts.handler
-    >[0];
+    // Full end-to-end parse: the relaxed schema now admits this string, so the handler's
+    // PROTOCOL_RE check is what rejects it — no Zod bypass required.
+    const input = devopsCheckCerts.input.parse({ domains: ['https://example.com'] });
     await expect(devopsCheckCerts.handler(input, ctx)).rejects.toMatchObject({
       data: {
         reason: 'invalid_domain',
         recovery: { hint: expect.stringContaining('bare hostname') },
       },
     });
+  });
+
+  it('lets a malformed non-protocol domain reach the cert service as an error result', async () => {
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as {
+      _mockCheckDomains: ReturnType<typeof vi.fn>;
+    };
+    // A domain with a path is not protocol-prefixed, so it clears the handler's PROTOCOL_RE
+    // check and reaches the service, which can't complete a handshake and returns a soft
+    // per-domain error status — it is not silently accepted as valid.
+    const MALFORMED_ERROR: CertResult = {
+      ...ERROR_CERT,
+      domain: 'example.com/path',
+      flags: ['Connection error: ENOTFOUND'],
+      error: 'getaddrinfo ENOTFOUND example.com/path',
+    };
+    _mockCheckDomains.mockResolvedValue([MALFORMED_ERROR]);
+
+    const ctx = createMockContext({ errors: devopsCheckCerts.errors });
+    // The relaxed schema admits this string instead of rejecting it with a raw regex message.
+    const input = devopsCheckCerts.input.parse({ domains: ['example.com/path'] });
+    const result = await devopsCheckCerts.handler(input, ctx);
+
+    expect(result.results[0]!.status).toBe('error');
+    expect(_mockCheckDomains).toHaveBeenCalledWith(['example.com/path'], 443, 5000);
   });
 
   it('returns warning status for cert expiring in 20 days', async () => {

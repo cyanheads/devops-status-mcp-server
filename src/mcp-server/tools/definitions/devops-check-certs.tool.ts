@@ -26,9 +26,7 @@ export const devopsCheckCerts = tool('devops_check_certs', {
       .array(
         z
           .string()
-          .regex(
-            /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
-          )
+          .min(1)
           .describe('Domain name without protocol (e.g., "api.github.com", "example.com").'),
       )
       .min(1)

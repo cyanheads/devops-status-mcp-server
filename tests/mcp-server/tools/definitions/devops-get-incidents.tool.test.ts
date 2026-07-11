@@ -319,6 +319,51 @@ describe('devopsGetIncidents', () => {
     expect(getEnrichment(ctx)).toMatchObject({ truncated: true, shown: 1, cap: 1 });
   });
 
+  it('pages through incidents with offset, disclosing totalCount and truncation (#22)', async () => {
+    const base = RESOLVED_INCIDENT.incidents[0]!;
+    const THREE: StatuspageIncidentsResponse = {
+      ...RESOLVED_INCIDENT,
+      incidents: [
+        { ...base, id: 'inc-a', name: 'First' },
+        { ...base, id: 'inc-b', name: 'Second' },
+        { ...base, id: 'inc-c', name: 'Third' },
+      ],
+    };
+    const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as {
+      _mockFetchIncidents: ReturnType<typeof vi.fn>;
+      _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchIncidents.mockResolvedValue({ data: THREE, cached: false });
+    _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
+
+    // First page — offset 0, limit 2: two incidents, truncated, true total disclosed.
+    const ctx1 = createMockContext({ errors: devopsGetIncidents.errors });
+    const page1 = await devopsGetIncidents.handler(
+      devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', limit: 2, offset: 0 }),
+      ctx1,
+    );
+    expect(page1.incidents.map((i) => i.id)).toEqual(['inc-a', 'inc-b']);
+    expect(page1.total_returned).toBe(2);
+    expect(getEnrichment(ctx1)).toMatchObject({ truncated: true, shown: 2, cap: 2, totalCount: 3 });
+
+    // Second page — offset 2: the remaining incident, no truncation, no enrichment.
+    const ctx2 = createMockContext({ errors: devopsGetIncidents.errors });
+    const page2 = await devopsGetIncidents.handler(
+      devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', limit: 2, offset: 2 }),
+      ctx2,
+    );
+    expect(page2.incidents.map((i) => i.id)).toEqual(['inc-c']);
+    expect(page2.total_returned).toBe(1);
+    expect(getEnrichment(ctx2)).toEqual({});
+
+    // The two windows cover the full set with no overlap — every incident is reachable.
+    const seen = [...page1.incidents, ...page2.incidents].map((i) => i.id);
+    expect(new Set(seen)).toEqual(new Set(['inc-a', 'inc-b', 'inc-c']));
+    expect(seen).toHaveLength(3);
+  });
+
   it('returns null duration_minutes when resolved_at precedes started_at (#6)', async () => {
     // Regression for #6: vendor-authored Statuspage data can carry inverted
     // timestamps; the derived duration must be null, never negative.
@@ -377,6 +422,24 @@ describe('devopsGetIncidents', () => {
     expect(text).toContain('**Resolved:** 2026-06-17T19:00:00.000Z');
     expect(text).not.toMatch(/\(-?\d+ min\)/);
     expect(text).not.toContain('? min');
+  });
+
+  it('format explains an empty incident result and suggests a broader filter (#17)', () => {
+    const result = {
+      vendor: 'github',
+      name: 'GitHub',
+      incidents: [],
+      total_returned: 0,
+      statuspage_url: 'https://www.githubstatus.com',
+    };
+    const blocks = devopsGetIncidents.format!(result);
+    const text = (blocks[0] as { text: string }).text;
+    expect(text).toContain('GitHub');
+    expect(text).toContain('github');
+    expect(text).toMatch(/no incidents/i);
+    // Names concrete follow-up filters instead of leaving a bare header.
+    expect(text).toContain('filter');
+    expect(text).toMatch(/"all"|"resolved"/);
   });
 
   it('throws statuspage_unavailable when fetch rejects', async () => {

@@ -84,6 +84,16 @@ export const devopsListVendors = tool('devops_list_vendors', {
   },
 
   format: (result) => {
+    if (result.total === 0) {
+      return [
+        {
+          type: 'text',
+          text:
+            'No vendors matched the search. Clear or broaden the query, or filter by category instead ' +
+            `(available: ${result.categories.join(', ')}).`,
+        },
+      ];
+    }
     const lines: string[] = [
       `**${result.total} vendors** | Categories: ${result.categories.join(', ')}\n`,
     ];

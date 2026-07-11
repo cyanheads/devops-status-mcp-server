@@ -150,7 +150,10 @@ describe('mapFirehydrantIncidents', () => {
     expect(inc!.incident_updates.every((u) => u.body.length > 0)).toBe(true);
   });
 
-  it('sorts incidents newest first and caps at 50', () => {
+  it('returns the full incident history newest first, uncapped (#22)', () => {
+    // Regression for #22: the adapter used to .slice(0, 50), discarding older
+    // history before the tool could window or disclose it. The full list must
+    // reach the tool so devops_get_incidents can page through it via offset.
     const raw: FirehydrantPayload = {
       incidents: Array.from({ length: 60 }, (_, i) => ({
         id: `inc-${i}`,
@@ -163,9 +166,9 @@ describe('mapFirehydrantIncidents', () => {
       })),
     };
     const { incidents } = mapFirehydrantIncidents(raw, REDIS);
-    expect(incidents).toHaveLength(50);
-    expect(incidents[0]!.id).toBe('inc-59'); // newest
-    expect(incidents[49]!.id).toBe('inc-10'); // oldest 10 dropped
+    expect(incidents).toHaveLength(60); // all 60 reach the tool — nothing capped upstream
+    expect(incidents[0]!.id).toBe('inc-59'); // newest first
+    expect(incidents[59]!.id).toBe('inc-0'); // oldest retained, not dropped
   });
 
   it('extracts nested BulkImpactUpdate notes and drops note-less milestone entries', () => {

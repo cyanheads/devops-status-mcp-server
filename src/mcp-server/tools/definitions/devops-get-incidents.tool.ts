@@ -66,7 +66,8 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
   description:
     'Fetch incident history and scheduled maintenance windows for a vendor. ' +
     'Returns full incident timeline — each investigator update, affected components, and resolution. ' +
-    'Filter by status to focus on active incidents (use before deploy), resolved history (for postmortem), or upcoming maintenance windows.',
+    'Filter by status to focus on active incidents (use before deploy), resolved history (for postmortem), or upcoming maintenance windows. ' +
+    'Page through long histories with limit + offset — a truncated result discloses the total and names the next offset to fetch.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -89,7 +90,15 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .max(50)
       .default(20)
       .describe(
-        'Maximum incidents to return. Vendor status APIs return at most ~50 recent entries per call. Use a lower limit for recent-history queries.',
+        'Maximum incidents to return per call (1–50). Page through longer history with offset rather than raising this.',
+      ),
+    offset: z
+      .number()
+      .int()
+      .min(0)
+      .default(0)
+      .describe(
+        'Number of matching incidents to skip before applying limit, for paging through history. 0 (default) returns the most recent page; a truncated result names the next offset to use.',
       ),
   }),
 
@@ -184,6 +193,12 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
         'Number of incidents returned after applying the limit. Present only when truncated.',
       ),
     cap: z.number().optional().describe('The limit that was applied. Present only when truncated.'),
+    totalCount: z
+      .number()
+      .optional()
+      .describe(
+        'Total incidents matching the filter, across all pages, before offset/limit windowing. Present only when the result was truncated.',
+      ),
   },
 
   errors: [
@@ -264,25 +279,32 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       );
     }
 
-    const limited = incidents.slice(0, input.limit);
-    if (incidents.length > input.limit) {
+    const windowed = incidents.slice(input.offset, input.offset + input.limit);
+    if (input.offset + windowed.length < incidents.length) {
+      // More history exists beyond this window. Disclose the true total and name
+      // the next offset — raising limit alone can't reach older incidents.
+      const nextOffset = input.offset + windowed.length;
+      ctx.enrich.total(incidents.length);
       ctx.enrich.truncated({
-        shown: limited.length,
+        shown: windowed.length,
         cap: input.limit,
-        guidance: 'Raise limit (max 50) or filter by status to narrow the incident set.',
+        guidance:
+          `Showing incidents ${input.offset + 1}–${nextOffset} of ${incidents.length}. ` +
+          `Call again with offset: ${nextOffset} for the next page, or filter by status to narrow.`,
       });
     }
     ctx.log.info('Incidents fetched', {
       vendor: input.vendor,
       filter: input.filter,
-      count: limited.length,
+      offset: input.offset,
+      count: windowed.length,
     });
 
     return {
       vendor: input.vendor,
       name: resolved.name,
-      incidents: limited,
-      total_returned: limited.length,
+      incidents: windowed,
+      total_returned: windowed.length,
       statuspage_url: resolved.url,
     };
   },
@@ -293,6 +315,13 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       `**URL:** ${result.statuspage_url}`,
       '',
     ];
+    if (result.total_returned === 0) {
+      lines.push(
+        'No incidents matched this filter. Try `filter: "all"` for the full incident and ' +
+          'maintenance history, or `filter: "resolved"` for recent resolved incidents.',
+      );
+      return [{ type: 'text', text: lines.join('\n') }];
+    }
     for (const inc of result.incidents) {
       const icon =
         inc.status === 'resolved' || inc.status === 'completed'

@@ -54,6 +54,17 @@ describe('devopsListVendors', () => {
     expect(result.vendors).toHaveLength(0);
   });
 
+  it('formats an empty result with a reason and next step (#17)', async () => {
+    const ctx = createMockContext();
+    const input = devopsListVendors.input.parse({ query: 'zzz-nonexistent-xyz-abc' });
+    const result = await devopsListVendors.handler(input, ctx);
+    const text = (devopsListVendors.format!(result)[0] as { text: string }).text;
+    expect(text).toMatch(/no vendors matched/i);
+    // Points at a concrete follow-up and lists the categories to filter by.
+    expect(text).toMatch(/quer|categor/i);
+    expect(text).toContain(result.categories[0]!);
+  });
+
   it('formats output with slugs and categories', async () => {
     const ctx = createMockContext();
     const input = devopsListVendors.input.parse({ category: 'cloud' });

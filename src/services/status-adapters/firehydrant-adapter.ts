@@ -21,9 +21,9 @@
  *   scheduled-maintenances stream instead of the incident list.
  * - There is no per-incident lifecycle field beyond the timestamps, so
  *   unresolved incidents map to the generic 'investigating' state.
- * - The history is unbounded (~950 incidents on status.redis.io), so the
- *   incidents endpoint caps at the 50 newest — parity with Statuspage's
- *   /api/v2/incidents.json.
+ * - The history is unbounded (~950 incidents on status.redis.io). The full
+ *   history is returned unwindowed; devops_get_incidents pages it tool-side
+ *   via limit + offset, so older incidents stay reachable.
  * @module services/status-adapters/firehydrant-adapter
  */
 
@@ -40,9 +40,6 @@ import type {
 import { fetchJsonCached } from '@/utils/cached-fetch.js';
 
 const FIREHYDRANT_DATA_PATH = '/data/payload.json';
-
-/** Parity with Statuspage /api/v2/incidents.json, which returns the 50 most recent. */
-const INCIDENT_HISTORY_LIMIT = 50;
 
 // --- Raw Firehydrant payload types (/data/payload.json) ---
 
@@ -222,13 +219,16 @@ function mapMaintenances(raw: FirehydrantPayload, target: FirehydrantTarget): St
     });
 }
 
-/** Non-maintenance incidents, newest first, capped at INCIDENT_HISTORY_LIMIT. */
+/**
+ * Non-maintenance incidents, newest first — the complete history. The tool
+ * (devops_get_incidents) windows this via limit + offset, so nothing is dropped
+ * here; capping upstream would make older history undisclosed and unreachable.
+ */
 function mapIncidents(raw: FirehydrantPayload, target: FirehydrantTarget): StatuspageIncident[] {
   return (raw.incidents ?? [])
     .filter((i) => !isMaintenance(i))
     .map((i) => mapFirehydrantIncident(i, target))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, INCIDENT_HISTORY_LIMIT);
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 /** Normalize a Firehydrant payload into a Statuspage summary. */

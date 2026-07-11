@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.5.1](changelog/0.5.x/0.5.1.md) — 2026-07-10
+
+devops_watch_stack aggregate-health honesty (errored vendors never roll up as all_operational) and stack-persistence fix (no poisoned state on failed calls), plus mcp-ts-core 0.10.14 adoption and a supply-chain install guard.
+
 ## [0.5.0](changelog/0.5.x/0.5.0.md) — 2026-07-02
 
 Firehydrant status-page adapter — redis-cloud moves off the dead Statuspage API onto the page's own payload feed; registry stays at 50 vendors.

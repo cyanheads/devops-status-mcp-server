@@ -287,4 +287,51 @@ describe('devopsWatchStack', () => {
     );
     expect(r2.health).toBe('partial_outage');
   });
+
+  it('errored vendors force health = unknown, count as unavailable, and never roll up as all_operational', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    // Every vendor fetch fails — the stack is uncheckable, not healthy.
+    _mockFetchSummary.mockRejectedValue(
+      new Error('HTTP 404 from https://example.com/api/v2/summary.json'),
+    );
+
+    const ctx = createMockContext({ tenantId: 'errored-stack', errors: devopsWatchStack.errors });
+    const input = devopsWatchStack.input.parse({ vendors: ['github'], stack_name: 'all-errored' });
+    const result = await devopsWatchStack.handler(input, ctx);
+
+    expect(result.health).not.toBe('all_operational');
+    expect(result.health).toBe('unknown');
+    expect(result.vendors[0]!.error).toBeDefined();
+    expect(result.summary.operational).toBe(0);
+    expect(result.summary.unavailable).toBe(1);
+    // Every vendor lands in exactly one bucket, so the buckets sum to total.
+    const { total, operational, degraded, down, unavailable } = result.summary;
+    expect(operational + degraded + down + unavailable).toBe(total);
+
+    // The rendered header must not claim green either.
+    const text = (devopsWatchStack.format!(result)[0] as { text: string }).text;
+    expect(text).not.toContain('all_operational');
+    expect(text).toContain('unknown');
+    expect(text).toContain('1 unavailable');
+  });
+
+  it('a failed (invalid-vendor) call does not persist the stack — no poisoned state', async () => {
+    const ctx = createMockContext({ tenantId: 'poison-check', errors: devopsWatchStack.errors });
+
+    // First call with an invalid slug throws before any state write.
+    await expect(
+      devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: ['nope-vendor'], stack_name: 'poison' }),
+        ctx,
+      ),
+    ).rejects.toMatchObject({ data: { reason: 'vendor_not_found' } });
+
+    // Omitting vendors on the retry proves nothing was saved: no_stack, not a
+    // replay of vendor_not_found from a persisted invalid list.
+    await expect(
+      devopsWatchStack.handler(devopsWatchStack.input.parse({ stack_name: 'poison' }), ctx),
+    ).rejects.toMatchObject({ data: { reason: 'no_stack' } });
+  });
 });

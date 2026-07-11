@@ -374,12 +374,13 @@ z.object({
 ```ts
 z.object({
   stack_name: z.string(),
-  health: z.enum(['all_operational', 'degraded', 'partial_outage', 'major_outage']),
+  health: z.enum(['all_operational', 'degraded', 'partial_outage', 'major_outage', 'unknown']),
   summary: z.object({
     total: z.number(),
     operational: z.number(),
     degraded: z.number(),
     down: z.number(),
+    unavailable: z.number(),
   }),
   vendors: z.array(/* same per-vendor shape as devops_status_check results[] */),
   stack_persisted: z.boolean().describe('True when the vendor list was saved to state on this call.'),

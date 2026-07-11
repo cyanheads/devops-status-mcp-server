@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.5.2](changelog/0.5.x/0.5.2.md) — 2026-07-10
+
+devops_suggest_action tailors the playbook to the incident context (affected_components / incident_summary), resolves a vendor by display name as well as slug, and carries the full incident_summary instead of a 200-character snippet.
+
 ## [0.5.1](changelog/0.5.x/0.5.1.md) — 2026-07-10
 
 devops_watch_stack aggregate-health honesty (errored vendors never roll up as all_operational) and stack-persistence fix (no poisoned state on failed calls), plus mcp-ts-core 0.10.14 adoption and a supply-chain install guard.

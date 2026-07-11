@@ -63,6 +63,23 @@ export class VendorRegistryService {
     return this.bySlug.get(slug.toLowerCase());
   }
 
+  /**
+   * Resolve a slug or display name to its registry entry. Layered lookup: exact slug
+   * (case-insensitive), the whitespace-hyphenated form of the input, then an exact
+   * case-insensitive match against the display name. Returns undefined when nothing
+   * matches — deliberately avoids the substring search() path so an ambiguous word
+   * (e.g. "cloud", which appears in "Redis Cloud", "Grafana Cloud") never resolves to
+   * an arbitrary first hit.
+   */
+  getBySlugOrName(input: string): VendorEntry | undefined {
+    const trimmed = input.trim();
+    const bySlug =
+      this.getBySlug(trimmed) ?? this.getBySlug(trimmed.toLowerCase().replace(/\s+/g, '-'));
+    if (bySlug) return bySlug;
+    const lowerName = trimmed.toLowerCase();
+    return this.all.find((v) => v.name.toLowerCase() === lowerName);
+  }
+
   /** Filter vendors by optional query and/or category. */
   search(query?: string, category?: string): VendorEntry[] {
     let results = [...this.all];

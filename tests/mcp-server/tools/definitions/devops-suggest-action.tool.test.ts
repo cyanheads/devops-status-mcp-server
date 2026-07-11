@@ -73,7 +73,7 @@ describe('devopsSuggestAction', () => {
     expect(JSON.stringify(dnsSuggestion!.args)).toContain('api.example.com');
   });
 
-  it('includes incident snippet in diagnostics_summary', () => {
+  it('carries the full incident_summary in diagnostics_summary without truncation (#21)', () => {
     const ctx = createMockContext();
     const longSummary = 'A'.repeat(300);
     const input = devopsSuggestAction.input.parse({
@@ -81,9 +81,12 @@ describe('devopsSuggestAction', () => {
       incident_summary: longSummary,
     });
     const result = devopsSuggestAction.handler(input, ctx);
-    expect(result.diagnostics_summary.incident_snippet).not.toBeNull();
-    expect(result.diagnostics_summary.incident_snippet!.length).toBeLessThanOrEqual(203); // 200 + "…"
-    expect(result.diagnostics_summary.incident_snippet).toContain('…');
+    expect(result.diagnostics_summary.incident_snippet).toBe(longSummary);
+    expect(result.diagnostics_summary.incident_snippet).not.toContain('…');
+    // The full text also reaches the content[] surface via format()
+    const blocks = devopsSuggestAction.format!(result);
+    const text = (blocks[0] as { text: string }).text;
+    expect(text).toContain(longSummary);
   });
 
   it('formats output with guidance and next steps', () => {
@@ -230,6 +233,86 @@ describe('devopsSuggestAction', () => {
       expect(() =>
         devopsSuggestAction.input.parse({ vendor: 'github', vendor_indicator: 'severe' }),
       ).toThrow();
+    });
+  });
+
+  describe('display-name vendor resolution (#20)', () => {
+    it('resolves a display name to the canonical slug and category', () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'Amazon Web Services' });
+      const result = devopsSuggestAction.handler(input, ctx);
+      expect(result.vendor_category).toBe('cloud');
+      const incidents = result.nextToolSuggestions.find(
+        (s) => s.toolName === 'devops_get_incidents',
+      );
+      expect(incidents).toBeDefined();
+      // The unresolved display name must not thread into follow-up args — canonical slug only
+      expect(incidents!.args.vendor).toBe('aws');
+    });
+
+    it('does not resolve an ambiguous bare word to an arbitrary vendor', () => {
+      const ctx = createMockContext();
+      // "cloud" substring-matches several registry names (Redis Cloud, Grafana Cloud, …)
+      // but is neither a slug nor an exact display name — it must stay unresolved.
+      const input = devopsSuggestAction.input.parse({ vendor: 'cloud' });
+      const result = devopsSuggestAction.handler(input, ctx);
+      expect(result.vendor_category).toBeNull();
+      const incidents = result.nextToolSuggestions.find(
+        (s) => s.toolName === 'devops_get_incidents',
+      );
+      expect(incidents!.args.vendor).toBe('cloud');
+    });
+  });
+
+  describe('incident-context tailoring (#21)', () => {
+    it('an affected component tailors guidance and adds a component re-check (GitHub Actions)', () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'github',
+        vendor_indicator: 'minor',
+        affected_components: ['Actions'],
+      });
+      const result = devopsSuggestAction.handler(input, ctx);
+      // Targeted CI/CD section leads ahead of the generic dev-platform playbook
+      expect(result.guidance).toContain('Affected subsystem: CI/CD pipelines');
+      expect(result.guidance).toContain('Deploy-free mitigations');
+      expect(result.guidance.indexOf('Affected subsystem: CI/CD pipelines')).toBeLessThan(
+        result.guidance.indexOf('Dev Platform Outage'),
+      );
+      // A detailed re-check of the resolved vendor is added
+      const recheck = result.nextToolSuggestions.find((s) => s.toolName === 'devops_status_check');
+      expect(recheck).toBeDefined();
+      expect(recheck!.args.vendors).toEqual(['github']);
+      expect(recheck!.args.mode).toBe('detailed');
+    });
+
+    it('an incident-summary keyword tailors guidance ahead of the generic playbook (Cloudflare DNS)', () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'cloudflare',
+        vendor_indicator: 'major',
+        incident_summary: 'Elevated DNS resolution failures across multiple PoPs.',
+      });
+      const result = devopsSuggestAction.handler(input, ctx);
+      expect(result.guidance).toContain('Affected subsystem: DNS resolution');
+      expect(result.guidance.indexOf('Affected subsystem: DNS resolution')).toBeLessThan(
+        result.guidance.indexOf('CDN / Edge Network Outage'),
+      );
+      // Tailoring never leaks placeholder tokens
+      expect(result.guidance).not.toContain('{{');
+    });
+
+    it('leaves guidance untailored and adds no re-check when nothing matches', () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'github',
+        affected_components: ['Pages'],
+      });
+      const result = devopsSuggestAction.handler(input, ctx);
+      expect(result.guidance).not.toContain('Affected subsystem:');
+      expect(result.nextToolSuggestions.some((s) => s.toolName === 'devops_status_check')).toBe(
+        false,
+      );
     });
   });
 

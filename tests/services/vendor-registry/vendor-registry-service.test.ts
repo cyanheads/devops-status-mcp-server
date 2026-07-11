@@ -76,6 +76,39 @@ describe('VendorRegistryService', () => {
     expect(service.getBySlug('unknown-xyz')).toBeUndefined();
   });
 
+  describe('getBySlugOrName (#20)', () => {
+    it('resolves an exact slug', () => {
+      const service = getVendorRegistryService();
+      expect(service.getBySlugOrName('github')?.slug).toBe('github');
+    });
+
+    it('resolves a display name to the canonical slug', () => {
+      const service = getVendorRegistryService();
+      expect(service.getBySlugOrName('Amazon Web Services')?.slug).toBe('aws');
+    });
+
+    it('resolves a display name case-insensitively', () => {
+      const service = getVendorRegistryService();
+      expect(service.getBySlugOrName('amazon web services')?.slug).toBe('aws');
+    });
+
+    it('resolves a multi-word name via its hyphenated slug', () => {
+      const service = getVendorRegistryService();
+      expect(service.getBySlugOrName('Redis Cloud')?.slug).toBe('redis-cloud');
+    });
+
+    it('does not resolve an ambiguous substring to an arbitrary entry', () => {
+      const service = getVendorRegistryService();
+      // "cloud" appears in several display names but is neither a slug nor an exact name.
+      expect(service.getBySlugOrName('cloud')).toBeUndefined();
+    });
+
+    it('returns undefined for an unregistered vendor', () => {
+      const service = getVendorRegistryService();
+      expect(service.getBySlugOrName('nonexistent-vendor-xyz')).toBeUndefined();
+    });
+  });
+
   it('search returns all entries when no filters', () => {
     const service = getVendorRegistryService();
     const all = service.search();
@@ -117,6 +150,11 @@ describe('VENDOR_REGISTRY integrity', () => {
     expect(VENDOR_REGISTRY).toHaveLength(50);
     const slugs = VENDOR_REGISTRY.map((v) => v.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it('has unique display names (getBySlugOrName resolution depends on it)', () => {
+    const names = VENDOR_REGISTRY.map((v) => v.name.toLowerCase());
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it('every entry has an https URL (the auth0 http exception is gone)', () => {

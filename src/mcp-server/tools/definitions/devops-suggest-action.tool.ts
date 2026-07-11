@@ -6,6 +6,7 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { getServerConfig } from '@/config/server-config.js';
+import type { VendorCategory } from '@/data/vendor-registry.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 
 /**
@@ -232,6 +233,55 @@ const DEFAULT_PLAYBOOK = `## Service Outage — Generic Incident Response
 - Status page indicator transitioning from "investigating" to "identified"
 - Partial recovery (some regions/components may recover before others)`;
 
+/**
+ * Deterministic incident-context tailoring rules. When an affected component or the
+ * incident summary contains one of a rule's terms (case-insensitive substring), the
+ * rule's targeted section is prepended ahead of the generic category playbook so the
+ * targeted advice leads. Scoped by category to keep the advice relevant. Pure matching —
+ * no LLM sampling; the category PLAYBOOKS stay the base/fallback when nothing matches.
+ */
+type ContextRule = {
+  category: VendorCategory;
+  terms: readonly string[];
+  section: string;
+};
+
+const CONTEXT_RULES: readonly ContextRule[] = [
+  {
+    category: 'dev-platform',
+    terms: ['actions', 'pipeline', 'workflow', 'runner', 'deploy', 'build'],
+    section: `### Affected subsystem: CI/CD pipelines
+1. **Deployment impact:** freeze deploys that depend on this pipeline — in-flight runs may finish in an inconsistent state
+2. **Queued work:** expect a backlog of queued runs; re-run checks after recovery rather than trusting one that reported before the incident
+3. **Cached artifacts:** ship the last known-good build artifact for hotfixes instead of waiting on a fresh pipeline
+4. **Deploy-free mitigations:** prefer feature flags, config rollbacks, or redeploying a previously-built release over anything that needs a new build`,
+  },
+  {
+    category: 'cdn-edge',
+    terms: ['dns', 'resolver', 'nameserver', 'name server'],
+    section: `### Affected subsystem: DNS resolution
+1. **Verify resolution** with ${DNS_TOOL_TOKEN} across multiple resolvers before treating this as a generic origin problem — confirm the records agree
+2. **Lower TTLs** to 30–60s now so a failover propagates quickly once you cut over
+3. **Stage failover:** prepare an alternate origin or secondary DNS provider and confirm the target is healthy before repointing`,
+  },
+  {
+    category: 'data',
+    terms: ['replica', 'replication', 'failover', 'primary', 'connection pool'],
+    section: `### Affected subsystem: replication / failover
+1. **Route reads to a healthy replica** while the primary is degraded
+2. **Check replication lag** before promoting a replica — promoting a lagging node risks data loss
+3. **Queue writes** to a durable buffer for replay rather than failing them outright`,
+  },
+  {
+    category: 'auth',
+    terms: ['login', 'session', 'sign in', 'sign-in', 'token', 'sso', 'oauth', 'mfa'],
+    section: `### Affected subsystem: login / sessions
+1. **Do not invalidate existing sessions** — keep already-authenticated users working while login is degraded
+2. **Extend session TTLs** so active users are not forced to re-authenticate mid-outage
+3. **Emergency access:** enable an admin bypass if you have one, and relax MFA enforcement only if the factor provider itself is down`,
+  },
+];
+
 export const devopsSuggestAction = tool('devops_suggest_action', {
   description:
     'Return an incident-response playbook tailored to a vendor degradation, with pre-filled follow-up tool calls. ' +
@@ -301,7 +351,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
           .string()
           .nullable()
           .describe(
-            'First 200 characters of incident_summary truncated for context, or null when not provided.',
+            'The incident_summary input echoed in full for context, or null when not provided.',
           ),
       })
       .describe('Summary of input context used to generate the playbook.'),
@@ -327,14 +377,30 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
   handler(input, ctx) {
     const registry = getVendorRegistryService();
     const { disableActiveProbes } = getServerConfig();
-    const entry = registry.getBySlug(input.vendor.toLowerCase().replace(/\s+/g, '-'));
+    const entry = registry.getBySlugOrName(input.vendor);
     const category = entry?.category ?? null;
 
+    // Deterministic incident-context tailoring: match the affected components and the
+    // incident summary against this category's rules, prepending each matched section
+    // ahead of the generic playbook so targeted advice leads. Empty when nothing matches
+    // or the vendor is unregistered — the category template stays the fallback.
+    const contextHaystack = [...(input.affected_components ?? []), input.incident_summary ?? '']
+      .join(' ')
+      .toLowerCase();
+    const matchedRules = category
+      ? CONTEXT_RULES.filter(
+          (rule) =>
+            rule.category === category && rule.terms.some((term) => contextHaystack.includes(term)),
+        )
+      : [];
+
     const template = category ? (PLAYBOOKS[category] ?? DEFAULT_PLAYBOOK) : DEFAULT_PLAYBOOK;
-    const playbook = renderPlaybook(template, !disableActiveProbes);
-    const guidance = input.vendor_indicator
-      ? `${SEVERITY_GUIDANCE[input.vendor_indicator]}\n\n${playbook}`
-      : playbook;
+    const sections = [
+      input.vendor_indicator ? SEVERITY_GUIDANCE[input.vendor_indicator] : '',
+      ...matchedRules.map((rule) => rule.section),
+      template,
+    ].filter(Boolean);
+    const guidance = renderPlaybook(sections.join('\n\n'), !disableActiveProbes);
 
     // Build nextToolSuggestions based on context
     const suggestions: Array<{
@@ -354,6 +420,20 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
         limit: 5,
       },
     });
+
+    // When incident context identifies a subsystem, re-check the vendor in detailed
+    // mode so the agent can watch that specific component return to operational.
+    if (matchedRules.length > 0 && entry) {
+      suggestions.push({
+        toolName: 'devops_status_check',
+        reason:
+          'Re-check this vendor in detailed mode to watch the affected component(s) return to operational.',
+        args: {
+          vendors: [entry.slug],
+          mode: 'detailed',
+        },
+      });
+    }
 
     // Suggest DNS and cert checks if a domain is provided or can be inferred —
     // but never when active probes are disabled (those tools are not registered).
@@ -393,11 +473,19 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
       });
     }
 
-    const incidentSnippet = input.incident_summary
-      ? input.incident_summary.slice(0, 200) + (input.incident_summary.length > 200 ? '…' : '')
-      : null;
+    const incidentSnippet = input.incident_summary ?? null;
 
     ctx.log.info('Action suggested', { vendor: input.vendor, category });
+
+    // Dedupe follow-ups by tool + args — context tailoring and the CDN-edge branch can
+    // re-propose the same detailed status re-check.
+    const seen = new Set<string>();
+    const nextToolSuggestions = suggestions.filter((s) => {
+      const key = `${s.toolName}:${JSON.stringify(s.args)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
     return {
       vendor: input.vendor,
@@ -408,7 +496,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
         affected_components: input.affected_components ?? [],
         incident_snippet: incidentSnippet,
       },
-      nextToolSuggestions: suggestions,
+      nextToolSuggestions,
     };
   },
 

@@ -1,6 +1,6 @@
 {
   "name": "@cyanheads/devops-status-mcp-server",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "mcpName": "io.github.cyanheads/devops-status-mcp-server",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks via MCP. STDIO or Streamable HTTP.",
   "type": "module",
@@ -82,9 +82,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.2",
+    "@biomejs/biome": "^2.5.3",
     "@socketsecurity/bun-security-scanner": "^1.1.2",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.1.1",
     "depcheck": "^1.4.7",
     "ignore": "^7.0.5",
     "tsc-alias": "^1.9.0",

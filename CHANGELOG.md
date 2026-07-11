@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.5.3](changelog/0.5.x/0.5.3.md) — 2026-07-11
+
+devops_check_certs returns the declared invalid_domain error (with recovery hint) for protocol-prefixed domains instead of a raw Zod message, and devops_check_dns returns a structured target_blocked error for private/loopback resolver IPs.
+
 ## [0.5.2](changelog/0.5.x/0.5.2.md) — 2026-07-10
 
 devops_suggest_action tailors the playbook to the incident context (affected_components / incident_summary), resolves a vendor by display name as well as slug, and carries the full incident_summary instead of a 200-character snippet.

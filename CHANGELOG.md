@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.5.4](changelog/0.5.x/0.5.4.md) — 2026-07-11
+
+devops_get_incidents pages the full incident history via a new offset input, so FireHydrant-backed vendors (Redis Cloud) no longer silently cap at 50 — truncated results disclose the true total. Empty incident and vendor listings now explain the result and suggest a broader filter.
+
 ## [0.5.3](changelog/0.5.x/0.5.3.md) — 2026-07-11
 
 devops_check_certs returns the declared invalid_domain error (with recovery hint) for protocol-prefixed domains instead of a raw Zod message, and devops_check_dns returns a structured target_blocked error for private/loopback resolver IPs.

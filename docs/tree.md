@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-07-11 01:14:28
+Generated on: 2026-07-11 08:53:22
 
 ```text
 devops-status-mcp-server/
@@ -16,6 +16,7 @@ devops-status-mcp-server/
 │   │   ├── bug_report.yml
 │   │   ├── config.yml
 │   │   └── feature_request.yml
+│   ├── FUNDING.yml
 │   └── SECURITY.md
 ├── .vscode/
 │   ├── extensions.json

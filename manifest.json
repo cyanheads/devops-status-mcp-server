@@ -1,9 +1,10 @@
 {
   "manifest_version": "0.3",
   "name": "devops-status-mcp-server",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
   "author": { "name": "cyanheads" },
+  "license": "Apache-2.0",
   "server": {
     "type": "node",
     "entry_point": "dist/index.js",

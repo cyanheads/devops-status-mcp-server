@@ -7,7 +7,7 @@
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
-import type { RecordType } from '@/services/dns/dns-service.js';
+import type { DnsResult, RecordType } from '@/services/dns/dns-service.js';
 import { getDnsService } from '@/services/dns/dns-service.js';
 
 const PROTOCOL_RE = /^https?:\/\//i;
@@ -128,9 +128,16 @@ export const devopsCheckDns = tool('devops_check_dns', {
       recovery:
         'Pass bare hostnames without "https://" (e.g., "example.com" not "https://example.com").',
     },
+    {
+      reason: 'target_blocked',
+      code: JsonRpcErrorCode.ValidationError,
+      when: 'A resolver IP is a private, loopback, or otherwise non-public address.',
+      recovery:
+        'Use a public resolver IP (e.g., 8.8.8.8, 1.1.1.1), or set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true for trusted local/internal monitoring deployments.',
+    },
   ],
   // Note: SSRF-blocked domains surface as per-domain error results (status with error field).
-  // SSRF-blocked resolver IPs cause the whole call to fail (assertSafeResolverIp throws).
+  // SSRF-blocked resolver IPs are caught in the handler and rethrown as target_blocked.
 
   async handler(input, ctx) {
     // Validate domains — no protocol prefixes
@@ -145,12 +152,26 @@ export const devopsCheckDns = tool('devops_check_dns', {
     }
 
     const dnsService = getDnsService();
-    const results = await dnsService.checkDomains(
-      input.domains,
-      input.record_types as RecordType[],
-      input.resolvers,
-      input.timeout_ms,
-    );
+    let results: DnsResult[];
+    try {
+      results = await dnsService.checkDomains(
+        input.domains,
+        input.record_types as RecordType[],
+        input.resolvers,
+        input.timeout_ms,
+      );
+    } catch (err) {
+      // Resolver-IP SSRF blocks throw out of checkDomains (the pre-check runs before the
+      // per-domain Promise.allSettled). Translate to the declared target_blocked contract,
+      // mirroring devops_status_check's raw-URL guard handling.
+      const msg = (err as Error).message;
+      if (msg.startsWith('SSRF_BLOCKED')) {
+        throw ctx.fail('target_blocked', msg.replace('SSRF_BLOCKED: ', ''), {
+          ...ctx.recoveryFor('target_blocked'),
+        });
+      }
+      throw err;
+    }
 
     ctx.log.info('DNS check completed', {
       domains: input.domains.length,

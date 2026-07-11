@@ -131,6 +131,28 @@ describe('devopsCheckDns', () => {
     });
   });
 
+  it('throws target_blocked for a blocked resolver IP', async () => {
+    const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as {
+      _mockCheckDomains: ReturnType<typeof vi.fn>;
+    };
+    // The real checkDomains runs assertSafeResolverIp before resolving; a private resolver IP
+    // throws an SSRF_BLOCKED-prefixed error out of the call. The mocked service stands in for
+    // that throw so the handler's translation to the target_blocked contract is what's exercised.
+    _mockCheckDomains.mockRejectedValueOnce(
+      new Error(
+        'SSRF_BLOCKED: Resolver IP "127.0.0.1" is in a private range (loopback). ' +
+          'Only public DNS resolvers are permitted. ' +
+          'Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow private resolvers.',
+      ),
+    );
+
+    const ctx = createMockContext({ errors: devopsCheckDns.errors });
+    const input = devopsCheckDns.input.parse({ domains: ['github.com'], resolvers: ['127.0.0.1'] });
+    await expect(devopsCheckDns.handler(input, ctx)).rejects.toMatchObject({
+      data: { reason: 'target_blocked' },
+    });
+  });
+
   it('passes custom timeout to service', async () => {
     const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;

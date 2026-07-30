@@ -301,6 +301,28 @@ describe('devopsStatusCheck', () => {
     expect(text).toContain('Components (50 of 120)');
   });
 
+  it('the capped-component guidance survives the effective-output parse (#24)', async () => {
+    // fetchVendorResults always composed guidance for the cap, but the enrichment
+    // block declared no `notice`, so output.extend(enrichment) — the schema behind
+    // structuredContent and the content[] trailer — stripped it before either surface.
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockResolvedValue({ data: pageWithComponents(120), cached: false });
+
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'], mode: 'detailed' });
+    const result = await devopsStatusCheck.handler(input, ctx);
+
+    const effectiveOutput = devopsStatusCheck.output.extend(devopsStatusCheck.enrichment!);
+    const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+    expect(structured.notice).toContain('70 of 120 components are not shown');
+    // Names both ways past the cap, so the guidance is actionable on its own.
+    expect(structured.notice).toContain('component_filter');
+    expect(structured.notice).toContain('component_limit');
+  });
+
   it('component_filter reaches a component the cap would have dropped (#36)', async () => {
     const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;

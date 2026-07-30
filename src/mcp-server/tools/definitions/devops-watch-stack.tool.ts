@@ -146,6 +146,12 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .describe(
         'Components matching component_filter across the stack before the cap. Present only when truncated.',
       ),
+    notice: z
+      .string()
+      .optional()
+      .describe(
+        'Plain-language explanation of the capped component lists — how many components were omitted and how to reach them (component_filter to target one, component_limit to raise the cap). Present only when truncated.',
+      ),
   },
 
   errors: [

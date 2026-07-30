@@ -244,6 +244,15 @@ describe('devopsWatchStack', () => {
     expect((devopsWatchStack.format!(result)[0] as { text: string }).text).toContain(
       'Components (50 of 80)',
     );
+
+    // The guidance composed alongside those counts was declared nowhere, so
+    // output.extend(enrichment) — the schema behind structuredContent and the
+    // content[] trailer — stripped it before it reached either surface (#24).
+    const effectiveOutput = devopsWatchStack.output.extend(devopsWatchStack.enrichment!);
+    const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+    expect(structured.notice).toContain('30 of 80 components are not shown');
+    expect(structured.notice).toContain('component_filter');
+    expect(structured.notice).toContain('component_limit');
   });
 
   it('formats output with health field verbatim', async () => {

@@ -39,6 +39,9 @@ const VALID_CERT: CertResult = {
     valid_until: '2026-01-01T00:00:00Z',
     days_until_expiry: 180,
     chain_depth: 2,
+    chain_depth_unavailable_reason: null,
+    hostname_verification_error: null,
+    authorization_error: null,
     serial: 'ABC123',
   },
   tls: { protocol: 'TLSv1.3', cipher: 'TLS_AES_256_GCM_SHA384' },
@@ -58,7 +61,11 @@ const CRITICAL_CERT: CertResult = {
     valid_from: '2024-01-01T00:00:00Z',
     valid_until: '2025-06-04T00:00:00Z',
     days_until_expiry: 3,
-    chain_depth: 1,
+    chain_depth: null,
+    chain_depth_unavailable_reason:
+      'This runtime did not expose issuerCertificate on the peer certificate.',
+    hostname_verification_error: null,
+    authorization_error: null,
     serial: 'DEF456',
   },
   tls: { protocol: 'TLSv1.2', cipher: 'ECDHE-RSA-AES256-GCM-SHA384' },
@@ -75,6 +82,59 @@ const ERROR_CERT: CertResult = {
   tls: null,
   checked_at: '2025-06-01T00:00:00Z',
   error: 'ECONNREFUSED',
+};
+
+/** Chain trust is fine; the certificate simply does not cover the requested hostname. */
+const MISMATCH_CERT: CertResult = {
+  domain: 'wrong.host.example.com',
+  port: 443,
+  status: 'critical',
+  flags: [
+    'Hostname mismatch — the certificate does not cover wrong.host.example.com; clients will reject it',
+  ],
+  cert: {
+    subject: '*.example.com',
+    san: ['*.example.com', 'example.com'],
+    issuer: "Let's Encrypt",
+    valid_from: '2025-01-01T00:00:00Z',
+    valid_until: '2026-01-01T00:00:00Z',
+    days_until_expiry: 90,
+    chain_depth: null,
+    chain_depth_unavailable_reason:
+      'This runtime did not expose issuerCertificate on the peer certificate.',
+    hostname_verification_error:
+      "Hostname/IP does not match certificate's altnames: Host: wrong.host.example.com. is not in the cert's altnames: DNS:*.example.com",
+    authorization_error: null,
+    serial: 'MISMATCH1',
+  },
+  tls: { protocol: 'TLSv1.2', cipher: 'ECDHE-RSA-AES128-GCM-SHA256' },
+  checked_at: '2025-06-01T00:00:00Z',
+  error: null,
+};
+
+/** Hostname matches; the issuing root is not in the trust store. */
+const UNTRUSTED_CERT: CertResult = {
+  domain: 'untrusted-root.example.com',
+  port: 443,
+  status: 'critical',
+  flags: ['Certificate chain not trusted (SELF_SIGNED_CERT_IN_CHAIN); clients will reject it'],
+  cert: {
+    subject: 'untrusted-root.example.com',
+    san: ['untrusted-root.example.com'],
+    issuer: 'Untrusted Root Certificate Authority',
+    valid_from: '2025-01-01T00:00:00Z',
+    valid_until: '2027-01-01T00:00:00Z',
+    days_until_expiry: 500,
+    chain_depth: null,
+    chain_depth_unavailable_reason:
+      'This runtime did not expose issuerCertificate on the peer certificate.',
+    hostname_verification_error: null,
+    authorization_error: 'SELF_SIGNED_CERT_IN_CHAIN',
+    serial: 'UNTRUSTED1',
+  },
+  tls: { protocol: 'TLSv1.2', cipher: 'ECDHE-RSA-AES128-GCM-SHA256' },
+  checked_at: '2025-06-01T00:00:00Z',
+  error: null,
 };
 
 describe('devopsCheckCerts', () => {
@@ -179,6 +239,9 @@ describe('devopsCheckCerts', () => {
         valid_until: '2025-06-21T00:00:00Z',
         days_until_expiry: 20,
         chain_depth: 2,
+        chain_depth_unavailable_reason: null,
+        hostname_verification_error: null,
+        authorization_error: null,
         serial: 'WARN123',
       },
       tls: { protocol: 'TLSv1.3', cipher: 'TLS_AES_256_GCM_SHA384' },
@@ -224,6 +287,27 @@ describe('devopsCheckCerts', () => {
     expect(text).toContain('ok');
     expect(text).toContain('180');
     expect(text).toContain('TLSv1.3');
+    expect(text).toContain('**Chain depth:** 2');
+  });
+
+  it('formats an unavailable chain depth without asserting a count', () => {
+    const result = { results: [CRITICAL_CERT] };
+    const blocks = devopsCheckCerts.format!(result);
+    const text = (blocks[0] as { text: string }).text;
+    expect(text).toContain('**Chain depth:** unavailable');
+    expect(text).toContain('Chain depth unavailable:');
+    expect(text).toContain('issuerCertificate');
+    expect(text).not.toContain('**Chain depth:** 1');
+  });
+
+  it('formats hostname and chain-trust findings', () => {
+    const result = { results: [MISMATCH_CERT, UNTRUSTED_CERT] };
+    const blocks = devopsCheckCerts.format!(result);
+    const text = (blocks[0] as { text: string }).text;
+    expect(text).toContain('Hostname mismatch:');
+    expect(text).toContain("is not in the cert's altnames");
+    expect(text).toContain('Chain not trusted:');
+    expect(text).toContain('SELF_SIGNED_CERT_IN_CHAIN');
   });
 
   it('formats error result gracefully (null cert)', () => {

@@ -1,5 +1,6 @@
 /**
- * @fileoverview Tests for the CertService expiry thresholds, status classification, and flag emission.
+ * @fileoverview Tests for the CertService expiry thresholds, hostname and chain-trust
+ * verification, status classification, and flag emission.
  * Mocks node:tls to simulate TLS handshake responses without real network I/O.
  * @module tests/services/cert/cert-service.test
  */
@@ -25,10 +26,24 @@ let mockSocketConfig: {
   noHstsResponse?: boolean;
   /** HSTS header present in response. */
   hsts?: boolean;
+  /** What tls.checkServerIdentity() returns — an Error means the hostname is not covered. */
+  hostnameError?: Error;
+  /** socket.authorized — chain verification outcome. */
+  authorized?: boolean;
+  /** socket.authorizationError — a bare OpenSSL code string, or an Error carrying one. */
+  authorizationError?: string | NodeJS.ErrnoException;
 } = {};
 
 class MockTlsSocket extends EventEmitter {
   private _destroyed = false;
+
+  get authorized(): boolean {
+    return mockSocketConfig.authorized ?? true;
+  }
+
+  get authorizationError(): unknown {
+    return mockSocketConfig.authorizationError ?? null;
+  }
 
   write(data: string) {
     if (this._destroyed) return false;
@@ -67,17 +82,29 @@ class MockTlsSocket extends EventEmitter {
 }
 
 vi.mock('node:tls', () => ({
-  connect: (_opts: unknown, callback?: () => void) => {
+  /**
+   * Invokes the caller's `checkServerIdentity` before the connect callback, mirroring the real
+   * handshake — that is where the service captures Node's hostname-verification result.
+   */
+  connect: (
+    opts: {
+      host?: string;
+      checkServerIdentity?: (host: string, cert: unknown) => Error | undefined;
+    },
+    callback?: () => void,
+  ) => {
     const socket = new MockTlsSocket();
     setImmediate(() => {
       if (mockSocketConfig.error) {
         socket.emit('error', mockSocketConfig.error);
-      } else if (callback) {
-        callback();
+        return;
       }
+      opts.checkServerIdentity?.(opts.host ?? '', mockSocketConfig.cert ?? {});
+      if (callback) callback();
     });
     return socket;
   },
+  checkServerIdentity: () => mockSocketConfig.hostnameError,
 }));
 
 // ──────────────────────────────────────────────
@@ -113,7 +140,7 @@ function fakeCert(daysUntilExpiry: number, isSelfSigned = false): Record<string,
     valid_to: validUntil.toString(),
     subjectaltname: `DNS:${cn}`,
     serialNumber: 'AABBCC1122',
-    // no issuerCertificate = chain_depth 1
+    // no issuerCertificate — matches what the runtime actually exposes for a real handshake
   };
 }
 
@@ -139,6 +166,9 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
     expect(results[0]!.status).toBe('ok');
     expect(results[0]!.flags).toContain('HSTS present');
     expect(results[0]!.tls!.protocol).toBe('TLSv1.3');
+    // A trusted, hostname-matching certificate carries no verification finding.
+    expect(results[0]!.cert!.hostname_verification_error).toBeNull();
+    expect(results[0]!.cert!.authorization_error).toBeNull();
   });
 
   it('cert expiring in 20 days → status warning, flag contains "warning"', async () => {
@@ -186,35 +216,6 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
     expect(results[0]!.flags.some((f) => f.includes('Insecure TLS'))).toBe(true);
   });
 
-  it('self-signed cert → status warning, flag "Self-signed certificate"', async () => {
-    mockSocketConfig = { cert: fakeCert(200, true), protocol: 'TLSv1.3', hsts: false };
-    const service = getCertService();
-    const results = await service.checkDomains(['self.example.com'], 443, 5000);
-    expect(results[0]!.flags).toContain('Self-signed certificate');
-    expect(results[0]!.status).toBe('warning');
-  });
-
-  it('chain_depth = 1 for cert with no issuerCertificate (self-signed)', async () => {
-    // fakeCert(200, true) has no issuerCertificate on the object
-    mockSocketConfig = { cert: fakeCert(200, true), protocol: 'TLSv1.3', hsts: false };
-    const service = getCertService();
-    const results = await service.checkDomains(['self.example.com'], 443, 5000);
-    // chain_depth starts at 1 and increments for each issuerCertificate — no chain = 1
-    expect(results[0]!.cert!.chain_depth).toBe(1);
-  });
-
-  it('chain_depth = 2 when issuerCertificate is present', async () => {
-    const leaf = fakeCert(200);
-    (leaf as Record<string, unknown>).issuerCertificate = {
-      subject: { CN: "Let's Encrypt R3" },
-      issuer: { CN: 'ISRG Root X1' },
-    };
-    mockSocketConfig = { cert: leaf, protocol: 'TLSv1.3', hsts: true };
-    const service = getCertService();
-    const results = await service.checkDomains(['chained.com'], 443, 5000);
-    expect(results[0]!.cert!.chain_depth).toBe(2);
-  });
-
   it('connection error → status error, cert and tls null', async () => {
     mockSocketConfig = { error: new Error('ECONNREFUSED') };
     const service = getCertService();
@@ -228,8 +229,6 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('batch: one success, one error — both results present', async () => {
     // First call succeeds (healthy cert), second call errors
     let callCount = 0;
-    // Override mock to return success first, error second — reset between calls
-    const _origConnect = (await import('node:tls')).connect as unknown as typeof vi.fn;
     const connectSpy = vi.fn((opts: Record<string, unknown>, cb?: () => void) => {
       callCount++;
       const socket = new MockTlsSocket();
@@ -259,5 +258,145 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
     } finally {
       Object.defineProperty(tlsMod, 'connect', { value: savedConnect, configurable: true });
     }
+  });
+});
+
+describe('CertService — hostname and chain-trust verification', () => {
+  beforeEach(() => {
+    initCertService();
+    mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: false };
+  });
+
+  afterEach(() => {
+    mockSocketConfig = {};
+  });
+
+  it('hostname mismatch → status critical with the verification message on the cert', async () => {
+    /**
+     * The chain is trusted and `authorized` is true — overriding checkServerIdentity makes it so
+     * even for a wrong-host certificate, which is why the explicit check is the only signal here.
+     */
+    mockSocketConfig = {
+      cert: fakeCert(200),
+      protocol: 'TLSv1.3',
+      hsts: false,
+      authorized: true,
+      hostnameError: new Error(
+        "Hostname/IP does not match certificate's altnames: Host: wrong.host.example.com. is not in the cert's altnames: DNS:example.com",
+      ),
+    };
+    const results = await getCertService().checkDomains(['wrong.host.example.com'], 443, 5000);
+
+    expect(results[0]!.status).toBe('critical');
+    expect(results[0]!.cert!.hostname_verification_error).toContain('does not match');
+    expect(
+      results[0]!.flags.some((f) =>
+        f.startsWith('Hostname mismatch — the certificate does not cover wrong.host.example.com'),
+      ),
+    ).toBe(true);
+  });
+
+  it('untrusted root → status critical with the chain-verification code', async () => {
+    // Issuer differs from subject, so the self-signed heuristic alone would find nothing.
+    mockSocketConfig = {
+      cert: fakeCert(200),
+      protocol: 'TLSv1.3',
+      hsts: false,
+      authorized: false,
+      authorizationError: 'SELF_SIGNED_CERT_IN_CHAIN',
+    };
+    const results = await getCertService().checkDomains(['untrusted-root.example.com'], 443, 5000);
+
+    expect(results[0]!.status).toBe('critical');
+    expect(results[0]!.cert!.authorization_error).toBe('SELF_SIGNED_CERT_IN_CHAIN');
+    expect(
+      results[0]!.flags.some((f) =>
+        f.includes('Certificate chain not trusted (SELF_SIGNED_CERT_IN_CHAIN)'),
+      ),
+    ).toBe(true);
+  });
+
+  it('self-signed cert → status critical, flag "Self-signed certificate"', async () => {
+    mockSocketConfig = {
+      cert: fakeCert(200, true),
+      protocol: 'TLSv1.3',
+      hsts: false,
+      authorized: false,
+      authorizationError: 'DEPTH_ZERO_SELF_SIGNED_CERT',
+    };
+    const results = await getCertService().checkDomains(['self.example.com'], 443, 5000);
+
+    expect(results[0]!.flags).toContain('Self-signed certificate');
+    expect(results[0]!.cert!.authorization_error).toBe('DEPTH_ZERO_SELF_SIGNED_CERT');
+    // A self-signed certificate is as hard a client-side rejection as an expired one.
+    expect(results[0]!.status).toBe('critical');
+  });
+
+  it('normalizes an Error-shaped authorizationError to its OpenSSL code', async () => {
+    const err = new Error('unable to verify the first certificate') as NodeJS.ErrnoException;
+    err.code = 'UNABLE_TO_VERIFY_LEAF_SIGNATURE';
+    mockSocketConfig = {
+      cert: fakeCert(200),
+      protocol: 'TLSv1.3',
+      hsts: false,
+      authorized: false,
+      authorizationError: err,
+    };
+    const results = await getCertService().checkDomains(['no-intermediate.example.com'], 443, 5000);
+
+    expect(results[0]!.cert!.authorization_error).toBe('UNABLE_TO_VERIFY_LEAF_SIGNATURE');
+    expect(results[0]!.status).toBe('critical');
+  });
+
+  it('does not repeat an expiry rejection as a separate chain-trust flag', async () => {
+    mockSocketConfig = {
+      cert: fakeCert(-40),
+      protocol: 'TLSv1.3',
+      hsts: false,
+      authorized: false,
+      authorizationError: 'CERT_HAS_EXPIRED',
+    };
+    const results = await getCertService().checkDomains(['expired.example.com'], 443, 5000);
+
+    expect(results[0]!.status).toBe('critical');
+    expect(results[0]!.cert!.authorization_error).toBe('CERT_HAS_EXPIRED');
+    expect(results[0]!.flags.some((f) => f.startsWith('Certificate expired'))).toBe(true);
+    expect(results[0]!.flags.some((f) => f.includes('Certificate chain not trusted'))).toBe(false);
+  });
+});
+
+describe('CertService — chain depth', () => {
+  beforeEach(() => {
+    initCertService();
+  });
+
+  afterEach(() => {
+    mockSocketConfig = {};
+  });
+
+  it('reports chain_depth null with a reason when issuerCertificate is not exposed', async () => {
+    // The runtime leaves issuerCertificate unset even for CA-issued chains; a leaf-only "1"
+    // would read as "no intermediates were served", which is false.
+    mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: true };
+    const results = await getCertService().checkDomains(['ca-issued.example.com'], 443, 5000);
+
+    expect(results[0]!.cert!.chain_depth).toBeNull();
+    expect(results[0]!.cert!.chain_depth_unavailable_reason).toContain('issuerCertificate');
+    // Chain trust is answered by authorization_error, never inferred from a depth of 1.
+    expect(results[0]!.cert!.authorization_error).toBeNull();
+    expect(results[0]!.status).toBe('ok');
+  });
+
+  it('counts the chain when issuerCertificate is present', async () => {
+    const leaf = fakeCert(200);
+    leaf.issuerCertificate = {
+      subject: { CN: "Let's Encrypt R3" },
+      issuer: { CN: 'ISRG Root X1' },
+    };
+    mockSocketConfig = { cert: leaf, protocol: 'TLSv1.3', hsts: true };
+    const results = await getCertService().checkDomains(['chained.com'], 443, 5000);
+
+    expect(results[0]!.cert!.chain_depth).toBe(2);
+    expect(results[0]!.cert!.chain_depth_unavailable_reason).toBeNull();
   });
 });

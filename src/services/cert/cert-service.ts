@@ -15,7 +15,10 @@ export interface CertResult {
     valid_from: string;
     valid_until: string;
     days_until_expiry: number;
-    chain_depth: number;
+    chain_depth: number | null;
+    chain_depth_unavailable_reason: string | null;
+    hostname_verification_error: string | null;
+    authorization_error: string | null;
     serial: string;
   } | null;
   checked_at: string;
@@ -28,6 +31,25 @@ export interface CertResult {
     protocol: string;
     cipher: string;
   } | null;
+}
+
+/**
+ * Why `chain_depth` is null. `getPeerCertificate(true).issuerCertificate` is the only link to the
+ * served chain, and it is not populated on every supported runtime (absent under Bun even for
+ * CA-issued chains), so the count is reported as unavailable rather than as a confident `1`.
+ */
+const CHAIN_DEPTH_UNAVAILABLE =
+  'This runtime did not expose issuerCertificate on the peer certificate, so the number of certificates the server actually sent cannot be counted. Read authorization_error for chain-trust validity instead.';
+
+/**
+ * `socket.authorizationError` is typed as `Error` but arrives as a bare OpenSSL code string on
+ * some runtimes. Normalize both shapes to the code.
+ */
+function authorizationErrorCode(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  const err = value as NodeJS.ErrnoException;
+  return err.code ?? err.message ?? String(value);
 }
 
 /** Inspect a single domain's TLS certificate and HSTS header. */
@@ -57,10 +79,26 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
       resolve(result);
     }
 
+    /**
+     * Captured from inside `checkServerIdentity`: the callback runs Node's own hostname check
+     * explicitly and records the result, then returns undefined so the handshake completes and a
+     * bad certificate can still be inspected. `socket.authorized` alone does not cover this —
+     * overriding the callback makes the connection authorized even on a hostname mismatch.
+     */
+    let hostnameVerificationError: string | null = null;
+
     const socket = tls.connect(
-      { host: domain, port, rejectUnauthorized: false, checkServerIdentity: () => undefined },
+      {
+        host: domain,
+        port,
+        rejectUnauthorized: false,
+        checkServerIdentity: (host, peerCert) => {
+          hostnameVerificationError = tls.checkServerIdentity(host, peerCert)?.message ?? null;
+        },
+      },
       () => {
         const cert = socket.getPeerCertificate(true);
+        const authorizationError = authorizationErrorCode(socket.authorizationError);
         const tlsProtocol = socket.getProtocol() ?? 'unknown';
         const cipherInfo = socket.getCipher();
 
@@ -68,6 +106,8 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
 
         // Parse cert details
         let certData: CertResult['cert'] = null;
+        /** Self-issued leaf, detected independently of chain verification. */
+        let selfIssued = false;
         if (cert?.subject) {
           const now = Date.now();
           const validFrom = new Date(cert.valid_from);
@@ -98,13 +138,21 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
             ? (issuerCN[0] ?? 'unknown')
             : (issuerCN ?? 'unknown');
 
-          // Chain depth — walk issuerCertificate chain
-          let depth = 1;
-          let current: tls.DetailedPeerCertificate | null = cert;
-          while (current?.issuerCertificate && current.issuerCertificate !== current) {
-            depth++;
-            current = current.issuerCertificate as tls.DetailedPeerCertificate;
-            if (depth > 20) break; // guard against circular refs
+          /**
+           * Chain depth — walk the issuerCertificate chain when the runtime exposes it. With no
+           * link there is nothing to count: report null rather than the leaf-only `1`, which reads
+           * as "no intermediates were served" and is wrong for every CA-issued certificate.
+           */
+          let chainDepth: number | null = null;
+          if (cert.issuerCertificate) {
+            let depth = 1;
+            let current: tls.DetailedPeerCertificate | null = cert;
+            while (current?.issuerCertificate && current.issuerCertificate !== current) {
+              depth++;
+              current = current.issuerCertificate as tls.DetailedPeerCertificate;
+              if (depth > 20) break; // guard against circular refs
+            }
+            chainDepth = depth;
           }
 
           // Serial number
@@ -118,12 +166,26 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
             flags.push(`Expires in ${daysUntilExpiry} days (warning)`);
           }
 
-          // Self-signed: issuer === subject
-          if (
+          if (hostnameVerificationError) {
+            flags.push(
+              `Hostname mismatch — the certificate does not cover ${domain}; clients will reject it`,
+            );
+          }
+
+          /**
+           * Chain trust. `authorization_error` is the authoritative signal — the issuer/subject
+           * comparison only catches a self-issued leaf and misses an untrusted root entirely.
+           * Expiry is already flagged above with a day count, so it is not repeated here.
+           */
+          selfIssued =
             issuer === subject ||
-            (cert.issuer?.CN && cert.subject?.CN && cert.issuer.CN === cert.subject.CN)
-          ) {
+            Boolean(cert.issuer?.CN && cert.subject?.CN && cert.issuer.CN === cert.subject.CN);
+          if (authorizationError === 'DEPTH_ZERO_SELF_SIGNED_CERT' || selfIssued) {
             flags.push('Self-signed certificate');
+          } else if (authorizationError && authorizationError !== 'CERT_HAS_EXPIRED') {
+            flags.push(
+              `Certificate chain not trusted (${authorizationError}); clients will reject it`,
+            );
           }
 
           certData = {
@@ -133,13 +195,17 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
             valid_from: validFrom.toISOString(),
             valid_until: validUntil.toISOString(),
             days_until_expiry: daysUntilExpiry,
-            chain_depth: depth,
+            chain_depth: chainDepth,
+            chain_depth_unavailable_reason: chainDepth === null ? CHAIN_DEPTH_UNAVAILABLE : null,
+            hostname_verification_error: hostnameVerificationError,
+            authorization_error: authorizationError,
             serial,
           };
         }
 
         // TLS protocol check
-        if (tlsProtocol === 'TLSv1' || tlsProtocol === 'TLSv1.1') {
+        const insecureTls = tlsProtocol === 'TLSv1' || tlsProtocol === 'TLSv1.1';
+        if (insecureTls) {
           flags.push(`Insecure TLS version in use: ${tlsProtocol}`);
         }
 
@@ -154,16 +220,22 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
         let responseBuffer = '';
         let hstsChecked = false;
 
+        /**
+         * Derived from the certificate data rather than from flag text. A hostname mismatch or
+         * any chain-trust failure (self-signed included) is a hard client-side rejection and lands
+         * at `critical`, alongside expiry and insecure TLS.
+         */
         function resolveStatus(): CertResult['status'] {
           if (certData === null) return 'error';
-          const daysExpiry = certData.days_until_expiry;
           if (
-            flags.some(
-              (f) => f.includes('CRITICAL') || f.includes('expired') || f.includes('Insecure TLS'),
-            )
+            certData.days_until_expiry < 7 ||
+            certData.hostname_verification_error !== null ||
+            certData.authorization_error !== null ||
+            selfIssued ||
+            insecureTls
           )
             return 'critical';
-          if (daysExpiry < 30 || flags.some((f) => f.includes('Self-signed'))) return 'warning';
+          if (certData.days_until_expiry < 30) return 'warning';
           return 'ok';
         }
 

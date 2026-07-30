@@ -17,8 +17,11 @@ export const devopsCheckCerts = tool('devops_check_certs', {
     'Inspect SSL/TLS certificate health for one or more domains by performing a real TLS handshake. ' +
     'Works for any internet-accessible domain — no vendor registry required. ' +
     'Reports days to expiry (flagged at < 30 days warning and < 7 days critical), ' +
-    'certificate subject and SANs, issuer, chain depth, TLS protocol version negotiated (flags TLS 1.0/1.1 as insecure), ' +
-    'cipher suite, and HSTS presence.',
+    'certificate subject and SANs, issuer, hostname coverage, chain-trust verification, ' +
+    'TLS protocol version negotiated (flags TLS 1.0/1.1 as insecure), cipher suite, and HSTS presence. ' +
+    'The handshake completes even for a certificate clients would reject, so a broken certificate is reported rather than hidden behind a connection error: ' +
+    'a hostname mismatch surfaces in cert.hostname_verification_error and a chain-trust failure (self-signed, untrusted root) in cert.authorization_error, both status "critical". ' +
+    'If a domain fails to connect at all, check devops_check_dns first — the name may not resolve.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -67,12 +70,12 @@ export const devopsCheckCerts = tool('devops_check_certs', {
             status: z
               .enum(['ok', 'warning', 'critical', 'error'])
               .describe(
-                'Overall status: ok, warning (< 30 days), critical (< 7 days or insecure TLS), or error (connection failed).',
+                'Overall status. "critical" — the certificate expires in < 7 days or has already expired, the hostname is not covered by the certificate, chain verification failed (self-signed or untrusted root), or an insecure TLS version was negotiated; every one of these is rejected by ordinary clients. "warning" — expires in < 30 days. "ok" — none of the above. "error" — the connection failed and no certificate was retrieved.',
               ),
             flags: z
               .array(z.string())
               .describe(
-                'Human-readable warnings and issues found: "expires in 12 days", "TLS 1.1 in use", "self-signed certificate", "HSTS present", etc.',
+                'Human-readable warnings and issues found: "Expires in 12 days (warning)", "Certificate expired 40 days ago", "Hostname mismatch — the certificate does not cover api.example.com; clients will reject it", "Certificate chain not trusted (SELF_SIGNED_CERT_IN_CHAIN); clients will reject it", "Self-signed certificate", "Insecure TLS version in use: TLSv1.1", "HSTS present" / "HSTS not configured".',
               ),
             cert: z
               .object({
@@ -92,7 +95,28 @@ export const devopsCheckCerts = tool('devops_check_certs', {
                 chain_depth: z
                   .number()
                   .int()
-                  .describe('Number of certificates in the chain (1 = self-signed).'),
+                  .nullable()
+                  .describe(
+                    'Number of certificates the server sent, counting the leaf. Null when the runtime does not expose the issuer chain — read "chain_depth_unavailable_reason" in that case. Not a self-signed indicator: use "authorization_error" for that.',
+                  ),
+                chain_depth_unavailable_reason: z
+                  .string()
+                  .nullable()
+                  .describe(
+                    'Why "chain_depth" is null, or null when a depth was measured. Absence of a depth is a runtime limitation, not a finding about the certificate.',
+                  ),
+                hostname_verification_error: z
+                  .string()
+                  .nullable()
+                  .describe(
+                    'Node\'s hostname-verification message when the requested domain is not covered by the certificate\'s CN or SANs (e.g. "Hostname/IP does not match certificate\'s altnames: …"), or null when the hostname is covered. A non-null value means ordinary clients reject this certificate for this hostname; compare against the "san" list to see what it does cover.',
+                  ),
+                authorization_error: z
+                  .string()
+                  .nullable()
+                  .describe(
+                    'OpenSSL chain-verification code when the certificate chain does not validate against the system trust store, or null when it validates. Common values: "DEPTH_ZERO_SELF_SIGNED_CERT" (self-signed leaf), "SELF_SIGNED_CERT_IN_CHAIN" / "UNABLE_TO_VERIFY_LEAF_SIGNATURE" (issuing root not trusted), "CERT_HAS_EXPIRED" (also reported in "days_until_expiry"). This is the authoritative chain-trust signal — the issuer and subject fields alone cannot detect an untrusted root.',
+                  ),
                 serial: z.string().describe('Certificate serial number.'),
               })
               .nullable()
@@ -174,7 +198,18 @@ export const devopsCheckCerts = tool('devops_check_certs', {
         lines.push(
           `**Valid:** ${r.cert.valid_from} → ${r.cert.valid_until} (${r.cert.days_until_expiry} days remaining)`,
         );
-        lines.push(`**Chain depth:** ${r.cert.chain_depth} | **Serial:** ${r.cert.serial}`);
+        lines.push(
+          `**Chain depth:** ${r.cert.chain_depth ?? 'unavailable'} | **Serial:** ${r.cert.serial}`,
+        );
+        if (r.cert.chain_depth_unavailable_reason) {
+          lines.push(`**Chain depth unavailable:** ${r.cert.chain_depth_unavailable_reason}`);
+        }
+        if (r.cert.hostname_verification_error) {
+          lines.push(`**Hostname mismatch:** ${r.cert.hostname_verification_error}`);
+        }
+        if (r.cert.authorization_error) {
+          lines.push(`**Chain not trusted:** ${r.cert.authorization_error}`);
+        }
       }
       if (r.tls) {
         lines.push(`**TLS:** ${r.tls.protocol} / ${r.tls.cipher}`);

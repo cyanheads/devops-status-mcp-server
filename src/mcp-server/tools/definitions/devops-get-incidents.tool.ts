@@ -157,7 +157,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .default('all')
       .describe(
         'all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only scheduled maintenance windows. ' +
-          'Not every vendor backend serves every filter — "aws" publishes currently-open events only (never resolved, no maintenance windows) and "slack" publishes no maintenance windows. An empty result names which case applied.',
+          'Not every vendor backend serves every filter — "aws" publishes currently-open events only (never resolved, no maintenance windows), and "gcp" and "slack" publish no maintenance windows. An empty result names which case applied.',
       ),
     limit: z
       .number()

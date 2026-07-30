@@ -3,7 +3,7 @@
  * @module services/vendor-registry/vendor-registry-service
  */
 
-import { VENDOR_REGISTRY, type VendorEntry } from '@/data/vendor-registry.js';
+import { VENDOR_REGISTRY, type VendorApiType, type VendorEntry } from '@/data/vendor-registry.js';
 
 /** Regex matching a raw URL (starts with http:// or https://). */
 const URL_RE = /^https?:\/\//i;
@@ -17,7 +17,7 @@ export type ResolvedVendor = {
   name: string;
   slug: string | null;
 } & (
-  | { api_type: 'statuspage' | 'slack' | 'aws' | 'firehydrant' }
+  | { api_type: Exclude<VendorApiType, 'statusio'> }
   | { api_type: 'statusio'; statusio_page_id: string }
 );
 

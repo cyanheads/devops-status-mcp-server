@@ -23,6 +23,11 @@ import {
   fetchFirehydrantSummary,
 } from './firehydrant-adapter.js';
 import {
+  fetchGcpIncidents,
+  fetchGcpScheduledMaintenances,
+  fetchGcpSummary,
+} from './gcp-adapter.js';
+import {
   fetchSlackIncidents,
   fetchSlackScheduledMaintenances,
   fetchSlackSummary,
@@ -46,6 +51,8 @@ export function fetchVendorSummary(
       return fetchSlackSummary(vendor);
     case 'aws':
       return fetchAwsSummary(vendor);
+    case 'gcp':
+      return fetchGcpSummary(vendor);
     case 'firehydrant':
       return fetchFirehydrantSummary(vendor);
   }
@@ -64,6 +71,8 @@ export function fetchVendorIncidents(
       return fetchSlackIncidents(vendor);
     case 'aws':
       return fetchAwsIncidents(vendor);
+    case 'gcp':
+      return fetchGcpIncidents(vendor);
     case 'firehydrant':
       return fetchFirehydrantIncidents(vendor);
   }
@@ -82,6 +91,8 @@ export function fetchVendorScheduledMaintenances(
       return fetchSlackScheduledMaintenances(vendor);
     case 'aws':
       return fetchAwsScheduledMaintenances(vendor);
+    case 'gcp':
+      return fetchGcpScheduledMaintenances(vendor);
     case 'firehydrant':
       return fetchFirehydrantScheduledMaintenances(vendor);
   }
@@ -131,6 +142,14 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
       // every one to 'investigating' because the feed carries no lifecycle field,
       // and fetchAwsScheduledMaintenances is empty with no network call.
       return { incidentCeiling: null, resolved: 'none', scheduledMaintenance: false };
+    case 'gcp':
+      // incidents.json returns a bare array with no record cap and no paging
+      // parameter — it is a rolling recent window, so history is bounded by age
+      // rather than by a count this tool can disclose. Resolved incidents stay in
+      // it (mapGcpIncident reads resolution from `end`), and Google Cloud
+      // publishes no maintenance feed: fetchGcpScheduledMaintenances is empty
+      // with no network call.
+      return { incidentCeiling: null, resolved: 'full', scheduledMaintenance: false };
     case 'statusio':
       // The Public Status API serves the page's current incidents plus its active
       // and upcoming maintenance windows; resolved incidents drop off the feed.

@@ -6,6 +6,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { VENDOR_REGISTRY } from '@/data/vendor-registry.js';
 import {
   backendHistory,
   fetchVendorIncidents,
@@ -66,11 +67,13 @@ beforeEach(() => {
         ? STATUSIO_BODY
         : u.includes('/data/payload.json')
           ? FIREHYDRANT_BODY
-          : u.includes('/api/v2.0.0/history')
-            ? []
-            : u.includes('/api/v2.0.0/')
-              ? { status: 'ok', active_incidents: [] }
-              : STATUSPAGE_BODY;
+          : u.includes('status.cloud.google.com')
+            ? [] // the Google Cloud feed is a bare incident array
+            : u.includes('/api/v2.0.0/history')
+              ? []
+              : u.includes('/api/v2.0.0/')
+                ? { status: 'ok', active_incidents: [] }
+                : STATUSPAGE_BODY;
       return Promise.resolve({
         ok: true,
         json: vi.fn().mockResolvedValue(body),
@@ -127,6 +130,12 @@ describe('fetchVendorSummary dispatch', () => {
     expect(lastUrl()).toBe('https://health.aws.amazon.com/public/currentevents');
   });
 
+  it('gcp vendor hits the Google Cloud incidents feed', async () => {
+    const { data } = await fetchVendorSummary(resolve('gcp'));
+    expect(data.status.indicator).toBe('none');
+    expect(lastUrl()).toBe('https://status.cloud.google.com/incidents.json');
+  });
+
   it('firehydrant vendor (redis-cloud) hits the page payload feed', async () => {
     const { data } = await fetchVendorSummary(resolve('redis-cloud'));
     expect(data.status.indicator).toBe('none');
@@ -149,6 +158,11 @@ describe('fetchVendorIncidents / fetchVendorScheduledMaintenances dispatch', () 
     expect(lastUrl()).toBe('https://health.aws.amazon.com/public/currentevents');
   });
 
+  it('gcp incidents hit the same incidents feed as the summary', async () => {
+    await fetchVendorIncidents(resolve('gcp'));
+    expect(lastUrl()).toBe('https://status.cloud.google.com/incidents.json');
+  });
+
   it('firehydrant incidents and maintenances both read the payload feed', async () => {
     await fetchVendorIncidents(resolve('redis-cloud'));
     expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
@@ -156,12 +170,14 @@ describe('fetchVendorIncidents / fetchVendorScheduledMaintenances dispatch', () 
     expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
   });
 
-  it('slack and aws maintenances are empty and skip the network', async () => {
+  it('slack, aws and gcp maintenances are empty and skip the network', async () => {
     const before = vi.mocked(fetch).mock.calls.length;
     const slack = await fetchVendorScheduledMaintenances(resolve('slack'));
     const aws = await fetchVendorScheduledMaintenances(resolve('aws'));
+    const gcp = await fetchVendorScheduledMaintenances(resolve('gcp'));
     expect(slack.data.scheduled_maintenances).toHaveLength(0);
     expect(aws.data.scheduled_maintenances).toHaveLength(0);
+    expect(gcp.data.scheduled_maintenances).toHaveLength(0);
     expect(vi.mocked(fetch).mock.calls.length).toBe(before);
   });
 });
@@ -206,6 +222,16 @@ describe('backendHistory', () => {
     });
   });
 
+  it('gcp serves resolved history but publishes no maintenance feed', () => {
+    // Resolution comes from each incident's `end`, so filter: "resolved" works;
+    // fetchGcpScheduledMaintenances returns empty without a network call.
+    expect(backendHistory('gcp')).toEqual({
+      incidentCeiling: null,
+      resolved: 'full',
+      scheduledMaintenance: false,
+    });
+  });
+
   it('firehydrant is unbounded — the payload carries the whole history', () => {
     expect(backendHistory('firehydrant')).toEqual({
       incidentCeiling: null,
@@ -217,9 +243,20 @@ describe('backendHistory', () => {
   it('only the two 50-record feeds declare a ceiling', () => {
     // The ceiling drives the upstream-cap disclosure; a wrong null silently
     // restores the "50 is the whole history" bug this replaced.
-    const withCeiling = (['statuspage', 'slack', 'aws', 'statusio', 'firehydrant'] as const).filter(
-      (t) => backendHistory(t).incidentCeiling !== null,
-    );
+    const withCeiling = (
+      ['statuspage', 'slack', 'aws', 'gcp', 'statusio', 'firehydrant'] as const
+    ).filter((t) => backendHistory(t).incidentCeiling !== null);
     expect(withCeiling).toEqual(['statuspage', 'slack']);
+  });
+
+  it('every api_type in the registry has a capability row', () => {
+    // The switch has no default branch, so a backend added to the registry
+    // without a backendHistory case returns undefined here rather than lying.
+    for (const apiType of new Set(VENDOR_REGISTRY.map((v) => v.api_type))) {
+      const history = backendHistory(apiType);
+      expect(history, apiType).toBeDefined();
+      expect(['full', 'current', 'none'], apiType).toContain(history.resolved);
+      expect(typeof history.scheduledMaintenance, apiType).toBe('boolean');
+    }
   });
 });

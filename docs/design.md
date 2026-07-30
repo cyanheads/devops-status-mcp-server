@@ -196,6 +196,54 @@ Same shape as incidents; additional fields: `scheduled_for`, `scheduled_until`. 
 
 Returns merged object with `status`, `components`, `incidents`, and `scheduled_maintenances` in a single call. Used by `devops_status_check` in `detailed` mode to minimize round trips.
 
+### `GET https://status.cloud.google.com/incidents.json` (Google Cloud)
+
+Keyless, `content-type: application/json`, no auth and no rate limit. The body is a **bare top-level array** of incidents — no `page`/`status` envelope — so the adapter synthesizes the page block from the registry entry. Query parameters are ignored (`?page=2` and `?limit=100` both return the identical array), and there is no record cap: the feed is a rolling recent window, so history is bounded by age rather than by a count `devops_get_incidents` could disclose. Google publishes a JSON Schema for it at `incidents.schema.json`, and a product catalog at `products.json` that this server does not consume.
+
+```jsonc
+[{
+  "id": "3BvH3LVGcupoYqV6F4Nw",          // stable; `number` is deprecated upstream
+  "begin": "2026-07-15T23:57:00+00:00",  // when the incident started
+  "created": "2026-07-16T03:30:59+00:00",
+  "end": "2026-07-16T12:25:00+00:00",    // absent/empty while open — the only resolution signal
+  "modified": "2026-07-25T13:16:55+00:00",
+  "external_desc": "…",                  // the dashboard headline; there is no separate title
+  "severity": "medium",                  // schema documents "(high, medium)"; `low` is emitted live
+  "status_impact": "SERVICE_DISRUPTION", // or SERVICE_INFORMATION
+  "uri": "incidents/3BvH3LVGcupoYqV6F4Nw", // dashboard-relative permalink → `shortlink`
+  "affected_products": [                 // the component concept
+    { "id": "…", "title": "Vertex Gemini API", "current_title": "Gemini on Agent Platform" }
+  ],
+  "currently_affected_locations": [],    // region pairs; no normalized counterpart, not mapped
+  "previously_affected_locations": [{ "title": "Netherlands (europe-west4)", "id": "europe-west4" }],
+  "updates": [{                          // newest-first; re-sorted oldest-first when normalized
+    "when": "2026-07-25T13:16:55+00:00",
+    "created": "2026-07-25T13:16:55+00:00",
+    "text": "…",
+    "status": "AVAILABLE",               // service status when posted, not a lifecycle word
+    "affected_locations": []
+  }],
+  "most_recent_update": { /* duplicate of updates[0] */ },
+  "service_key": "zall",                 // deprecated upstream in favour of affected_products
+  "service_name": "Multiple Products"    // deprecated upstream in favour of affected_products
+}]
+```
+
+**Normalized mapping** (`gcp-adapter.ts`):
+
+| Google Cloud | Statuspage shape | Notes |
+|:---|:---|:---|
+| `severity` | `impact` | `low` → `minor`, `medium` → `major`, `high` → `critical`; unrecognized → `minor` |
+| `end` present | `status`, `resolved_at` | `resolved` when set, `investigating` otherwise |
+| `external_desc` | `name` | the feed publishes no separate title |
+| `begin` / `created` | `started_at` / `created_at` | |
+| `uri` | `shortlink` | resolved against the dashboard base into an absolute URL |
+| `affected_products[]` | `affected_components` on the latest update, and summary `components` | display name from `current_title`, falling back to `title` |
+| `updates[].status` | update `status` | `AVAILABLE` → `available`, `SERVICE_DISRUPTION` → `disruption`, `SERVICE_INFORMATION` → `information` |
+| — | `scheduled_maintenances` | always empty; Google Cloud publishes no maintenance feed |
+
+**Not mapped:** `currently_affected_locations` / `previously_affected_locations` / `updates[].affected_locations` (no normalized counterpart), `most_recent_update` (duplicates `updates[0]`), `number` / `service_key` / `service_name` (deprecated upstream). Summary `components` cover only the products named by currently-open incidents — the feed carries no product health table, so unmentioned products are absent rather than asserted operational.
+
 ---
 
 ## Tool Detail
@@ -382,13 +430,14 @@ errors: [
 
 #### Backend history capabilities
 
-Normalizing five backends to the Statuspage shapes hides what each feed can actually serve. `backendHistory()` in `status-dispatch.ts` states it, exhaustively over `api_type` so a new backend cannot be added without answering all three questions:
+Normalizing six backends to the Statuspage shapes hides what each feed can actually serve. `backendHistory()` in `status-dispatch.ts` states it, exhaustively over `api_type` so a new backend cannot be added without answering all three questions:
 
 | Backend | Incident ceiling | Resolved history | Maintenance windows |
 |:---|:---|:---|:---|
 | Statuspage | 50 per fetch, `?page=` ignored | full (within the ceiling) | yes |
 | Slack | 50 per fetch, `?page=` ignored | full (within the ceiling) | none — empty with no network call |
 | AWS Health | unbounded (open events only) | none — no lifecycle field, every event maps to `investigating` | none — empty with no network call |
+| Google Cloud | no record cap; query parameters ignored — a rolling recent window bounded by age, not by a count | full — resolution comes from each incident's `end` | none — empty with no network call |
 | Status.io | unbounded (current incidents only) | current only — resolved incidents drop off the feed | yes |
 | FireHydrant | unbounded — the payload carries the whole history | full | yes |
 
@@ -789,6 +838,14 @@ Both were derived from a single resolver: `records` and the "no A or AAAA record
 
 `inspectCert()` connects with `rejectUnauthorized: false` and overrides `checkServerIdentity` so a broken certificate can still be inspected rather than failing the connection — but the override discarded Node's hostname-validation result, letting a wrong-host certificate report `ok`. `socket.authorized` does not cover the gap: with `checkServerIdentity` overridden it is `true` even for a hostname mismatch, so it reflects chain trust only. The two are therefore read independently — `tls.checkServerIdentity(host, cert)` called explicitly inside the callback (which still returns `undefined` to keep the connection open) for hostname coverage, and `socket.authorizationError` for chain verification, which catches an untrusted root that the issuer-versus-subject heuristic cannot see. Both land at `critical`: a hostname mismatch, a self-signed leaf, and an untrusted root are all hard client-side rejections, the same tier as expiry, which is why self-signed was raised from `warning`.
 
+### Why Google Cloud severity maps onto the indicator scale the way it does
+
+The feed's own schema documents `severity` as "(high, medium)" while the live feed emits `low`, so the vocabulary is open and an enum that rejected an unlisted value would fail on a payload Google actually publishes. Three known values map onto four indicator slots as `low` → `minor`, `medium` → `major`, `high` → `critical`, calibrated against what the records carry: the live `medium` record is a fifteen-hour multi-product regional outage and the live `low` record is a two-hour error-rate elevation. `none` is deliberately unreachable — every record in this feed is a published incident, so none of them mean "no impact." An unrecognized severity degrades to `minor` rather than throwing or dropping the record: a published incident is at least a degradation, and losing it entirely is worse than under-rating it. `critical` is named alongside `high` so a hypothetical escalation past the documented top value is not silently downgraded to `minor` by the default branch.
+
+### Why `SERVICE_INFORMATION` stays in the incident stream
+
+`status_impact` has two observed values, `SERVICE_DISRUPTION` and `SERVICE_INFORMATION`, and the second reads at first like Google's maintenance analog. It is not. The live `SERVICE_INFORMATION` record is a root-caused report of elevated Vertex Gemini API error rates with a remediation section — a past disruption of low impact, not planned work. Routing it to `scheduled_maintenances` would coerce its impact to `maintenance` and its status to `scheduled`/`in_progress`, relabelling a real incident as a planned window and hiding it from `filter: "resolved"`. Google Cloud publishes no maintenance feed of any kind, so `scheduled_maintenances` is always empty for this backend and `backendHistory()` declares `scheduledMaintenance: false`; `devops_get_incidents` says so when `filter: "scheduled"` comes back empty. Severity, not `status_impact`, carries the impact signal.
+
 ### Instruction tool vs. LLM sampling
 
 `devops_suggest_action` could use `ctx.sample` to ask the client's LLM for dynamic guidance. The risk: non-deterministic output, client dependency, potential latency. The value proposition of this tool is predictable, category-specific playbooks — "Cloudflare CDN is down, here are the known mitigation patterns." Static playbook dispatch by vendor category is deterministic, fast, and works in all clients. If `ctx.sample` is present and the vendor/incident is complex, the handler can optionally enrich the response — but the base path is always static.
@@ -801,8 +858,8 @@ Statuspage APIs are designed for polling (vendors use them for their own dashboa
 
 ## Known Limitations
 
-- **Non-Statuspage vendors:** Many major vendors do NOT use Atlassian Statuspage: AWS (health.aws.amazon.com), GCP (status.cloud.google.com), Azure (status.azure.com), Hetzner (status.hetzner.com), GitLab (status.io-based), Railway (custom), Fastly (access-restricted), PagerDuty (custom endpoint), Okta (auth-gated), Docker Hub (custom), CockroachDB (unreachable). These are excluded from the built-in registry. Users can attempt raw URL passthrough for any that may use Statuspage under a different subdomain, but the server makes no guarantees. Future bespoke adapters could cover the major cloud providers.
-- **Upstream history ceilings:** Atlassian Statuspage and Slack both serve at most 50 incident records per fetch with no working pagination parameter, so `devops_get_incidents` cannot reach older incidents for those backends at any `offset`. It discloses the ceiling (`upstreamCeiling` + `notice`) when a call hits it rather than presenting the window as complete history; older incidents remain on the vendor's own status page. AWS Health, Status.io, and FireHydrant have no such ceiling — see the backend history table under `devops_get_incidents`.
+- **Non-Statuspage vendors:** Many major vendors do NOT use Atlassian Statuspage. AWS (health.aws.amazon.com), Google Cloud (status.cloud.google.com), GitLab and Neon (Status.io), Slack (own status API), and Redis Cloud (FireHydrant) are served by native adapters in `src/services/status-adapters/`. Azure (status.azure.com, RSS/XML), Hetzner (status.hetzner.com), Railway (custom), Fastly (access-restricted), PagerDuty (custom endpoint), Okta (auth-gated), Docker Hub (custom), and CockroachDB (unreachable) have no adapter and are excluded from the built-in registry. Users can attempt raw URL passthrough for any that may use Statuspage under a different subdomain, but the server makes no guarantees.
+- **Upstream history ceilings:** Atlassian Statuspage and Slack both serve at most 50 incident records per fetch with no working pagination parameter, so `devops_get_incidents` cannot reach older incidents for those backends at any `offset`. It discloses the ceiling (`upstreamCeiling` + `notice`) when a call hits it rather than presenting the window as complete history; older incidents remain on the vendor's own status page. AWS Health, Status.io, and FireHydrant have no such ceiling — see the backend history table under `devops_get_incidents`. Google Cloud has no record ceiling either, but its feed is a rolling recent window: older incidents fall out of it by age, which no per-call count reveals, so nothing is disclosed and they remain reachable only on the dashboard.
 - **Vendor self-reporting:** Statuspage data is vendor-published. Vendors may lag incident acknowledgment. `devops_check_certs` and `devops_check_dns` provide ground-truth checks that complement self-reported status.
 - **TLS inspection from server host:** `devops_check_certs` connects from wherever the MCP server runs. If the server is hosted, cert checks reflect connectivity from that host — a cert served correctly to the host may still be broken in a specific region. For complete coverage, run the server locally.
 - **DNS propagation scope:** `devops_check_dns` queries three public resolvers. Propagation completeness across all global resolvers requires a larger resolver set or a dedicated propagation service.

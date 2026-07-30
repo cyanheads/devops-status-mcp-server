@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.7.0](changelog/0.7.x/0.7.0.md) — 2026-07-30
+
+Google Cloud joins the vendor registry as a native status adapter — devops_status_check, devops_get_incidents, and devops_watch_stack now cover Google Cloud Service Health alongside AWS Health.
+
 ## [0.6.0](changelog/0.6.x/0.6.0.md) — 2026-07-30 · ⚠️ Breaking
 
 DNS resolver failures (NXDOMAIN, SERVFAIL) and geo-steered records are now told apart from missing records and real propagation problems; devops_check_certs validates hostname and chain trust instead of skipping them, and chain_depth is nullable instead of a wrong 1 for CA-issued chains.

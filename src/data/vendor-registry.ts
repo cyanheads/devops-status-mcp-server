@@ -14,7 +14,7 @@ export type VendorCategory =
   | 'ai';
 
 /** Status backend the vendor's page runs on — selects the adapter in src/services/status-adapters/. */
-export type VendorApiType = 'statuspage' | 'statusio' | 'slack' | 'aws' | 'firehydrant';
+export type VendorApiType = 'statuspage' | 'statusio' | 'slack' | 'aws' | 'gcp' | 'firehydrant';
 
 interface VendorEntryBase {
   category: VendorCategory;
@@ -31,7 +31,7 @@ interface VendorEntryBase {
 }
 
 export type VendorEntry =
-  | (VendorEntryBase & { api_type: 'statuspage' | 'slack' | 'aws' | 'firehydrant' })
+  | (VendorEntryBase & { api_type: Exclude<VendorApiType, 'statusio'> })
   | (VendorEntryBase & {
       api_type: 'statusio';
       /** Status.io page ID — keys https://status-api.hostedstatus.com/1.0/status/{id}. */
@@ -39,10 +39,10 @@ export type VendorEntry =
     });
 
 /**
- * 50-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
- * entries with api_type 'statusio' | 'slack' | 'aws' | 'firehydrant' are served through
- * native-API adapters (src/services/status-adapters/) that normalize into the Statuspage
- * shapes. Probe every entry for drift with `bun run verify:registry`.
+ * 51-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
+ * every other api_type is served through a native-API adapter
+ * (src/services/status-adapters/) that normalizes into the Statuspage shapes.
+ * Probe every entry for drift with `bun run verify:registry`.
  */
 export const VENDOR_REGISTRY: readonly VendorEntry[] = [
   // cloud
@@ -67,6 +67,14 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     // Public AWS Health Dashboard — adapter fetches /public/currentevents (UTF-16 feed).
     statuspage_url: 'https://health.aws.amazon.com',
     api_type: 'aws',
+  },
+  {
+    slug: 'gcp',
+    name: 'Google Cloud',
+    category: 'cloud',
+    // Google Cloud Service Health — adapter fetches /incidents.json (bare incident array).
+    statuspage_url: 'https://status.cloud.google.com',
+    api_type: 'gcp',
   },
   // cdn-edge
   {

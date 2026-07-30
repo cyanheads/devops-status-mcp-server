@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-07-30 21:22:57
+Generated on: 2026-07-30 22:01:33
 
 ```text
 devops-status-mcp-server/
@@ -28,6 +28,7 @@ devops-status-mcp-server/
 │   ├── 0.4.x/
 │   ├── 0.5.x/
 │   ├── 0.6.x/
+│   ├── 0.7.x/
 │   └── template.md
 ├── docs/
 │   ├── design.md
@@ -165,6 +166,7 @@ devops-status-mcp-server/
 │   │   ├── status-adapters/
 │   │   │   ├── aws-adapter.ts
 │   │   │   ├── firehydrant-adapter.ts
+│   │   │   ├── gcp-adapter.ts
 │   │   │   ├── slack-adapter.ts
 │   │   │   ├── status-dispatch.ts
 │   │   │   └── statusio-adapter.ts
@@ -206,12 +208,14 @@ devops-status-mcp-server/
 │   │   │   ├── fixtures/
 │   │   │   │   ├── aws-currentevents.utf16be.bin
 │   │   │   │   ├── firehydrant-redis.json
+│   │   │   │   ├── gcp-incidents.json
 │   │   │   │   ├── slack-current.json
 │   │   │   │   ├── slack-history.json
 │   │   │   │   ├── statusio-gitlab.json
 │   │   │   │   └── statusio-incident-doc-derived.json
 │   │   │   ├── aws-adapter.test.ts
 │   │   │   ├── firehydrant-adapter.test.ts
+│   │   │   ├── gcp-adapter.test.ts
 │   │   │   ├── slack-adapter.test.ts
 │   │   │   ├── status-dispatch.test.ts
 │   │   │   └── statusio-adapter.test.ts

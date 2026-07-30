@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.6.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.7.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -29,7 +29,7 @@
 
 ## Tools
 
-Seven tools in three capability groups — vendor status (50 built-in vendors across Atlassian Statuspage, Status.io, Slack, AWS Health, and Firehydrant backends, normalized to one shape, + raw Statuspage URL passthrough), pure-TypeScript cert/DNS checks (any domain), and incident-response guidance:
+Seven tools in three capability groups — vendor status (51 built-in vendors across Atlassian Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, and Firehydrant backends, normalized to one shape, + raw Statuspage URL passthrough), pure-TypeScript cert/DNS checks (any domain), and incident-response guidance:
 
 | Tool | Description |
 |:-----|:------------|
@@ -48,13 +48,13 @@ Discover available vendors before running status checks or configuring a stack.
 - Accepts an optional free-text `query` (matches name and slug, case-insensitive) and an optional `category` filter
 - Eight categories: `cloud`, `cdn-edge`, `dev-platform`, `data`, `comms`, `auth`, `monitoring`, `ai`
 - Returns slug (what to pass to other tools), display name, category, and status page URL
-- 50 built-in entries — well-known public vendors with verified status endpoints (most on Atlassian Statuspage; `aws`, `gitlab`, `neon`, `slack`, and `redis-cloud` served through native-API adapters)
+- 51 built-in entries — well-known public vendors with verified status endpoints (most on Atlassian Statuspage; `aws`, `gcp`, `gitlab`, `neon`, `slack`, and `redis-cloud` served through native-API adapters)
 
 Built-in vendor registry:
 
 | Category | Vendors |
 |:---------|:--------|
-| `cloud` | digitalocean, linode, aws |
+| `cloud` | digitalocean, linode, aws, gcp |
 | `cdn-edge` | cloudflare, akamai |
 | `dev-platform` | gitlab, github, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, figma, launchdarkly |
 | `data` | mongodb-atlas, planetscale, supabase, neon, redis-cloud, elastic, influxdb, upstash, cloudinary, segment |
@@ -168,7 +168,7 @@ Built on [`@cyanheads/mcp-ts-core`](https://www.npmjs.com/package/@cyanheads/mcp
 DevOps-status-specific:
 
 - **No API keys required** — every status backend is a public API; TLS and DNS use Node.js stdlib (`node:tls`, `node:dns`)
-- 50-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; adapter layer normalizes Status.io, Slack, AWS Health, and Firehydrant backends into the Statuspage shapes; extendable via raw Statuspage URL passthrough
+- 51-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; adapter layer normalizes Status.io, Slack, AWS Health, Google Cloud Service Health, and Firehydrant backends into the Statuspage shapes; extendable via raw Statuspage URL passthrough
 - 60-second in-memory cache on status reads shared across all tenants — prevents thundering-herd on batch calls
 - `devops_watch_stack` persists named vendor lists in tenant-scoped state for repeat morning checks or pre-deploy sweeps
 - `devops_suggest_action` dispatches category-specific playbooks deterministically — no LLM sampling dependency, works in all clients
@@ -362,7 +362,7 @@ The Dockerfile defaults to HTTP transport, stateless session mode, and logs to `
 | `src/services/cert/` | `node:tls` — TLS handshake, X.509 parsing, expiry and protocol flagging. |
 | `src/services/dns/` | `node:dns` — multi-resolver DNS fan-out, propagation discrepancy detection. |
 | `src/services/statuspage/` | Statuspage public API client with 60-second in-memory cache. |
-| `src/services/status-adapters/` | Native-API adapters (Status.io, Slack, AWS Health, Firehydrant) + `api_type` dispatch, normalizing into the Statuspage shapes. |
+| `src/services/status-adapters/` | Native-API adapters (Status.io, Slack, AWS Health, Google Cloud Service Health, Firehydrant) + `api_type` dispatch, normalizing into the Statuspage shapes. |
 | `src/services/vendor-registry/` | In-memory vendor registry loaded from `src/data/vendor-registry.ts`. |
 | `src/data/` | Static vendor registry data file (`vendor-registry.ts`). |
 | `tests/` | Vitest tests mirroring `src/`. |

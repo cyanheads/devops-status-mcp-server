@@ -39,6 +39,7 @@ describe('VendorRegistryService', () => {
     expect(service.resolve('github')?.api_type).toBe('statuspage');
     expect(service.resolve('slack')?.api_type).toBe('slack');
     expect(service.resolve('aws')?.api_type).toBe('aws');
+    expect(service.resolve('gcp')?.api_type).toBe('gcp');
     expect(service.resolve('redis-cloud')?.api_type).toBe('firehydrant');
 
     const gitlab = service.resolve('gitlab');
@@ -146,10 +147,23 @@ describe('VendorRegistryService', () => {
 });
 
 describe('VENDOR_REGISTRY integrity', () => {
-  it('has 50 entries with unique slugs', () => {
-    expect(VENDOR_REGISTRY).toHaveLength(50);
+  it('has 51 entries with unique slugs', () => {
+    expect(VENDOR_REGISTRY).toHaveLength(51);
     const slugs = VENDOR_REGISTRY.map((v) => v.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it('lists aws and gcp under the cloud category', () => {
+    const cloud = VENDOR_REGISTRY.filter((v) => v.category === 'cloud').map((v) => v.slug);
+    expect(cloud).toContain('aws');
+    expect(cloud).toContain('gcp');
+  });
+
+  it('routes the Google Cloud entry to the gcp adapter, not a Statuspage URL', () => {
+    const gcp = VENDOR_REGISTRY.find((v) => v.slug === 'gcp');
+    expect(gcp?.name).toBe('Google Cloud');
+    expect(gcp?.api_type).toBe('gcp');
+    expect(gcp?.statuspage_url).toBe('https://status.cloud.google.com');
   });
 
   it('has unique display names (getBySlugOrName resolution depends on it)', () => {

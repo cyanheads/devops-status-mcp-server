@@ -5,7 +5,9 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
+import type { BackendHistory } from '@/services/status-adapters/status-dispatch.js';
 import {
+  backendHistory,
   fetchVendorIncidents,
   fetchVendorScheduledMaintenances,
 } from '@/services/status-adapters/status-dispatch.js';
@@ -62,12 +64,85 @@ function normalizeIncident(i: StatuspageIncident, isScheduled: boolean) {
   };
 }
 
+type IncidentFilter = 'all' | 'active' | 'resolved' | 'scheduled';
+
+/**
+ * The filters this backend can actually serve, minus the one just used, rendered
+ * for a guidance sentence. Recommending the filter the caller passed, or one the
+ * backend can never satisfy, sends them back for a second empty result.
+ */
+function alternativeFilters(history: BackendHistory, used: IncidentFilter): string {
+  const servable: IncidentFilter[] = ['all', 'active'];
+  if (history.resolved !== 'none') servable.push('resolved');
+  if (history.scheduledMaintenance) servable.push('scheduled');
+  return servable
+    .filter((f) => f !== used)
+    .map((f) => `"${f}"`)
+    .join(' or ');
+}
+
+/**
+ * Why this call returned nothing, in terms of what the caller asked for and what
+ * the vendor's backend can serve. `matched` counts the incidents the filter matched
+ * before offset/limit windowing, so a positive value means the offset overshot them.
+ */
+function emptyResultGuidance(
+  name: string,
+  filter: IncidentFilter,
+  offset: number,
+  matched: number,
+  history: BackendHistory,
+): string {
+  const alternatives = alternativeFilters(history, filter);
+  if (matched > 0) {
+    return (
+      `offset ${offset} is past the end of this result: filter "${filter}" matched ${matched} ` +
+      `incident${matched === 1 ? '' : 's'} for ${name}, so the valid offsets are 0–${matched - 1}. ` +
+      'Call again with a lower offset.'
+    );
+  }
+  if (filter === 'resolved' && history.resolved === 'none') {
+    return (
+      `${name} publishes currently-open events with no resolution lifecycle, so ` +
+      `filter: "resolved" can never return incidents for it. Try filter: ${alternatives}.`
+    );
+  }
+  if (filter === 'resolved' && history.resolved === 'current') {
+    return (
+      `${name} publishes only the incidents its status page currently lists, so resolved ` +
+      `history is not retrievable from it. Try filter: ${alternatives}.`
+    );
+  }
+  if (filter === 'scheduled' && !history.scheduledMaintenance) {
+    return (
+      `${name} publishes no scheduled-maintenance feed, so filter: "scheduled" is always ` +
+      `empty for it. Try filter: ${alternatives}.`
+    );
+  }
+  return `No incidents matched filter "${filter}" for ${name}. Try filter: ${alternatives}.`;
+}
+
+/**
+ * State that the vendor's own feed, not this tool's window, bounded the history.
+ * The omitted incidents are unreachable at any offset, so the only path to them
+ * is the vendor's status page.
+ */
+function upstreamCeilingGuidance(ceiling: number, url: string): string {
+  return (
+    `The vendor's status API returns at most ${ceiling} incidents per fetch and offers no ` +
+    'pagination, so incidents older than the oldest one it returned are not reachable through ' +
+    `this tool at any offset. See ${url} for the older history.`
+  );
+}
+
 export const devopsGetIncidents = tool('devops_get_incidents', {
   description:
     'Fetch incident history and scheduled maintenance windows for a vendor. ' +
     'Returns full incident timeline — each investigator update, affected components, and resolution. ' +
     'Filter by status to focus on active incidents (use before deploy), resolved history (for postmortem), or upcoming maintenance windows. ' +
-    'Page through long histories with limit + offset — a truncated result discloses the total and names the next offset to fetch.',
+    'Page through long histories with limit + offset — a truncated result discloses the total and returns the value to page with in nextOffset. ' +
+    'Some vendor feeds cap their own history: when upstreamCeiling is present the vendor API returned everything it will serve, and older incidents ' +
+    'are reachable only on the vendor status page, not at a higher offset. An empty result explains itself in notice.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -81,7 +156,8 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .enum(['all', 'active', 'resolved', 'scheduled'])
       .default('all')
       .describe(
-        'all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only scheduled maintenance windows.',
+        'all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only scheduled maintenance windows. ' +
+          'Not every vendor backend serves every filter — "aws" publishes currently-open events only (never resolved, no maintenance windows) and "slack" publishes no maintenance windows. An empty result names which case applied.',
       ),
     limit: z
       .number()
@@ -98,7 +174,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .min(0)
       .default(0)
       .describe(
-        'Number of matching incidents to skip before applying limit, for paging through history. 0 (default) returns the most recent page; a truncated result names the next offset to use.',
+        'Number of matching incidents to skip before applying limit, for paging through history. 0 (default) returns the most recent page; a truncated result returns the value to use next in the nextOffset field. Raising offset past the number of matches returns an empty list and says so.',
       ),
   }),
 
@@ -178,8 +254,9 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
   }),
 
   enrichment: {
-    // Populated only via ctx.enrich.truncated() when the cap is actually hit —
-    // all fields must be optional so non-truncated results pass the effective-output parse.
+    // Each field is written only on the path that produces it — a truncated page, an
+    // empty result, or a vendor feed that hit its own ceiling — so all are optional
+    // and a plain result passes the effective-output parse with none of them set.
     truncated: z
       .boolean()
       .optional()
@@ -198,6 +275,24 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .optional()
       .describe(
         'Total incidents matching the filter, across all pages, before offset/limit windowing. Present only when the result was truncated.',
+      ),
+    nextOffset: z
+      .number()
+      .optional()
+      .describe(
+        'The offset to pass on the next call to continue from where this page stopped, already computed as offset + the number returned. Present only when truncated — its absence means this page reached the end of what the filter matched.',
+      ),
+    upstreamCeiling: z
+      .number()
+      .optional()
+      .describe(
+        "Maximum incidents the vendor's own status API serves in one fetch, present only when that ceiling was reached on this call. It bounds the history independently of limit and offset: incidents older than the oldest one returned cannot be fetched at any offset, only browsed on the vendor status page. Absent when the vendor feed is unbounded or returned less than its ceiling.",
+      ),
+    notice: z
+      .string()
+      .optional()
+      .describe(
+        'Plain-language explanation of this result — how to page onward, why it came back empty (filter the backend cannot satisfy, or an offset past the end), or that the vendor feed capped the history. Absent when the result needs no explanation.',
       ),
   },
 
@@ -252,17 +347,25 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     }
 
     let incidents: ReturnType<typeof normalizeIncident>[] = [];
+    /**
+     * Records the vendor's incident feed returned before this tool filtered them —
+     * the only number that reveals whether the feed hit its own ceiling. Null when
+     * the incident feed was not fetched at all (filter: 'scheduled').
+     */
+    let upstreamIncidentCount: number | null = null;
 
     if (input.filter === 'scheduled') {
       const { data } = await fetchVendorScheduledMaintenances(resolved);
       incidents = data.scheduled_maintenances.map((i) => normalizeIncident(i, true));
     } else if (input.filter === 'active') {
       const { data } = await fetchVendorIncidents(resolved);
+      upstreamIncidentCount = data.incidents.length;
       incidents = data.incidents
         .filter((i) => ['investigating', 'identified', 'monitoring'].includes(i.status))
         .map((i) => normalizeIncident(i, false));
     } else if (input.filter === 'resolved') {
       const { data } = await fetchVendorIncidents(resolved);
+      upstreamIncidentCount = data.incidents.length;
       incidents = data.incidents
         .filter((i) => ['resolved', 'postmortem'].includes(i.status))
         .map((i) => normalizeIncident(i, false));
@@ -282,6 +385,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
           throw err;
         }),
       ]);
+      upstreamIncidentCount = incData.data.incidents.length;
       const inc = incData.data.incidents.map((i) => normalizeIncident(i, false));
       const maint = mainData.data.scheduled_maintenances.map((i) => normalizeIncident(i, true));
       incidents = [...inc, ...maint].sort(
@@ -289,20 +393,55 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       );
     }
 
+    const history = backendHistory(resolved.api_type);
     const windowed = incidents.slice(input.offset, input.offset + input.limit);
-    if (input.offset + windowed.length < incidents.length) {
-      // More history exists beyond this window. Disclose the true total and name
-      // the next offset — raising limit alone can't reach older incidents.
-      const nextOffset = input.offset + windowed.length;
+    const nextOffset = input.offset + windowed.length;
+    const truncated = nextOffset < incidents.length;
+
+    /**
+     * The ceiling the vendor's own feed imposed on this call, or null when it has
+     * none or returned less than it. A reached ceiling is a different bound from
+     * truncation: paging cannot get past it, so it is disclosed on its own.
+     */
+    const upstreamCeiling =
+      history.incidentCeiling !== null &&
+      upstreamIncidentCount !== null &&
+      upstreamIncidentCount >= history.incidentCeiling
+        ? history.incidentCeiling
+        : null;
+
+    // `notice` is last-wins across every enrich call, so the reasons compose into
+    // one string rather than overwriting each other.
+    const notices: string[] = [];
+    if (truncated) {
+      notices.push(
+        `Showing incidents ${input.offset + 1}–${nextOffset} of ${incidents.length}. ` +
+          `Call again with offset: ${nextOffset} for the next page, or filter by status to narrow.`,
+      );
+    } else if (windowed.length === 0) {
+      notices.push(
+        emptyResultGuidance(resolved.name, input.filter, input.offset, incidents.length, history),
+      );
+    }
+    if (upstreamCeiling !== null) {
+      ctx.enrich({ upstreamCeiling });
+      notices.push(upstreamCeilingGuidance(upstreamCeiling, resolved.url));
+    }
+
+    if (truncated) {
+      // More history exists beyond this window. Disclose the true total and the
+      // next offset as a value — raising limit alone can't reach older incidents.
       ctx.enrich.total(incidents.length);
+      ctx.enrich({ nextOffset });
       ctx.enrich.truncated({
         shown: windowed.length,
         cap: input.limit,
-        guidance:
-          `Showing incidents ${input.offset + 1}–${nextOffset} of ${incidents.length}. ` +
-          `Call again with offset: ${nextOffset} for the next page, or filter by status to narrow.`,
+        guidance: notices.join(' '),
       });
+    } else if (notices.length > 0) {
+      ctx.enrich.notice(notices.join(' '));
     }
+
     ctx.log.info('Incidents fetched', {
       vendor: input.vendor,
       filter: input.filter,
@@ -326,10 +465,12 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       '',
     ];
     if (result.total_returned === 0) {
-      lines.push(
-        'No incidents matched this filter. Try `filter: "all"` for the full incident and ' +
-          'maintenance history, or `filter: "resolved"` for recent resolved incidents.',
-      );
+      // What to do next depends on the filter, the offset, and what the vendor's
+      // backend can serve — none of which reach format(). The handler writes that
+      // guidance to the `notice` enrichment field, which the framework renders into
+      // this same content[] block as a trailer, so naming a filter here would be a
+      // guess that contradicts it.
+      lines.push('No incidents matched this filter.');
       return [{ type: 'text', text: lines.join('\n') }];
     }
     for (const inc of result.incidents) {

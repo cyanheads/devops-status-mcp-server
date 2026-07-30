@@ -13,6 +13,16 @@ import type {
 } from '@/services/statuspage/types.js';
 import { initVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 
+/**
+ * Only the AWS incident fetcher is replaced — it is the one AWS call that hits the
+ * network. `fetchAwsScheduledMaintenances` stays real so the "AWS publishes no
+ * maintenance feed" case is proved by the adapter itself, not by a stub.
+ */
+vi.mock('@/services/status-adapters/aws-adapter.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/status-adapters/aws-adapter.js')>();
+  return { ...actual, fetchAwsIncidents: vi.fn() };
+});
+
 vi.mock('@/services/statuspage/statuspage-service.js', () => {
   const mockFetchIncidents = vi.fn();
   const mockFetchScheduledMaintenances = vi.fn();
@@ -270,23 +280,27 @@ describe('devopsGetIncidents', () => {
   });
 
   it('non-truncated results pass the effective-output parse without enrichment (#5)', async () => {
-    // Regression for #5: enrichment fields are populated only when the cap is hit,
-    // so they must be optional — a non-truncated (here: empty) result must validate
-    // against output.extend(enrichment) with no enrichment written.
+    // Regression for #5: every enrichment field is written only on the path that
+    // produces it, so they must be optional — a plain result (nothing capped, nothing
+    // empty, the vendor feed nowhere near its ceiling) must validate against
+    // output.extend(enrichment) with no enrichment written at all.
     const { _mockFetchIncidents } = (await import(
       '@/services/statuspage/statuspage-service.js'
     )) as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
     };
-    // Only a resolved incident — the active filter yields an empty, non-truncated set.
     _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
 
     const ctx = createMockContext({ errors: devopsGetIncidents.errors });
-    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'active', limit: 3 });
+    const input = devopsGetIncidents.input.parse({
+      vendor: 'github',
+      filter: 'resolved',
+      limit: 3,
+    });
     const result = await devopsGetIncidents.handler(input, ctx);
 
-    expect(result.incidents).toHaveLength(0);
-    expect(result.total_returned).toBe(0);
+    expect(result.incidents).toHaveLength(1);
+    expect(result.total_returned).toBe(1);
     expect(getEnrichment(ctx)).toEqual({});
 
     const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
@@ -320,6 +334,66 @@ describe('devopsGetIncidents', () => {
     expect(getEnrichment(ctx)).toMatchObject({ truncated: true, shown: 1, cap: 1 });
   });
 
+  it('a truncated page carries nextOffset and the guidance through the declared enrichment (#24)', async () => {
+    // The handler always composed continuation guidance, but the enrichment block
+    // declared neither `notice` nor `nextOffset`, so output.extend(enrichment) — the
+    // schema that builds structuredContent and the content[] trailer — stripped both.
+    const base = RESOLVED_INCIDENT.incidents[0]!;
+    const THREE: StatuspageIncidentsResponse = {
+      ...RESOLVED_INCIDENT,
+      incidents: [
+        { ...base, id: 'inc-a' },
+        { ...base, id: 'inc-b' },
+        { ...base, id: 'inc-c' },
+      ],
+    };
+    const { _mockFetchIncidents } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as {
+      _mockFetchIncidents: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchIncidents.mockResolvedValue({ data: THREE, cached: false });
+
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const result = await devopsGetIncidents.handler(
+      devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', limit: 1, offset: 0 }),
+      ctx,
+    );
+
+    const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+    const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+    // The typed continuation value — an agent should not parse an offset out of prose.
+    expect(structured.nextOffset).toBe(1);
+    expect(structured.totalCount).toBe(3);
+    // …and the same value stated in the human-readable trailer.
+    expect(structured.notice).toContain('offset: 1');
+    expect(structured.notice).toContain('of 3');
+
+    // A second call at the disclosed offset returns the next window, not a repeat.
+    const ctx2 = createMockContext({ errors: devopsGetIncidents.errors });
+    const page2 = await devopsGetIncidents.handler(
+      devopsGetIncidents.input.parse({
+        vendor: 'github',
+        filter: 'resolved',
+        limit: 1,
+        offset: structured.nextOffset as number,
+      }),
+      ctx2,
+    );
+    expect(page2.incidents.map((i) => i.id)).toEqual(['inc-b']);
+
+    // The last page must not advertise a next one — an agent looping on nextOffset
+    // needs its absence to be the stop condition.
+    const ctx3 = createMockContext({ errors: devopsGetIncidents.errors });
+    const page3 = await devopsGetIncidents.handler(
+      devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', limit: 1, offset: 2 }),
+      ctx3,
+    );
+    expect(page3.incidents.map((i) => i.id)).toEqual(['inc-c']);
+    expect(effectiveOutput.parse({ ...page3, ...getEnrichment(ctx3) }).nextOffset).toBeUndefined();
+  });
+
   it('pages through incidents with offset, disclosing totalCount and truncation (#22)', async () => {
     const base = RESOLVED_INCIDENT.incidents[0]!;
     const THREE: StatuspageIncidentsResponse = {
@@ -347,7 +421,13 @@ describe('devopsGetIncidents', () => {
     );
     expect(page1.incidents.map((i) => i.id)).toEqual(['inc-a', 'inc-b']);
     expect(page1.total_returned).toBe(2);
-    expect(getEnrichment(ctx1)).toMatchObject({ truncated: true, shown: 2, cap: 2, totalCount: 3 });
+    expect(getEnrichment(ctx1)).toMatchObject({
+      truncated: true,
+      shown: 2,
+      cap: 2,
+      totalCount: 3,
+      nextOffset: 2,
+    });
 
     // Second page — offset 2: the remaining incident, no truncation, no enrichment.
     const ctx2 = createMockContext({ errors: devopsGetIncidents.errors });
@@ -425,7 +505,7 @@ describe('devopsGetIncidents', () => {
     expect(text).not.toContain('? min');
   });
 
-  it('format explains an empty incident result and suggests a broader filter (#17)', () => {
+  it('format states an empty result without guessing a follow-up filter (#17, #34)', () => {
     const result = {
       vendor: 'github',
       name: 'GitHub',
@@ -438,9 +518,235 @@ describe('devopsGetIncidents', () => {
     expect(text).toContain('GitHub');
     expect(text).toContain('github');
     expect(text).toMatch(/no incidents/i);
-    // Names concrete follow-up filters instead of leaving a bare header.
-    expect(text).toContain('filter');
-    expect(text).toMatch(/"all"|"resolved"/);
+    // format() receives only the domain object — no filter, offset, or backend — so
+    // it cannot name a useful follow-up. The handler writes that to `notice`, which
+    // the framework renders into this same content[] block as a trailer; a filter
+    // named here would contradict it (see the empty-result guidance tests below).
+    expect(text).not.toMatch(/"all"|"resolved"|"active"|"scheduled"/);
+  });
+
+  /**
+   * Every omitted incident must stay discoverable: when the vendor's own feed, not
+   * this tool's window, is what bounded the history, the response says so and names
+   * the ceiling rather than presenting a full window as complete history (#25).
+   */
+  describe('upstream history ceiling', () => {
+    function incidentsPage(count: number): StatuspageIncidentsResponse {
+      const base = RESOLVED_INCIDENT.incidents[0]!;
+      return {
+        ...RESOLVED_INCIDENT,
+        incidents: Array.from({ length: count }, (_, i) => ({ ...base, id: `inc-${i}` })),
+      };
+    }
+
+    it('discloses the 50-record Statuspage cap when the feed returns 50 (#25)', async () => {
+      const { _mockFetchIncidents } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({ data: incidentsPage(50), cached: false });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', limit: 50 }),
+        ctx,
+      );
+
+      // The window covers everything the feed returned, so tool-side truncation is
+      // silent — the cap is the vendor's, and only the ceiling signal reveals it.
+      expect(result.total_returned).toBe(50);
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      expect(structured.truncated).toBeUndefined();
+      expect(structured.upstreamCeiling).toBe(50);
+      expect(structured.notice).toContain('50');
+      expect(structured.notice).toContain('https://www.githubstatus.com');
+      // Says the omitted incidents are unreachable by paging, not just "capped".
+      expect(structured.notice).toMatch(/offset/i);
+
+      // Control: one record short of the ceiling is the whole history, so claiming a
+      // cap there would be as wrong as hiding it above.
+      const ctxUnder = createMockContext({ errors: devopsGetIncidents.errors });
+      _mockFetchIncidents.mockResolvedValue({ data: incidentsPage(49), cached: false });
+      const under = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', limit: 50 }),
+        ctxUnder,
+      );
+      expect(under.total_returned).toBe(49);
+      expect(getEnrichment(ctxUnder)).toEqual({});
+    });
+
+    it('composes the ceiling with paging guidance when both bound the result (#24, #25)', async () => {
+      const { _mockFetchIncidents } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({ data: incidentsPage(50), cached: false });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', limit: 20 }),
+        ctx,
+      );
+
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      // `notice` is last-wins across enrich calls, so both reasons must survive in one string.
+      expect(structured.nextOffset).toBe(20);
+      expect(structured.upstreamCeiling).toBe(50);
+      expect(structured.notice).toContain('offset: 20');
+      expect(structured.notice).toContain('at most 50 incidents');
+    });
+  });
+
+  /**
+   * The empty branch used to emit one fixed string: it recommended the filter the
+   * caller had just used, recommended history from backends that publish none, and
+   * said nothing when an out-of-range offset caused the emptiness (#34).
+   */
+  describe('empty-result guidance', () => {
+    it('names the valid offset range when the offset overshot the matches (#34)', async () => {
+      const { _mockFetchIncidents } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({
+          vendor: 'github',
+          filter: 'resolved',
+          limit: 5,
+          offset: 9999,
+        }),
+        ctx,
+      );
+
+      expect(result.total_returned).toBe(0);
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      expect(structured.notice).toContain('9999');
+      expect(structured.notice).toContain('matched 1 incident');
+      expect(structured.notice).toContain('0–0');
+    });
+
+    it('never recommends the filter that was just used (#34)', async () => {
+      const { _mockFetchIncidents } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+      };
+      // Only a resolved incident, so the active filter matches nothing.
+      _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'github', filter: 'active' }),
+        ctx,
+      );
+
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      expect(structured.notice).toContain('"active"');
+      expect(structured.notice).toContain('Try filter:');
+      // The suggestion list is what must not echo the caller's own filter back.
+      const suggestions = String(structured.notice).split('Try filter:')[1] ?? '';
+      expect(suggestions).not.toContain('"active"');
+      expect(suggestions).toContain('"all"');
+      expect(suggestions).toContain('"resolved"');
+      expect(suggestions).toContain('"scheduled"');
+    });
+
+    it('says AWS has no resolution lifecycle rather than suggesting a dead filter (#34)', async () => {
+      const { fetchAwsIncidents } = await import('@/services/status-adapters/aws-adapter.js');
+      // One open event — the AWS feed's only shape. mapAwsEvent pins it to
+      // 'investigating', so the resolved filter can never match it.
+      vi.mocked(fetchAwsIncidents).mockResolvedValue({
+        data: {
+          page: {
+            id: 'aws',
+            name: 'Amazon Web Services',
+            time_zone: 'Etc/UTC',
+            updated_at: '',
+            url: 'https://health.aws.amazon.com',
+          },
+          incidents: [
+            {
+              ...RESOLVED_INCIDENT.incidents[0]!,
+              id: 'aws-evt-1',
+              status: 'investigating',
+              resolved_at: null,
+            },
+          ],
+        },
+        cached: false,
+      });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'aws', filter: 'resolved' }),
+        ctx,
+      );
+
+      expect(result.total_returned).toBe(0);
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      expect(structured.notice).toContain('Amazon Web Services');
+      expect(structured.notice).toMatch(/no resolution lifecycle/i);
+      const suggestions = String(structured.notice).split('Try filter:')[1] ?? '';
+      // AWS can serve neither of these, so neither may be recommended.
+      expect(suggestions).not.toContain('"resolved"');
+      expect(suggestions).not.toContain('"scheduled"');
+      expect(suggestions).toContain('"active"');
+    });
+
+    it('says AWS publishes no maintenance feed for filter: scheduled (#34)', async () => {
+      // fetchAwsScheduledMaintenances is unconditionally empty with no network call.
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'aws', filter: 'scheduled' }),
+        ctx,
+      );
+
+      expect(result.total_returned).toBe(0);
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      expect(structured.notice).toContain('Amazon Web Services');
+      expect(structured.notice).toMatch(/no scheduled-maintenance feed/i);
+      const suggestions = String(structured.notice).split('Try filter:')[1] ?? '';
+      expect(suggestions).not.toContain('"scheduled"');
+      expect(suggestions).not.toContain('"resolved"');
+    });
+
+    it('says Slack publishes no maintenance feed for filter: scheduled (#34)', async () => {
+      // fetchSlackScheduledMaintenances is unconditionally empty with no network call.
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'slack', filter: 'scheduled' }),
+        ctx,
+      );
+
+      expect(result.total_returned).toBe(0);
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      expect(structured.notice).toContain('Slack');
+      expect(structured.notice).toMatch(/no scheduled-maintenance feed/i);
+      const suggestions = String(structured.notice).split('Try filter:')[1] ?? '';
+      expect(suggestions).not.toContain('"scheduled"');
+      // Slack's /history does carry resolved incidents, so that one stays on offer.
+      expect(suggestions).toContain('"resolved"');
+    });
   });
 
   /**

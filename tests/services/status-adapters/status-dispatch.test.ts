@@ -7,6 +7,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  backendHistory,
   fetchVendorIncidents,
   fetchVendorScheduledMaintenances,
   fetchVendorSummary,
@@ -162,5 +163,63 @@ describe('fetchVendorIncidents / fetchVendorScheduledMaintenances dispatch', () 
     expect(slack.data.scheduled_maintenances).toHaveLength(0);
     expect(aws.data.scheduled_maintenances).toHaveLength(0);
     expect(vi.mocked(fetch).mock.calls.length).toBe(before);
+  });
+});
+
+/**
+ * Normalizing every backend to the Statuspage shapes hides what each feed can
+ * actually serve, which is what devops_get_incidents discloses (#25, #34). Each
+ * expectation below is the behavior of the adapter in this directory.
+ */
+describe('backendHistory', () => {
+  it('statuspage caps at 50 records and serves both resolved history and maintenances', () => {
+    expect(backendHistory('statuspage')).toEqual({
+      incidentCeiling: 50,
+      resolved: 'full',
+      scheduledMaintenance: true,
+    });
+  });
+
+  it('slack caps at 50 records and publishes no maintenance feed', () => {
+    // fetchSlackScheduledMaintenances returns empty without a network call.
+    expect(backendHistory('slack')).toEqual({
+      incidentCeiling: 50,
+      resolved: 'full',
+      scheduledMaintenance: false,
+    });
+  });
+
+  it('aws has no resolution lifecycle and no maintenance feed', () => {
+    // mapAwsEvent pins every event to 'investigating'; the feed lists open events only.
+    expect(backendHistory('aws')).toEqual({
+      incidentCeiling: null,
+      resolved: 'none',
+      scheduledMaintenance: false,
+    });
+  });
+
+  it('statusio serves current incidents only, plus maintenance windows', () => {
+    expect(backendHistory('statusio')).toEqual({
+      incidentCeiling: null,
+      resolved: 'current',
+      scheduledMaintenance: true,
+    });
+  });
+
+  it('firehydrant is unbounded — the payload carries the whole history', () => {
+    expect(backendHistory('firehydrant')).toEqual({
+      incidentCeiling: null,
+      resolved: 'full',
+      scheduledMaintenance: true,
+    });
+  });
+
+  it('only the two 50-record feeds declare a ceiling', () => {
+    // The ceiling drives the upstream-cap disclosure; a wrong null silently
+    // restores the "50 is the whole history" bug this replaced.
+    const withCeiling = (['statuspage', 'slack', 'aws', 'statusio', 'firehydrant'] as const).filter(
+      (t) => backendHistory(t).incidentCeiling !== null,
+    );
+    expect(withCeiling).toEqual(['statuspage', 'slack']);
   });
 });

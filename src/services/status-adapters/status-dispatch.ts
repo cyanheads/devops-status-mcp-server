@@ -86,3 +86,58 @@ export function fetchVendorScheduledMaintenances(
       return fetchFirehydrantScheduledMaintenances(vendor);
   }
 }
+
+/**
+ * What a backend's upstream feed can serve, independent of any windowing this
+ * server applies. Normalizing every backend to the Statuspage shapes hides these
+ * differences, so a caller asking for history the feed never carries gets an
+ * empty list with no explanation unless the tool states the difference.
+ */
+export type BackendHistory = {
+  /**
+   * Most incident records the upstream incident feed returns in one fetch, or
+   * null when the feed is unbounded and this server pages it itself.
+   */
+  incidentCeiling: number | null;
+  /**
+   * How far resolved incidents reach back:
+   * - `full` — the feed carries resolved incidents (bounded by incidentCeiling).
+   * - `current` — only the incidents the page currently lists; resolved entries drop off.
+   * - `none` — the feed has no resolution lifecycle, so no incident is ever resolved.
+   */
+  resolved: 'full' | 'current' | 'none';
+  /** Whether the backend publishes scheduled-maintenance windows at all. */
+  scheduledMaintenance: boolean;
+};
+
+/**
+ * Feed capabilities for a resolved vendor's backend.
+ *
+ * Exhaustive over `api_type` for the same reason the fetchers above are: a new
+ * backend cannot be added without stating what its feed can and cannot serve.
+ */
+export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHistory {
+  switch (apiType) {
+    case 'statuspage':
+      // /api/v2/incidents.json returns at most 50 records and ignores ?page=
+      // (page 2 comes back with the same first record).
+      return { incidentCeiling: 50, resolved: 'full', scheduledMaintenance: true };
+    case 'slack':
+      // /api/v2.0.0/history has the same 50-record ceiling and no working page
+      // parameter; fetchSlackScheduledMaintenances is empty with no network call.
+      return { incidentCeiling: 50, resolved: 'full', scheduledMaintenance: false };
+    case 'aws':
+      // The public health feed lists currently-open events only — mapAwsEvent pins
+      // every one to 'investigating' because the feed carries no lifecycle field,
+      // and fetchAwsScheduledMaintenances is empty with no network call.
+      return { incidentCeiling: null, resolved: 'none', scheduledMaintenance: false };
+    case 'statusio':
+      // The Public Status API serves the page's current incidents plus its active
+      // and upcoming maintenance windows; resolved incidents drop off the feed.
+      return { incidentCeiling: null, resolved: 'current', scheduledMaintenance: true };
+    case 'firehydrant':
+      // /data/payload.json carries the complete incident history unwindowed —
+      // devops_get_incidents pages it via limit + offset.
+      return { incidentCeiling: null, resolved: 'full', scheduledMaintenance: true };
+  }
+}

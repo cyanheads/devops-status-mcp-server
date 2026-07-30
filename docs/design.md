@@ -107,7 +107,7 @@ Vendor registry is the source of truth for `devops_list_vendors`. Any tool accep
 
 ## Live API Shapes (verified)
 
-All Statuspage vendors respond to `{base_url}/api/v2/{endpoint}.json` — no auth, no pagination on status/components (incidents returns up to 50 most recent).
+All Statuspage vendors respond to `{base_url}/api/v2/{endpoint}.json` — no auth, no pagination anywhere. `incidents.json` returns the 50 most recent and ignores a `?page=` parameter, so 50 is a hard ceiling on reachable history; `devops_get_incidents` discloses it when a call hits it.
 
 ### `GET /api/v2/status.json`
 
@@ -297,7 +297,7 @@ The same rule covers a vendor entry that never reaches a fetch: an unresolvable 
 
 ### `devops_get_incidents`
 
-**Description:** Fetch incident history and scheduled maintenance windows for a vendor. Returns the full incident timeline — each investigator update, affected components at each step, and when the incident was resolved. Filter by status to focus on active incidents (use before deploy), resolved history (use for postmortem), or upcoming maintenance windows. Returns up to 20 incidents by default (Statuspage serves at most 50 per call); use `limit` to constrain or widen.
+**Description:** Fetch incident history and scheduled maintenance windows for a vendor. Returns the full incident timeline — each investigator update, affected components at each step, and when the incident was resolved. Filter by status to focus on active incidents (use before deploy), resolved history (use for postmortem), or upcoming maintenance windows. Page long histories with `limit` + `offset`.
 
 **Input:**
 ```ts
@@ -305,9 +305,11 @@ z.object({
   vendor: z.string().min(1)
     .describe('Vendor slug (e.g., "github") or raw Statuspage base URL. Use devops_list_vendors to find slugs.'),
   filter: z.enum(['all', 'active', 'resolved', 'scheduled']).default('all')
-    .describe('all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only scheduled maintenance windows.'),
+    .describe('all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only scheduled maintenance windows. Not every backend serves every filter — an empty result names which case applied.'),
   limit: z.number().int().min(1).max(50).default(20)
-    .describe('Maximum incidents to return. Statuspage returns at most 50 per call. Use a lower limit for recent-history queries.'),
+    .describe('Maximum incidents to return per call (1–50). Page through longer history with offset rather than raising this.'),
+  offset: z.number().int().min(0).default(0)
+    .describe('Matching incidents to skip before applying limit. A truncated result returns the value to use next in the nextOffset enrichment field.'),
 })
 ```
 
@@ -340,6 +342,17 @@ z.object({
 })
 ```
 
+**Enrichment:** every field is optional and written only on the path that produces it, so a plain result carries none of them. All reach both `structuredContent` and the `content[]` trailer via `output.extend(enrichment)`.
+
+| Field | Written when |
+|:---|:---|
+| `truncated`, `shown`, `cap`, `totalCount` | more incidents matched the filter than `limit` returned |
+| `nextOffset` | same — the `offset` to pass next, already computed. Its absence is the stop condition for an agent paging in a loop |
+| `upstreamCeiling` | the vendor's own feed returned as many records as it will ever serve (see below). Independent of `truncated`: a full window can be the vendor's cap rather than this tool's |
+| `notice` | any of the above, or an empty result. Composed into one string because the framework's `notice` is last-wins across `ctx.enrich` calls |
+
+**Empty results** explain themselves through `notice`, in terms of the call that produced them: an `offset` past the end names the valid range; a filter the backend cannot satisfy says so; otherwise the message names the filters that vendor *can* serve, never the one just used.
+
 **Errors:**
 ```ts
 errors: [
@@ -350,16 +363,34 @@ errors: [
     recovery: 'Call devops_list_vendors to browse slugs or pass the full Statuspage base URL.',
   },
   {
+    reason: 'target_blocked',
+    code: JsonRpcErrorCode.ValidationError,
+    when: 'A raw URL resolves to a private, loopback, or cloud-metadata address.',
+    recovery: 'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
+  },
+  {
     reason: 'statuspage_unavailable',
     code: JsonRpcErrorCode.ServiceUnavailable,
-    when: 'Statuspage API returned an error or timed out.',
+    when: "The vendor's status API returned an error or timed out.",
     recovery: 'Retry after 30s. If it persists, check the status page URL in a browser.',
     retryable: true,
   },
 ]
 ```
 
-**Annotations:** `readOnlyHint: true`, `openWorldHint: true`
+**Annotations:** `readOnlyHint: true`, `openWorldHint: true`, `idempotentHint: true`
+
+#### Backend history capabilities
+
+Normalizing five backends to the Statuspage shapes hides what each feed can actually serve. `backendHistory()` in `status-dispatch.ts` states it, exhaustively over `api_type` so a new backend cannot be added without answering all three questions:
+
+| Backend | Incident ceiling | Resolved history | Maintenance windows |
+|:---|:---|:---|:---|
+| Statuspage | 50 per fetch, `?page=` ignored | full (within the ceiling) | yes |
+| Slack | 50 per fetch, `?page=` ignored | full (within the ceiling) | none — empty with no network call |
+| AWS Health | unbounded (open events only) | none — no lifecycle field, every event maps to `investigating` | none — empty with no network call |
+| Status.io | unbounded (current incidents only) | current only — resolved incidents drop off the feed | yes |
+| FireHydrant | unbounded — the payload carries the whole history | full | yes |
 
 ---
 
@@ -722,6 +753,14 @@ A saved stack is replayed on every later call, so persisting an entry that resol
 
 Component lists are unbounded upstream — a single large page publishes several hundred, and a full-stack detailed sweep runs to six figures of response bytes, most of it operational rows nobody asked about. `component_limit` (default 50) bounds it, `component_filter` reaches a specific component past the cap, and `ctx.enrich.truncated()` discloses what was dropped rather than silently returning a partial list. The disclosure is aggregated across the fan-out because `buildVendorResult()` has no `ctx`; it returns component counts and the handler emits one signal for the batch.
 
+### Why the upstream history cap is disclosed rather than paged around
+
+Atlassian's `/api/v2/incidents.json` returns at most 50 records and ignores `?page=`, and Slack's `/api/v2.0.0/history` behaves identically. The tool used to present a full 50-record window as complete history, so a caller doing postmortem work could not tell a vendor whose incidents genuinely stop there from one whose older incidents were simply out of reach. Reaching further means a second, undocumented surface with its own shape and failure modes; that is a separate change, and pretending it exists is worse than naming the ceiling. So the fix is disclosure: `upstreamCeiling` and a `notice` state the cap when it was hit and point at the vendor status page, which is where the omitted incidents actually live. The tool never claims history it did not fetch.
+
+### Why empty-result guidance is enrichment, not output
+
+`format()` receives only the domain object, which carries no `filter`, `offset`, or backend — so a single static sentence was the most it could say, and that sentence recommended the filter the caller had just used and history from backends that publish none. Widening `output` to carry the call's parameters back into `format()` would put request echo in the domain payload of every response, including the ones that need no explanation. `ctx.enrich.notice()` is the framework's success-path channel for exactly this: it reaches `structuredContent` and the `content[]` trailer without touching the domain contract, and it is written only when there is something to say. `format()`'s empty branch is correspondingly narrowed to stating the empty result, since anything it named would contradict the trailer beside it.
+
 ### Instruction tool vs. LLM sampling
 
 `devops_suggest_action` could use `ctx.sample` to ask the client's LLM for dynamic guidance. The risk: non-deterministic output, client dependency, potential latency. The value proposition of this tool is predictable, category-specific playbooks — "Cloudflare CDN is down, here are the known mitigation patterns." Static playbook dispatch by vendor category is deterministic, fast, and works in all clients. If `ctx.sample` is present and the vendor/incident is complex, the handler can optionally enrich the response — but the base path is always static.
@@ -735,6 +774,7 @@ Statuspage APIs are designed for polling (vendors use them for their own dashboa
 ## Known Limitations
 
 - **Non-Statuspage vendors:** Many major vendors do NOT use Atlassian Statuspage: AWS (health.aws.amazon.com), GCP (status.cloud.google.com), Azure (status.azure.com), Hetzner (status.hetzner.com), GitLab (status.io-based), Railway (custom), Fastly (access-restricted), PagerDuty (custom endpoint), Okta (auth-gated), Docker Hub (custom), CockroachDB (unreachable). These are excluded from the built-in registry. Users can attempt raw URL passthrough for any that may use Statuspage under a different subdomain, but the server makes no guarantees. Future bespoke adapters could cover the major cloud providers.
+- **Upstream history ceilings:** Atlassian Statuspage and Slack both serve at most 50 incident records per fetch with no working pagination parameter, so `devops_get_incidents` cannot reach older incidents for those backends at any `offset`. It discloses the ceiling (`upstreamCeiling` + `notice`) when a call hits it rather than presenting the window as complete history; older incidents remain on the vendor's own status page. AWS Health, Status.io, and FireHydrant have no such ceiling — see the backend history table under `devops_get_incidents`.
 - **Vendor self-reporting:** Statuspage data is vendor-published. Vendors may lag incident acknowledgment. `devops_check_certs` and `devops_check_dns` provide ground-truth checks that complement self-reported status.
 - **TLS inspection from server host:** `devops_check_certs` connects from wherever the MCP server runs. If the server is hosted, cert checks reflect connectivity from that host — a cert served correctly to the host may still be broken in a specific region. For complete coverage, run the server locally.
 - **DNS propagation scope:** `devops_check_dns` queries three public resolvers. Propagation completeness across all global resolvers requires a larger resolver set or a dedicated propagation service.

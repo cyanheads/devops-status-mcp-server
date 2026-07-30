@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.6.0](changelog/0.6.x/0.6.0.md) — 2026-07-30 · ⚠️ Breaking
+
+DNS resolver failures (NXDOMAIN, SERVFAIL) and geo-steered records are now told apart from missing records and real propagation problems; devops_check_certs validates hostname and chain trust instead of skipping them, and chain_depth is nullable instead of a wrong 1 for CA-issued chains.
+
 ## [0.5.7](changelog/0.5.x/0.5.7.md) — 2026-07-30
 
 devops_get_incidents now surfaces nextOffset and discloses when a vendor's own feed capped incident history; empty-result guidance and the status_check/watch_stack component-cap notice reach structuredContent and content[] instead of being silently stripped.

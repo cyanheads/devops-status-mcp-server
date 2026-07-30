@@ -264,29 +264,22 @@ z.object({
 errors: [
   {
     reason: 'vendor_not_found',
-    code: JsonRpcErrorCode.InvalidParams,
+    code: JsonRpcErrorCode.NotFound,
     when: 'A vendor slug does not match any entry in the built-in registry and is not a valid URL.',
     recovery: 'Call devops_list_vendors to browse available slugs, or pass a full Statuspage base URL (e.g., "https://www.githubstatus.com").',
-  },
-  {
-    reason: 'statuspage_unavailable',
-    code: JsonRpcErrorCode.ServiceUnavailable,
-    when: 'A Statuspage endpoint returned an error or timed out.',
-    recovery: 'The vendor status page may be unreachable. Retry after 30s. If it persists, check the URL directly in a browser.',
-    retryable: true,
   },
 ]
 ```
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: true`
 
-Handler fans out all vendor fetches with `Promise.allSettled`, so one failed vendor does not block the others. Failed vendors surface in results with an `error` field rather than throwing.
+Handler fans out all vendor fetches with `Promise.allSettled`, so one failed vendor does not block the others. Failed vendors surface in results with an `error` field rather than throwing. Because no fetch failure reaches a top-level throw, this tool declares no `statuspage_unavailable` contract — an unreachable status page is per-vendor data, not a tool error.
 
 ---
 
 ### `devops_get_incidents`
 
-**Description:** Fetch incident history and scheduled maintenance windows for a vendor. Returns the full incident timeline — each investigator update, affected components at each step, and when the incident was resolved. Filter by status to focus on active incidents (use before deploy), resolved history (use for postmortem), or upcoming maintenance windows. Returns up to 50 incidents by default (Statuspage's page limit); use `limit` to constrain.
+**Description:** Fetch incident history and scheduled maintenance windows for a vendor. Returns the full incident timeline — each investigator update, affected components at each step, and when the incident was resolved. Filter by status to focus on active incidents (use before deploy), resolved history (use for postmortem), or upcoming maintenance windows. Returns up to 20 incidents by default (Statuspage serves at most 50 per call); use `limit` to constrain or widen.
 
 **Input:**
 ```ts
@@ -334,7 +327,7 @@ z.object({
 errors: [
   {
     reason: 'vendor_not_found',
-    code: JsonRpcErrorCode.InvalidParams,
+    code: JsonRpcErrorCode.NotFound,
     when: 'Vendor slug not in registry and input is not a valid URL.',
     recovery: 'Call devops_list_vendors to browse slugs or pass the full Statuspage base URL.',
   },
@@ -399,7 +392,7 @@ errors: [
   },
   {
     reason: 'vendor_not_found',
-    code: JsonRpcErrorCode.InvalidParams,
+    code: JsonRpcErrorCode.NotFound,
     when: 'A vendor slug is not in the registry and is not a valid URL.',
     recovery: 'Call devops_list_vendors to find available slugs or pass a full Statuspage base URL.',
   },

@@ -13,6 +13,7 @@ import {
   buildVendorResult,
   renderVendorBlock,
   VendorResultSchema,
+  vendorErrorMessage,
 } from './devops-vendor-result.js';
 
 const STACK_STATE_PREFIX = 'stack/';
@@ -200,7 +201,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         cached: false,
         checked_at: new Date().toISOString(),
         statuspage_url: res?.target.url ?? '',
-        error: (r.reason as Error).message,
+        error: vendorErrorMessage(r.reason),
       };
     });
 

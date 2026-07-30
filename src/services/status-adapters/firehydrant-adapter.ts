@@ -241,7 +241,8 @@ export function mapFirehydrantSummary(
 
   let indicator: StatuspageStatus['indicator'] = 'none';
   for (const inc of activeIncidents) {
-    if (SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator]) indicator = inc.impact;
+    if (inc.impact !== 'maintenance' && SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator])
+      indicator = inc.impact;
   }
 
   // Component status derives from active incidents: canonicalize each affected

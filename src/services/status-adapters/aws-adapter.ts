@@ -171,7 +171,8 @@ export function mapAwsSummary(events: AwsEvent[], target: AwsTarget): Statuspage
   const incidents = (events ?? []).map((e) => mapAwsEvent(e, target));
   let indicator: StatuspageStatus['indicator'] = 'none';
   for (const inc of incidents) {
-    if (SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator]) indicator = inc.impact;
+    if (inc.impact !== 'maintenance' && SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator])
+      indicator = inc.impact;
   }
   // One component per open event — a compact "what is degraded" signal.
   const components: StatuspageComponent[] = incidents.map((inc, i) => {

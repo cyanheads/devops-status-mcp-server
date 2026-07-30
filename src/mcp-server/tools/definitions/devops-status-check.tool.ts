@@ -13,6 +13,7 @@ import {
   buildVendorResult,
   renderVendorBlock,
   VendorResultSchema,
+  vendorErrorMessage,
 } from './devops-vendor-result.js';
 
 export const devopsStatusCheck = tool('devops_status_check', {
@@ -74,14 +75,12 @@ export const devopsStatusCheck = tool('devops_status_check', {
       recovery:
         'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
     },
-    {
-      reason: 'statuspage_unavailable',
-      code: JsonRpcErrorCode.ServiceUnavailable,
-      when: "A vendor's status API returned an error or timed out.",
-      recovery:
-        'The vendor status page may be unreachable. Retry after 30s. If it persists, check the URL directly in a browser.',
-      retryable: true,
-    },
+    /**
+     * A vendor whose status API errors or times out is not a failure mode of this
+     * tool: every vendor is fetched under Promise.allSettled so one unreachable
+     * vendor doesn't fail the batch, and the failure is reported in that vendor's
+     * `error` field instead of thrown. No contract entry can describe it.
+     */
   ],
 
   async handler(input, ctx) {
@@ -137,7 +136,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
         cached: false,
         checked_at: new Date().toISOString(),
         statuspage_url: res.target.url,
-        error: (r.reason as Error).message,
+        error: vendorErrorMessage(r.reason),
       };
     });
 

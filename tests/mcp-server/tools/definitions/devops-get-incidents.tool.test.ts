@@ -3,8 +3,9 @@
  * @module tests/mcp-server/tools/definitions/devops-get-incidents.tool.test
  */
 
+import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
 import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { devopsGetIncidents } from '@/mcp-server/tools/definitions/devops-get-incidents.tool.js';
 import type {
   StatuspageIncidentsResponse,
@@ -442,20 +443,91 @@ describe('devopsGetIncidents', () => {
     expect(text).toMatch(/"all"|"resolved"/);
   });
 
-  it('throws statuspage_unavailable when fetch rejects', async () => {
-    const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
-      '@/services/statuspage/statuspage-service.js'
-    )) as {
-      _mockFetchIncidents: ReturnType<typeof vi.fn>;
-      _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
-    };
-    _mockFetchIncidents.mockRejectedValue(new Error('HTTP 503 from statuspage'));
-    _mockFetchScheduledMaintenances.mockRejectedValue(new Error('HTTP 503 from statuspage'));
+  /**
+   * These drive the *real* StatuspageService through the mocked accessor, so the
+   * declared statuspage_unavailable contract is proved reachable by the service
+   * layer rather than by whatever the module mock was told to reject with.
+   */
+  describe('statuspage_unavailable contract (#32)', () => {
+    async function useRealStatuspageService() {
+      const actual = await vi.importActual<
+        typeof import('@/services/statuspage/statuspage-service.js')
+      >('@/services/statuspage/statuspage-service.js');
+      const real = new actual.StatuspageService();
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockImplementation((url: string) => real.fetchIncidents(url));
+      _mockFetchScheduledMaintenances.mockImplementation((url: string) =>
+        real.fetchScheduledMaintenances(url),
+      );
+    }
 
-    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
-    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'active' });
-    // The handler does not catch fetch errors — they propagate as ServiceUnavailable
-    await expect(devopsGetIncidents.handler(input, ctx)).rejects.toThrow();
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('a non-2xx from the vendor API throws ServiceUnavailable with the reason on the wire', async () => {
+      await useRealStatuspageService();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: false, status: 503, headers: new Headers() }),
+      );
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'active' });
+      const err = await devopsGetIncidents.handler(input, ctx).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(McpError);
+      expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
+      expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
+      expect((err as McpError).message).toContain('HTTP 503');
+    });
+
+    it('an unreachable vendor host throws ServiceUnavailable, not an unclassified InternalError', async () => {
+      await useRealStatuspageService();
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockRejectedValue(
+            new TypeError('Unable to connect. Is the computer able to access the url?'),
+          ),
+      );
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved' });
+      const err = await devopsGetIncidents.handler(input, ctx).catch((e: unknown) => e);
+
+      expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
+      expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
+    });
+
+    it('a 200 that is not a Statuspage payload throws the contract, never a raw TypeError', async () => {
+      await useRealStatuspageService();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          json: async () => ({ args: {}, headers: {}, method: 'GET' }),
+        }),
+      );
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      // filter 'all' is the path that used to die on `incData.data.incidents.map`.
+      const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'all' });
+      const err = await devopsGetIncidents.handler(input, ctx).catch((e: unknown) => e);
+
+      expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
+      expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
+      expect((err as McpError).message).not.toMatch(/undefined is not an object|is not a function/);
+      expect((err as McpError).message).toContain('/api/v2/');
+    });
   });
 
   it('formats output with vendor, id, and created_at', async () => {
@@ -488,5 +560,59 @@ describe('devopsGetIncidents', () => {
     expect(text).toContain('inc-001');
     expect(text).toContain('2025-01-01T08:00:00Z');
     expect(text).toContain('GitHub');
+  });
+
+  describe('pages that publish no scheduled-maintenances endpoint', () => {
+    /**
+     * Six registry vendors 404 on scheduled-maintenances.json. Under filter:'all'
+     * the incidents fetch already proved the base URL is a real Statuspage, so the
+     * 404 means "publishes no maintenance data" and must not fail the whole call.
+     */
+    it('filter:all degrades to incidents only when scheduled-maintenances 404s', async () => {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
+      _mockFetchScheduledMaintenances.mockRejectedValue(
+        new McpError(JsonRpcErrorCode.ServiceUnavailable, 'HTTP 404 from .../scheduled', {
+          reason: 'statuspage_unavailable',
+          status: 404,
+        }),
+      );
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'all' });
+      const result = await devopsGetIncidents.handler(input, ctx);
+
+      expect(result.incidents).toHaveLength(1);
+      expect(result.incidents[0]?.id).toBe('inc-001');
+    });
+
+    /**
+     * filter:'scheduled' fetches nothing else, so a 404 is indistinguishable from a
+     * wrong base URL — it must stay an error rather than silently return empty.
+     */
+    it('filter:scheduled still surfaces the 404 as statuspage_unavailable', async () => {
+      const { _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchScheduledMaintenances.mockRejectedValue(
+        new McpError(JsonRpcErrorCode.ServiceUnavailable, 'HTTP 404 from .../scheduled', {
+          reason: 'statuspage_unavailable',
+          status: 404,
+        }),
+      );
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'scheduled' });
+      await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
+        data: { reason: 'statuspage_unavailable' },
+      });
+    });
   });
 });

@@ -71,6 +71,41 @@ describe('assertSafeResolverIp (synchronous, no DNS)', () => {
     expect(() => assertSafeResolverIp('::1')).toThrow('SSRF_BLOCKED');
   });
 
+  it('blocks the IPv4 unspecified address, which routes to the local host (#29)', () => {
+    expect(() => assertSafeResolverIp('0.0.0.0')).toThrow(/unspecified/);
+    expect(() => assertSafeResolverIp('0.1.2.3')).toThrow('SSRF_BLOCKED');
+  });
+
+  it('blocks the IPv6 unspecified address in both spellings (#29)', () => {
+    expect(() => assertSafeResolverIp('::')).toThrow(/unspecified/);
+    expect(() => assertSafeResolverIp('0:0:0:0:0:0:0:0')).toThrow(/unspecified/);
+  });
+
+  it('blocks a private resolver carrying a :port suffix (#29)', () => {
+    // dns.setServers() accepts this form, so the port has to come off before the
+    // address is range-checked — otherwise the colon reads as an IPv6 literal.
+    expect(() => assertSafeResolverIp('127.0.0.1:53')).toThrow(/loopback/);
+    expect(() => assertSafeResolverIp('10.0.0.1:5353')).toThrow(/RFC 1918/);
+    expect(() => assertSafeResolverIp('0.0.0.0:53')).toThrow(/unspecified/);
+    expect(() => assertSafeResolverIp('[::1]:53')).toThrow(/loopback/);
+    expect(() => assertSafeResolverIp('[::]:53')).toThrow(/unspecified/);
+  });
+
+  it('still passes public resolvers carrying a :port suffix (#29)', () => {
+    expect(() => assertSafeResolverIp('8.8.8.8:53')).not.toThrow();
+    expect(() => assertSafeResolverIp('[2001:4860:4860::8888]:53')).not.toThrow();
+    expect(() => assertSafeResolverIp('2001:4860:4860::8888')).not.toThrow();
+  });
+
+  it('rejects a resolver that is not an IP literal rather than passing it to setServers (#29)', () => {
+    expect(() => assertSafeResolverIp('localhost')).toThrow(/not a valid IP address/);
+    expect(() => assertSafeResolverIp('dns.internal.corp')).toThrow(/not a valid IP address/);
+    expect(() => assertSafeResolverIp('')).toThrow(/not a valid IP address/);
+    // Decimal- and hex-shaped near-misses that the octet parser would coerce.
+    expect(() => assertSafeResolverIp('0x7f.0.0.1')).toThrow(/not a valid IP address/);
+    expect(() => assertSafeResolverIp('8.8.8.8.8')).toThrow(/not a valid IP address/);
+  });
+
   it('blocks IPv6 link-local', () => {
     expect(() => assertSafeResolverIp('fe80::1')).toThrow('SSRF_BLOCKED');
   });
@@ -103,6 +138,16 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
     await expect(assertSafeUrl('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(
       'SSRF_BLOCKED',
     );
+  });
+
+  it('blocks a URL resolving to an unspecified address (#29)', async () => {
+    mockAddresses([{ address: '0.0.0.0', family: 4 }]);
+    await expect(assertSafeUrl('http://0.0.0.0:3013')).rejects.toThrow(/unspecified/);
+  });
+
+  it('blocks a URL resolving to the IPv6 unspecified address (#29)', async () => {
+    mockAddresses([{ address: '::', family: 6 }]);
+    await expect(assertSafeUrl('http://all-interfaces.example')).rejects.toThrow(/unspecified/);
   });
 
   it('blocks a URL resolving to RFC 1918 private IP', async () => {
@@ -139,6 +184,36 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
     await expect(assertSafeUrl('https://attacker-controlled.example')).rejects.toThrow(
       'SSRF_BLOCKED',
     );
+  });
+});
+
+/**
+ * A URL carrying an IP literal must be range-checked without DNS. `lookup()` throws on
+ * the bracketed IPv6 form a URL hostname carries, and the guard fails open on DNS
+ * failure — so a literal routed through resolution skips the check entirely. Every
+ * other assertSafeUrl test mocks DNS to return the private address, which is what hid
+ * this: the mock answered a lookup that never happens for a real literal.
+ */
+describe('assertSafeUrl with IP literals (no DNS involved)', () => {
+  it.each([
+    ['http://[::1]', /loopback/],
+    ['http://[::]', /unspecified/],
+    ['http://[fe80::1]', /link-local/],
+    ['http://[fd00::1]', /unique local/],
+    ['http://[::ffff:127.0.0.1]', /IPv4-mapped/],
+    ['http://127.0.0.1', /loopback/],
+    ['http://10.1.2.3:8080', /private/],
+  ])('blocks %s without consulting DNS (#29)', async (url, label) => {
+    mockLookup.mockRejectedValue(new Error('lookup must not be reached for an IP literal'));
+    await expect(assertSafeUrl(url)).rejects.toThrow(label);
+    expect(mockLookup).not.toHaveBeenCalled();
+  });
+
+  it('still allows a public IP literal', async () => {
+    mockLookup.mockRejectedValue(new Error('lookup must not be reached for an IP literal'));
+    await expect(assertSafeUrl('http://185.199.108.153')).resolves.toBeUndefined();
+    await expect(assertSafeUrl('http://[2001:4860:4860::8888]')).resolves.toBeUndefined();
+    expect(mockLookup).not.toHaveBeenCalled();
   });
 });
 

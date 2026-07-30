@@ -4,7 +4,26 @@
  */
 
 import { z } from '@cyanheads/mcp-ts-core';
+import { McpError } from '@cyanheads/mcp-ts-core/errors';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
+
+/**
+ * Render a settled-rejection as the per-vendor `error` string.
+ *
+ * `devops_status_check` and `devops_watch_stack` fetch every vendor under
+ * `Promise.allSettled` so one bad vendor doesn't fail the batch, which means a
+ * rejection is reported inline instead of thrown. Only `McpError` messages are
+ * written for a caller to read — every transport failure arrives as one. Anything
+ * else is a runtime fault whose message (`undefined is not an object (evaluating
+ * 'data.components.filter')`) would put internal expression text on the wire.
+ */
+export function vendorErrorMessage(reason: unknown): string {
+  if (reason instanceof McpError) return reason.message;
+  return (
+    'The vendor status API returned an unexpected response. ' +
+    'Retry after 30s, or open the status page URL in a browser to check it directly.'
+  );
+}
 
 /** Per-vendor result schema shared by devops_status_check and devops_watch_stack. */
 export const VendorResultSchema = z
@@ -40,9 +59,9 @@ export const VendorResultSchema = z
             id: z.string().describe("Unique incident identifier from the vendor's status API."),
             name: z.string().describe('Incident title.'),
             impact: z
-              .enum(['none', 'minor', 'major', 'critical'])
+              .enum(['none', 'minor', 'major', 'critical', 'maintenance'])
               .describe(
-                'Severity level: none = informational, minor = degraded performance, major = partial outage, critical = full outage.',
+                'Severity level: none = informational, minor = degraded performance, major = partial outage, critical = full outage, maintenance = scheduled window folded into incident history.',
               ),
             status: z
               .string()
@@ -92,7 +111,9 @@ export const VendorResultSchema = z
     error: z
       .string()
       .optional()
-      .describe('Fetch error message. Absent when the vendor was fetched successfully.'),
+      .describe(
+        'Why this vendor could not be checked — unreachable status API, timeout, non-2xx, or a response that is not a Statuspage payload. Reported here rather than thrown so one bad vendor does not fail the batch. Absent when the vendor was fetched successfully.',
+      ),
   })
   .describe('Status result for a single vendor.');
 
@@ -152,7 +173,7 @@ export function buildVendorResult(
 ): VendorResult {
   const now = new Date().toISOString();
   const degraded = data.components.filter((c) => c.status !== 'operational' && !c.group);
-  const activeIncidents = data.incidents.filter(
+  const activeIncidents = (data.incidents ?? []).filter(
     (i) => i.status !== 'resolved' && i.status !== 'postmortem',
   );
 
@@ -184,7 +205,7 @@ export function buildVendorResult(
   };
 
   if (mode === 'detailed') {
-    result.scheduled_maintenances = data.scheduled_maintenances.map((m) => ({
+    result.scheduled_maintenances = (data.scheduled_maintenances ?? []).map((m) => ({
       name: m.name,
       scheduled_for: m.scheduled_for ?? '',
       scheduled_until: m.scheduled_until ?? '',
@@ -195,7 +216,9 @@ export function buildVendorResult(
       .map((c) => ({
         name: c.name,
         status: c.status,
-        description: c.description,
+        // Pages omit `description` entirely rather than sending null; the output
+        // contract promises `string | null`, so normalize instead of widening it.
+        description: c.description ?? null,
       }));
   }
 

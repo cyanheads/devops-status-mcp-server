@@ -134,7 +134,8 @@ export function mapSlackSummary(raw: SlackCurrent, target: SlackTarget): Statusp
   if (!ok) {
     indicator = 'minor'; // active but empty/unknown incident list — at least a degradation
     for (const inc of active) {
-      if (SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator]) indicator = inc.impact;
+      if (inc.impact !== 'maintenance' && SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator])
+        indicator = inc.impact;
     }
   }
   return {

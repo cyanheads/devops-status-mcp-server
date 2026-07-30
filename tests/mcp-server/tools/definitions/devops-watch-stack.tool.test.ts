@@ -3,6 +3,7 @@
  * @module tests/mcp-server/tools/definitions/devops-watch-stack.tool.test
  */
 
+import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { devopsWatchStack } from '@/mcp-server/tools/definitions/devops-watch-stack.tool.js';
@@ -294,7 +295,11 @@ describe('devopsWatchStack', () => {
     };
     // Every vendor fetch fails — the stack is uncheckable, not healthy.
     _mockFetchSummary.mockRejectedValue(
-      new Error('HTTP 404 from https://example.com/api/v2/summary.json'),
+      serviceUnavailable('HTTP 404 from https://example.com/api/v2/summary.json', {
+        reason: 'statuspage_unavailable',
+        url: 'https://example.com/api/v2/summary.json',
+        status: 404,
+      }),
     );
 
     const ctx = createMockContext({ tenantId: 'errored-stack', errors: devopsWatchStack.errors });
@@ -303,7 +308,8 @@ describe('devopsWatchStack', () => {
 
     expect(result.health).not.toBe('all_operational');
     expect(result.health).toBe('unknown');
-    expect(result.vendors[0]!.error).toBeDefined();
+    // The authored contract message reaches the per-vendor field intact.
+    expect(result.vendors[0]!.error).toBe('HTTP 404 from https://example.com/api/v2/summary.json');
     expect(result.summary.operational).toBe(0);
     expect(result.summary.unavailable).toBe(1);
     // Every vendor lands in exactly one bucket, so the buckets sum to total.
@@ -315,6 +321,25 @@ describe('devopsWatchStack', () => {
     expect(text).not.toContain('all_operational');
     expect(text).toContain('unknown');
     expect(text).toContain('1 unavailable');
+  });
+
+  it('never puts a raw runtime TypeError message in a per-vendor error (#32)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockRejectedValue(
+      new TypeError("undefined is not an object (evaluating 'data.components.filter')"),
+    );
+
+    const ctx = createMockContext({ tenantId: 'typeerror-stack', errors: devopsWatchStack.errors });
+    const input = devopsWatchStack.input.parse({ vendors: ['github'], stack_name: 'type-error' });
+    const result = await devopsWatchStack.handler(input, ctx);
+
+    const error = result.vendors[0]?.error ?? '';
+    expect(error).not.toContain('undefined is not an object');
+    expect(error).not.toContain('data.components.filter');
+    expect(error).toMatch(/unexpected response/i);
+    expect(result.summary.unavailable).toBe(1);
   });
 
   it('a failed (invalid-vendor) call does not persist the stack — no poisoned state', async () => {

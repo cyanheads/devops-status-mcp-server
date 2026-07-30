@@ -38,10 +38,17 @@ export const devopsCheckDns = tool('devops_check_dns', {
         'DNS record types to resolve. Defaults to A, AAAA, MX, and TXT. Add NS to check nameserver delegation. Add CNAME when investigating redirect chains.',
       ),
     resolvers: z
-      .array(z.string().min(1).describe('A resolver IP address (e.g., "8.8.8.8").'))
+      .array(
+        z
+          .string()
+          .min(1)
+          .describe(
+            'A resolver IP literal — IPv4 ("8.8.8.8"), IPv6 ("2001:4860:4860::8888"), or either with a port ("1.1.1.1:53", "[2001:4860:4860::8888]:53"). A hostname is rejected.',
+          ),
+      )
       .default(['8.8.8.8', '1.1.1.1', '9.9.9.9'])
       .describe(
-        'Resolver IP addresses to query. Defaults to Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). Add custom resolvers to check internal DNS or test resolver-specific behavior.',
+        'Resolver IP addresses to query. Defaults to Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). Add custom resolvers to test resolver-specific behavior. Each must be an IP literal, not a hostname; resolvers in private, loopback, or cloud-metadata ranges are rejected unless DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
       ),
     timeout_ms: z
       .number()
@@ -131,9 +138,9 @@ export const devopsCheckDns = tool('devops_check_dns', {
     {
       reason: 'target_blocked',
       code: JsonRpcErrorCode.ValidationError,
-      when: 'A resolver IP is a private, loopback, or otherwise non-public address.',
+      when: 'A resolver is a private, loopback, or otherwise non-public address, or is not an IP literal at all.',
       recovery:
-        'Use a public resolver IP (e.g., 8.8.8.8, 1.1.1.1), or set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true for trusted local/internal monitoring deployments.',
+        'Use a public resolver IP literal (e.g., 8.8.8.8, 1.1.1.1), optionally with a port; pass an address rather than a hostname. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true for trusted local/internal monitoring deployments.',
     },
   ],
   // Note: SSRF-blocked domains surface as per-domain error results (status with error field).

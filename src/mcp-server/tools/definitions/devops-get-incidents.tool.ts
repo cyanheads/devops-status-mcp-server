@@ -4,7 +4,7 @@
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
-import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
 import {
   fetchVendorIncidents,
   fetchVendorScheduledMaintenances,
@@ -270,7 +270,17 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       // all
       const [incData, mainData] = await Promise.all([
         fetchVendorIncidents(resolved),
-        fetchVendorScheduledMaintenances(resolved),
+        // Some pages serve no scheduled-maintenances endpoint at all. A 404 here is
+        // tolerable only because the incidents fetch above proves the base URL is a
+        // real Statuspage — filter:'scheduled' has no such proof and still errors.
+        fetchVendorScheduledMaintenances(resolved).catch((err: unknown) => {
+          if (
+            err instanceof McpError &&
+            (err.data as { status?: number } | undefined)?.status === 404
+          )
+            return { data: { scheduled_maintenances: [] } };
+          throw err;
+        }),
       ]);
       const inc = incData.data.incidents.map((i) => normalizeIncident(i, false));
       const maint = mainData.data.scheduled_maintenances.map((i) => normalizeIncident(i, true));

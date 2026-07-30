@@ -3,6 +3,7 @@
  * @module tests/mcp-server/tools/definitions/devops-status-check.tool.test
  */
 
+import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { devopsStatusCheck } from '@/mcp-server/tools/definitions/devops-status-check.tool.js';
@@ -189,15 +190,20 @@ describe('devopsStatusCheck', () => {
     expect(text).toContain('none');
   });
 
-  it('surfaces statuspage_unavailable when fetch rejects — other vendors still succeed', async () => {
+  it('reports an unreachable vendor inline while other vendors still succeed', async () => {
     const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
-    // First call (github) succeeds, second (cloudflare) fails
+    // First call (github) succeeds, second (cloudflare) fails the way the service
+    // layer now fails: a contract-carrying McpError, not a bare Error.
     _mockFetchSummary
       .mockResolvedValueOnce({ data: ALL_OPERATIONAL, cached: false })
       .mockRejectedValueOnce(
-        new Error('HTTP 503 from https://www.cloudflarestatus.com/api/v2/summary.json'),
+        serviceUnavailable('HTTP 503 from https://www.cloudflarestatus.com/api/v2/summary.json', {
+          reason: 'statuspage_unavailable',
+          url: 'https://www.cloudflarestatus.com/api/v2/summary.json',
+          status: 503,
+        }),
       );
 
     const ctx = createMockContext({ errors: devopsStatusCheck.errors });
@@ -207,9 +213,40 @@ describe('devopsStatusCheck', () => {
     // Both vendors appear — allSettled semantics
     expect(result.results).toHaveLength(2);
     expect(result.results[0]!.indicator).toBe('none'); // github ok
-    // cloudflare surfaced inline with an error field
-    expect(result.results[1]!.error).toBeTruthy();
+    // The authored message reaches the caller intact, naming status and URL.
+    expect(result.results[1]!.error).toBe(
+      'HTTP 503 from https://www.cloudflarestatus.com/api/v2/summary.json',
+    );
     expect(result.summary.total).toBe(2);
+    expect(result.summary.operational).toBe(1);
+  });
+
+  it('never puts a raw runtime TypeError message in a per-vendor error (#32)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockRejectedValue(
+      new TypeError("undefined is not an object (evaluating 'data.components.filter')"),
+    );
+
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
+
+    const error = result.results[0]?.error ?? '';
+    expect(error).not.toContain('undefined is not an object');
+    expect(error).not.toContain('data.components.filter');
+    expect(error).toMatch(/unexpected response/i);
+    // Still counted as unchecked, not as operational.
+    expect(result.summary.operational).toBe(0);
+  });
+
+  it('does not declare a statuspage_unavailable contract it can never throw (#32)', () => {
+    // Every vendor is fetched under Promise.allSettled, so an unreachable vendor is
+    // reported in that vendor's `error` field and never surfaces as a JSON-RPC error.
+    const reasons = devopsStatusCheck.errors?.map((e) => e.reason) ?? [];
+    expect(reasons).not.toContain('statuspage_unavailable');
+    expect(reasons).toEqual(expect.arrayContaining(['vendor_not_found', 'target_blocked']));
   });
 
   it('accepts a raw Statuspage URL in place of a slug', async () => {
@@ -374,6 +411,30 @@ describe('devopsStatusCheck', () => {
 
       // Guard must not fire for registry slugs — they're pre-verified
       expect(vi.mocked(assertSafeUrl)).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Several live pages omit `incidents` / `scheduled_maintenances` rather than
+     * sending `[]`. Dereferencing them unguarded throws a TypeError that
+     * `Promise.allSettled` turns into a per-vendor failure on a healthy page.
+     */
+    it('reports a healthy vendor whose summary omits the incident arrays', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchSummary: ReturnType<typeof vi.fn>;
+      };
+      const { incidents: _i, scheduled_maintenances: _m, ...sparse } = ALL_OPERATIONAL;
+      _mockFetchSummary.mockResolvedValue({ data: sparse, cached: false });
+
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const input = devopsStatusCheck.input.parse({ vendors: ['github'], mode: 'detailed' });
+      const result = await devopsStatusCheck.handler(input, ctx);
+
+      expect(result.results[0]?.error).toBeUndefined();
+      expect(result.results[0]?.indicator).toBe('none');
+      expect(result.results[0]?.active_incidents).toEqual([]);
+      expect(result.results[0]?.scheduled_maintenances).toEqual([]);
     });
   });
 });

@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.5.5](changelog/0.5.x/0.5.5.md) — 2026-07-30 · 🛡️ Security
+
+Closes three SSRF/error-handling gaps in the fetch path — unspecified addresses and ip:port resolvers bypassing the private-target guard, redirects skipping re-validation entirely, and vendor fetch failures surfacing raw JavaScript errors instead of the declared statuspage_unavailable contract.
+
 ## [0.5.4](changelog/0.5.x/0.5.4.md) — 2026-07-11
 
 devops_get_incidents pages the full incident history via a new offset input, so FireHydrant-backed vendors (Redis Cloud) no longer silently cap at 50 — truncated results disclose the true total. Empty incident and vendor listings now explain the result and suggest a broader filter.

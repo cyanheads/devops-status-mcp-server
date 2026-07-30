@@ -211,7 +211,11 @@ z.object({
     .min(1).max(20)
     .describe('Vendor slugs from the built-in registry (e.g., "github", "cloudflare") or raw Statuspage base URLs (e.g., "https://www.githubstatus.com"). Mix freely. Use devops_list_vendors to discover available slugs.'),
   mode: z.enum(['summary', 'detailed']).default('summary')
-    .describe('summary: indicator + degraded components + active incidents only. detailed: adds full component list and scheduled maintenance windows. Summary is faster; use detailed when preparing an incident report or checking maintenance schedules.'),
+    .describe('summary: indicator + degraded components + active incidents only. detailed: adds the component list and scheduled maintenance windows. Summary is faster; use detailed when preparing an incident report or checking maintenance schedules.'),
+  component_filter: z.string().optional()
+    .describe('Case-insensitive substring matched against component names in detailed mode. Applied before component_limit, so it is the way to reach a component the cap would otherwise omit.'),
+  component_limit: z.number().int().min(1).max(500).default(50)
+    .describe('Maximum components returned per vendor in detailed mode.'),
 })
 ```
 
@@ -245,19 +249,25 @@ z.object({
       name: z.string(),
       status: z.string(),
       description: z.string().nullable(),
-    })).optional().describe('All components. Present in detailed mode only.'),
+    })).optional().describe('Components, narrowed by component_filter and capped at component_limit. Present in detailed mode only.'),
+    all_components_total: z.number().optional()
+      .describe('Components matching component_filter for this vendor before the cap. Present in detailed mode only.'),
     cached: z.boolean().describe('True when this result was served from the 60s in-memory cache.'),
     checked_at: z.string().describe('ISO 8601 UTC timestamp of this check.'),
-    statuspage_url: z.string().describe('Statuspage base URL used.'),
+    statuspage_url: z.string().describe('Statuspage base URL used. Empty for a vendor entry that resolved to no target.'),
+    error: z.string().optional().describe('Why this vendor could not be checked. Absent on success.'),
   })).describe('Per-vendor status results in the same order as the input vendors list.'),
   summary: z.object({
     total: z.number(),
     operational: z.number(),
     degraded: z.number(),
     down: z.number(),
-  }).describe('Aggregate health counts across all checked vendors.'),
+    unavailable: z.number(),
+  }).describe('Aggregate health counts across all checked vendors. Buckets partition the batch: operational + degraded + down + unavailable = total.'),
 })
 ```
+
+**Enrichment:** `truncated` / `shown` / `cap` / `totalCount`, written once after the fan-out when at least one vendor's component list was capped. `buildVendorResult()` runs per vendor with no `ctx`, so it returns the matched and shown component counts and the handler aggregates them into a single `ctx.enrich.truncated()` call for the whole batch.
 
 **Errors:**
 ```ts
@@ -265,8 +275,14 @@ errors: [
   {
     reason: 'vendor_not_found',
     code: JsonRpcErrorCode.NotFound,
-    when: 'A vendor slug does not match any entry in the built-in registry and is not a valid URL.',
+    when: 'No requested vendor could be checked and the first failure was a slug that matches no registry entry and is not a valid URL.',
     recovery: 'Call devops_list_vendors to browse available slugs, or pass a full Statuspage base URL (e.g., "https://www.githubstatus.com").',
+  },
+  {
+    reason: 'target_blocked',
+    code: JsonRpcErrorCode.ValidationError,
+    when: 'No requested vendor could be checked and the first failure was a raw URL resolving to a private, loopback, or cloud-metadata address.',
+    recovery: 'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
   },
 ]
 ```
@@ -274,6 +290,8 @@ errors: [
 **Annotations:** `readOnlyHint: true`, `openWorldHint: true`
 
 Handler fans out all vendor fetches with `Promise.allSettled`, so one failed vendor does not block the others. Failed vendors surface in results with an `error` field rather than throwing. Because no fetch failure reaches a top-level throw, this tool declares no `statuspage_unavailable` contract — an unreachable status page is per-vendor data, not a tool error.
+
+The same rule covers a vendor entry that never reaches a fetch: an unresolvable slug or an SSRF-blocked URL becomes an `error` row in `results[]`, counted in the `unavailable` bucket, so one bad entry cannot discard the rest of the batch. Both contract entries above fire only when *nothing* resolved — partial failure is data, total failure is an error, and one typed error carrying a recovery hint beats a batch of error rows under a summary reading `operational: 0`. The all-failed message names every failing entry so one round trip corrects them all.
 
 ---
 
@@ -351,15 +369,21 @@ errors: [
 
 Stack configuration is persisted per tenant via `ctx.state` using the `stack_name` as the key. Multiple stacks can coexist (e.g., `"production"`, `"staging"`).
 
+Only the vendors that resolve are saved. Persisting an entry that resolves to no target would put a permanent error row in every future sweep of that stack, so the write covers the resolvable subset and `omitted_vendors` names what was left out — the caller is told the saved stack is smaller than what they passed. A list where *nothing* resolves throws and writes nothing at all. A call that reuses a saved stack does not rewrite it, so an entry that stopped resolving since it was saved stays listed in `omitted_vendors` on every call until the caller re-provides `vendors`.
+
 **Input:**
 ```ts
 z.object({
   vendors: z.array(z.string()).optional()
-    .describe('Vendor slugs or raw Statuspage URLs. When provided, saves this list as the stack. When omitted, uses the previously saved list for stack_name. At least one must exist (provided or saved) to proceed.'),
+    .describe('Vendor slugs or raw Statuspage URLs. When provided, saves the resolvable ones as the stack. When omitted, uses the previously saved list for stack_name. At least one must exist (provided or saved) to proceed.'),
   stack_name: z.string().default('default')
     .describe('Name for this vendor stack. Defaults to "default". Use distinct names to manage multiple stacks (e.g., "production", "data-layer").'),
   mode: z.enum(['summary', 'detailed']).default('summary')
-    .describe('summary: indicator + degraded components + active incidents. detailed: adds full component lists and maintenance windows.'),
+    .describe('summary: indicator + degraded components + active incidents. detailed: adds component lists and maintenance windows.'),
+  component_filter: z.string().optional()
+    .describe('Case-insensitive substring matched against component names in detailed mode. Applied before component_limit.'),
+  component_limit: z.number().int().min(1).max(500).default(50)
+    .describe('Maximum components returned per vendor in detailed mode.'),
 })
 ```
 
@@ -377,9 +401,12 @@ z.object({
   }),
   vendors: z.array(/* same per-vendor shape as devops_status_check results[] */),
   stack_persisted: z.boolean().describe('True when the vendor list was saved to state on this call.'),
+  omitted_vendors: z.array(z.string()).describe('Entries that could not be resolved or were blocked, and so are left out whenever the stack is saved. They still appear in vendors[] with an error.'),
   checked_at: z.string(),
 })
 ```
+
+**Enrichment:** `truncated` / `shown` / `cap` / `totalCount`, identical to `devops_status_check` — both tools share `buildVendorResult()` and aggregate its component counts once after the fan-out.
 
 **Errors:**
 ```ts
@@ -393,8 +420,14 @@ errors: [
   {
     reason: 'vendor_not_found',
     code: JsonRpcErrorCode.NotFound,
-    when: 'A vendor slug is not in the registry and is not a valid URL.',
+    when: 'No vendor in the stack could be checked and the first failure was a slug that is not in the registry and is not a valid URL.',
     recovery: 'Call devops_list_vendors to find available slugs or pass a full Statuspage base URL.',
+  },
+  {
+    reason: 'target_blocked',
+    code: JsonRpcErrorCode.ValidationError,
+    when: 'No vendor in the stack could be checked and the first failure was a raw URL resolving to a private, loopback, or cloud-metadata address.',
+    recovery: 'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
   },
 ]
 ```
@@ -676,6 +709,18 @@ The idea doc mentions it as a consideration. A latency check against a vendor's 
 ### Why `Promise.allSettled` everywhere?
 
 Batch tools (`devops_status_check`, `devops_watch_stack`, `devops_check_certs`, `devops_check_dns`) accept multiple inputs. One failing target should not block the others — the value of a batch check is the full picture. Failed items are surfaced inline with an `error` field. `allSettled` is the correct primitive: `Promise.all` would throw on the first failure and lose all other results.
+
+### Why an all-failed batch still throws
+
+Resolution failures follow the same inline rule as fetch failures — an unresolvable slug or a blocked URL is an `error` row, not a thrown error — but only while something else in the batch survives. When nothing resolves there is no data to return, and a typed error carrying a recovery hint is more actionable than N error rows under a summary reading `operational: 0`. The threshold is the presence of a result, not the count of failures. The all-failed message names every failing entry so a caller with several bad slugs fixes them in one round trip rather than one per correction.
+
+### Why `devops_watch_stack` saves only the resolvable subset
+
+A saved stack is replayed on every later call, so persisting an entry that resolves to no target would manufacture a permanent error row for as long as the stack exists. Dropping it silently is equally wrong — the caller would keep believing the stack holds what they passed. The write covers the resolvable subset and `omitted_vendors` reports the difference.
+
+### Why detailed-mode component lists are capped
+
+Component lists are unbounded upstream — a single large page publishes several hundred, and a full-stack detailed sweep runs to six figures of response bytes, most of it operational rows nobody asked about. `component_limit` (default 50) bounds it, `component_filter` reaches a specific component past the cap, and `ctx.enrich.truncated()` discloses what was dropped rather than silently returning a partial list. The disclosure is aggregated across the fan-out because `buildVendorResult()` has no `ctx`; it returns component counts and the handler emits one signal for the batch.
 
 ### Instruction tool vs. LLM sampling
 

@@ -4,7 +4,7 @@
  */
 
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { devopsStatusCheck } from '@/mcp-server/tools/definitions/devops-status-check.tool.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
@@ -108,6 +108,46 @@ const DEGRADED: StatuspageSummaryResponse = {
   scheduled_maintenances: [],
 };
 
+/**
+ * A page shaped the way live Statuspage pages actually serve components: a group
+ * container carrying `group: true` and no `group_id`, children pointing back at it,
+ * `description` omitted entirely on most entries rather than sent as null, and one
+ * entry carrying a real description string.
+ */
+function pageWithComponents(count: number, extraNames: string[] = []): StatuspageSummaryResponse {
+  const names = [
+    ...Array.from({ length: count }, (_, i) => `Component ${String(i + 1).padStart(3, '0')}`),
+    ...extraNames,
+  ];
+  return {
+    ...ALL_OPERATIONAL,
+    components: [
+      {
+        id: 'grp-core',
+        name: 'Core Services',
+        status: 'operational',
+        group: true,
+        position: 0,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      },
+      ...names.map((name, i) => ({
+        id: `cmp-${i}`,
+        name,
+        status: 'operational' as const,
+        group: false,
+        group_id: 'grp-core',
+        position: i + 1,
+        showcase: true,
+        only_show_if_degraded: false,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        ...(i === 0 ? { description: 'Primary request path.' } : {}),
+      })),
+    ],
+  };
+}
+
 beforeAll(() => {
   initVendorRegistryService();
 });
@@ -150,7 +190,7 @@ describe('devopsStatusCheck', () => {
     expect(result.summary.degraded).toBe(1);
   });
 
-  it('throws vendor_not_found for unknown slug', async () => {
+  it('throws vendor_not_found when the only vendor is unknown — nothing to return', async () => {
     const ctx = createMockContext({ errors: devopsStatusCheck.errors });
     const input = devopsStatusCheck.input.parse({ vendors: ['totally-unknown-slug-xyz'] });
     await expect(devopsStatusCheck.handler(input, ctx)).rejects.toMatchObject({
@@ -159,6 +199,153 @@ describe('devopsStatusCheck', () => {
         recovery: { hint: expect.stringContaining('devops_list_vendors') },
       },
     });
+  });
+
+  it('names every unresolvable entry when no vendor in the batch resolves (#33)', async () => {
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['nope-one', 'nope-two'] });
+    const err = await devopsStatusCheck.handler(input, ctx).catch((e: Error) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    // One round trip must be enough to correct every bad entry, not just the first.
+    expect((err as Error).message).toContain('nope-one');
+    expect((err as Error).message).toContain('nope-two');
+  });
+
+  it('keeps the resolvable vendors when one slug is unresolvable and one URL is blocked (#33)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
+    const { assertSafeUrl } = await import('@/utils/ssrf-guard.js');
+    vi.mocked(assertSafeUrl).mockRejectedValueOnce(
+      new Error(
+        'SSRF_BLOCKED: URL "http://169.254.169.254" resolves to 169.254.169.254 (link-local / cloud-metadata).',
+      ),
+    );
+
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({
+      vendors: ['github', 'totally-unknown-slug-xyz', 'http://169.254.169.254', 'cloudflare'],
+    });
+    const result = await devopsStatusCheck.handler(input, ctx);
+
+    // Every input keeps its slot, in order.
+    expect(result.results.map((r) => r.vendor)).toEqual([
+      'github',
+      'totally-unknown-slug-xyz',
+      'http://169.254.169.254',
+      'cloudflare',
+    ]);
+    expect(result.results[0]!.error).toBeUndefined();
+    expect(result.results[1]!.error).toContain('is not a known vendor slug');
+    expect(result.results[2]!.error).toContain('link-local / cloud-metadata');
+    expect(result.results[3]!.error).toBeUndefined();
+
+    expect(result.summary.total).toBe(4);
+    expect(result.summary.operational).toBe(2);
+    expect(result.summary.unavailable).toBe(2);
+    const { total, operational, degraded, down, unavailable } = result.summary;
+    expect(operational + degraded + down + unavailable).toBe(total);
+
+    // The headline discloses the unavailable count instead of dropping it (#23).
+    const text = (devopsStatusCheck.format!(result)[0] as { text: string }).text;
+    expect(text).toContain('2 unavailable');
+  });
+
+  it('counts a failed status fetch in the unavailable bucket (#23)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockRejectedValue(
+      serviceUnavailable('HTTP 404 from https://www.githubstatus.com/api/v2/summary.json', {
+        reason: 'statuspage_unavailable',
+        url: 'https://www.githubstatus.com/api/v2/summary.json',
+        status: 404,
+      }),
+    );
+
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
+
+    expect(result.summary.unavailable).toBe(1);
+    const { total, operational, degraded, down, unavailable } = result.summary;
+    expect(operational + degraded + down + unavailable).toBe(total);
+    expect((devopsStatusCheck.format!(result)[0] as { text: string }).text).toContain(
+      '1 unavailable',
+    );
+  });
+
+  it('caps detailed components per vendor and discloses the omission (#36)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockResolvedValue({ data: pageWithComponents(120), cached: false });
+
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['github'], mode: 'detailed' });
+    const result = await devopsStatusCheck.handler(input, ctx);
+
+    // The group container is not a component and never counts toward the total.
+    expect(result.results[0]!.all_components).toHaveLength(50);
+    expect(result.results[0]!.all_components_total).toBe(120);
+    expect(getEnrichment(ctx)).toMatchObject({
+      truncated: true,
+      shown: 50,
+      cap: 50,
+      totalCount: 120,
+    });
+
+    const text = (devopsStatusCheck.format!(result)[0] as { text: string }).text;
+    expect(text).toContain('Components (50 of 120)');
+  });
+
+  it('component_filter reaches a component the cap would have dropped (#36)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    // The named component sits past the default cap, so only the filter can reach it.
+    _mockFetchSummary.mockResolvedValue({
+      data: pageWithComponents(120, ['Webhook Delivery']),
+      cached: false,
+    });
+
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({
+      vendors: ['github'],
+      mode: 'detailed',
+      component_filter: 'webhook',
+    });
+    const result = await devopsStatusCheck.handler(input, ctx);
+
+    expect(result.results[0]!.all_components?.map((c) => c.name)).toEqual(['Webhook Delivery']);
+    expect(result.results[0]!.all_components_total).toBe(1);
+    // Nothing was dropped, so nothing is disclosed.
+    expect(getEnrichment(ctx)).toEqual({});
+  });
+
+  it('component_limit raises the cap and clears the truncation signal (#36)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockResolvedValue({ data: pageWithComponents(120), cached: false });
+
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({
+      vendors: ['github'],
+      mode: 'detailed',
+      component_limit: 200,
+    });
+    const result = await devopsStatusCheck.handler(input, ctx);
+
+    expect(result.results[0]!.all_components).toHaveLength(120);
+    expect(result.results[0]!.all_components_total).toBe(120);
+    expect(getEnrichment(ctx)).toEqual({});
+
+    // Uncapped results carry no enrichment, so the effective output must still parse.
+    const effectiveOutput = devopsStatusCheck.output.extend(devopsStatusCheck.enrichment!);
+    expect(() => effectiveOutput.parse({ ...result, ...getEnrichment(ctx) })).not.toThrow();
   });
 
   it('detailed mode adds all_components and scheduled_maintenances fields', async () => {

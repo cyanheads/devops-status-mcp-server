@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.5.6](changelog/0.5.x/0.5.6.md) — 2026-07-30
+
+devops_status_check and devops_watch_stack no longer discard a whole batch on one bad vendor entry; devops_status_check gains an unavailable summary bucket; detailed-mode component lists are capped, filterable, and disclosed via enrichment.
+
 ## [0.5.5](changelog/0.5.x/0.5.5.md) — 2026-07-30 · 🛡️ Security
 
 Closes three SSRF/error-handling gaps in the fetch path — unspecified addresses and ip:port resolvers bypassing the private-target guard, redirects skipping re-validation entirely, and vendor fetch failures surfacing raw JavaScript errors instead of the declared statuspage_unavailable contract.

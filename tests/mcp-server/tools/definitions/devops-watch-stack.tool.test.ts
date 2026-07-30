@@ -4,7 +4,7 @@
  */
 
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { devopsWatchStack } from '@/mcp-server/tools/definitions/devops-watch-stack.tool.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
@@ -137,7 +137,7 @@ describe('devopsWatchStack', () => {
     expect(result.summary.down).toBe(1);
   });
 
-  it('throws vendor_not_found for unknown vendor', async () => {
+  it('throws vendor_not_found when no vendor in the stack is checkable', async () => {
     const ctx = createMockContext({ tenantId: 'test-tenant', errors: devopsWatchStack.errors });
     const input = devopsWatchStack.input.parse({
       vendors: ['unknown-xyz-999'],
@@ -149,6 +149,101 @@ describe('devopsWatchStack', () => {
         recovery: { hint: expect.stringContaining('devops_list_vendors') },
       },
     });
+  });
+
+  it('persists only the resolvable subset and reports what it dropped (#33)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
+
+    const ctx = createMockContext({ tenantId: 'subset-stack', errors: devopsWatchStack.errors });
+    const result = await devopsWatchStack.handler(
+      devopsWatchStack.input.parse({
+        vendors: ['github', 'unknown-xyz-999', 'cloudflare'],
+        stack_name: 'subset',
+      }),
+      ctx,
+    );
+
+    expect(result.stack_persisted).toBe(true);
+    expect(result.omitted_vendors).toEqual(['unknown-xyz-999']);
+    expect(result.vendors).toHaveLength(3);
+    expect(result.vendors[1]!.error).toContain('is not a known vendor slug');
+    expect(result.summary.unavailable).toBe(1);
+    expect(result.summary.operational).toBe(2);
+    const { total, operational, degraded, down, unavailable } = result.summary;
+    expect(operational + degraded + down + unavailable).toBe(total);
+    // An unchecked vendor can never roll up green.
+    expect(result.health).toBe('unknown');
+
+    const text = (devopsWatchStack.format!(result)[0] as { text: string }).text;
+    expect(text).toContain('Unusable entries:');
+    expect(text).toContain('unknown-xyz-999');
+
+    // The saved stack is the resolvable subset — the bad slug is gone for good,
+    // not replayed as a permanent error row on every future sweep.
+    const replay = await devopsWatchStack.handler(
+      devopsWatchStack.input.parse({ stack_name: 'subset' }),
+      ctx,
+    );
+    expect(replay.vendors.map((v) => v.vendor)).toEqual(['github', 'cloudflare']);
+    expect(replay.omitted_vendors).toEqual([]);
+    expect(replay.summary.unavailable).toBe(0);
+    expect(replay.health).toBe('all_operational');
+  });
+
+  it('caps detailed components per vendor and discloses the omission (#36)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    const MANY_COMPONENTS: StatuspageSummaryResponse = {
+      ...OPERATIONAL_SUMMARY,
+      components: [
+        {
+          id: 'grp-core',
+          name: 'Core Services',
+          status: 'operational',
+          group: true,
+          position: 0,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        ...Array.from({ length: 80 }, (_, i) => ({
+          id: `cmp-${i}`,
+          name: `Component ${String(i + 1).padStart(3, '0')}`,
+          status: 'operational' as const,
+          group: false,
+          group_id: 'grp-core',
+          position: i + 1,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        })),
+      ],
+    };
+    _mockFetchSummary.mockResolvedValue({ data: MANY_COMPONENTS, cached: false });
+
+    const ctx = createMockContext({ tenantId: 'cap-stack', errors: devopsWatchStack.errors });
+    const result = await devopsWatchStack.handler(
+      devopsWatchStack.input.parse({
+        vendors: ['github'],
+        stack_name: 'capped',
+        mode: 'detailed',
+      }),
+      ctx,
+    );
+
+    expect(result.vendors[0]!.all_components).toHaveLength(50);
+    expect(result.vendors[0]!.all_components_total).toBe(80);
+    expect(getEnrichment(ctx)).toMatchObject({
+      truncated: true,
+      shown: 50,
+      cap: 50,
+      totalCount: 80,
+    });
+    expect((devopsWatchStack.format!(result)[0] as { text: string }).text).toContain(
+      'Components (50 of 80)',
+    );
   });
 
   it('formats output with health field verbatim', async () => {

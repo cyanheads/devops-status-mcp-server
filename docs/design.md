@@ -469,7 +469,7 @@ errors: [
 
 ### `devops_check_certs`
 
-**Description:** Inspect SSL/TLS certificate health for one or more domains by performing a real TLS handshake. Pure TypeScript — no external API. Reports: days to expiry (flagged at < 30 days warning and < 7 days critical), certificate subject and SANs, issuer, chain depth, TLS protocol version negotiated (flags TLS 1.0 and 1.1 as insecure), cipher suite, and HSTS presence (detected via an HTTP GET over the TLS socket to read the `Strict-Transport-Security` response header — reported in `flags` as "HSTS present" / "HSTS not configured"). Works for any internet-accessible domain, not just registered vendors.
+**Description:** Inspect SSL/TLS certificate health for one or more domains by performing a real TLS handshake. Pure TypeScript — no external API. Reports: days to expiry (flagged at < 30 days warning and < 7 days critical), certificate subject and SANs, issuer, hostname coverage, chain-trust verification, chain depth where the runtime exposes it, TLS protocol version negotiated (flags TLS 1.0 and 1.1 as insecure), cipher suite, and HSTS presence (detected via an HTTP GET over the TLS socket to read the `Strict-Transport-Security` response header — reported in `flags` as "HSTS present" / "HSTS not configured"). Works for any internet-accessible domain, not just registered vendors.
 
 **Input:**
 ```ts
@@ -490,8 +490,8 @@ z.object({
   results: z.array(z.object({
     domain: z.string(),
     port: z.number(),
-    status: z.enum(['ok', 'warning', 'critical', 'error']),
-    flags: z.array(z.string()).describe('Human-readable warnings and issues found: "expires in 12 days", "TLS 1.1 in use", "self-signed certificate", etc.'),
+    status: z.enum(['ok', 'warning', 'critical', 'error']).describe('critical = expired or < 7 days, hostname mismatch, chain-trust failure, or insecure TLS; warning = < 30 days; error = connection failed.'),
+    flags: z.array(z.string()).describe('Human-readable warnings and issues found: "Expires in 12 days (warning)", "Insecure TLS version in use: TLSv1.1", "Self-signed certificate", "Hostname mismatch — the certificate does not cover <domain>; clients will reject it", "Certificate chain not trusted (<CODE>); clients will reject it", etc.'),
     cert: z.object({
       subject: z.string().describe('Certificate subject CN.'),
       san: z.array(z.string()).describe('Subject Alternative Names covered by this certificate.'),
@@ -499,7 +499,10 @@ z.object({
       valid_from: z.string().describe('ISO 8601 UTC.'),
       valid_until: z.string().describe('ISO 8601 UTC.'),
       days_until_expiry: z.number().int(),
-      chain_depth: z.number().int().describe('Number of certificates in the chain (1 = self-signed).'),
+      chain_depth: z.number().int().nullable().describe('Number of certificates the server sent, counting the leaf. Null when the runtime does not expose the issuer chain. Not a self-signed indicator.'),
+      chain_depth_unavailable_reason: z.string().nullable().describe('Why chain_depth is null, or null when a depth was measured.'),
+      hostname_verification_error: z.string().nullable().describe('tls.checkServerIdentity() message when the requested hostname is not covered by the CN or SANs, else null.'),
+      authorization_error: z.string().nullable().describe('OpenSSL chain-verification code (DEPTH_ZERO_SELF_SIGNED_CERT, SELF_SIGNED_CERT_IN_CHAIN, UNABLE_TO_VERIFY_LEAF_SIGNATURE, CERT_HAS_EXPIRED), else null. The authoritative chain-trust signal.'),
       serial: z.string(),
     }).nullable().describe('Null when connection failed (error status).'),
     tls: z.object({
@@ -528,13 +531,13 @@ errors: [
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: true`
 
-Implementation: `node:tls` socket with `checkServerIdentity` (allow to proceed regardless to capture cert data), `timeout_ms` enforced with `AbortController`. After the TLS handshake, send a minimal HTTP/1.1 GET request over the same socket to read response headers (captures `Strict-Transport-Security` for HSTS detection). Per-domain results collected with `Promise.allSettled`.
+Implementation: `node:tls` socket with `rejectUnauthorized: false` and an overridden `checkServerIdentity`, so a certificate ordinary clients reject is still inspected rather than collapsing into a connection error. The override does not discard the hostname check: it calls `tls.checkServerIdentity(host, cert)` explicitly, records the result in `hostname_verification_error`, and returns `undefined` to let the handshake finish. Chain trust comes from `socket.authorizationError`, read independently — it is populated even under `rejectUnauthorized: false`, and is normalized from the bare OpenSSL code string some runtimes return. `timeout_ms` enforced with a timer that destroys the socket. After the TLS handshake, send a minimal HTTP/1.1 GET request over the same socket to read response headers (captures `Strict-Transport-Security` for HSTS detection). Per-domain results collected with `Promise.allSettled`.
 
 ---
 
 ### `devops_check_dns`
 
-**Description:** Resolve DNS records and verify propagation for one or more domains across multiple public resolvers. Pure TypeScript — uses `node:dns` with custom resolver addresses. Reports records found (A/AAAA/CNAME/MX/TXT/NS), resolution latency per resolver, and discrepancies between resolvers (propagation gaps). Works for any domain.
+**Description:** Resolve DNS records for one or more domains across multiple public resolvers and compare what each resolver returned. Pure TypeScript — uses `node:dns` with custom resolver addresses. Reports records found (A/AAAA/CNAME/MX/TXT/NS), resolution latency per resolver, a typed outcome per resolver and record type (`ok` / `nodata` / `nxdomain` / `servfail` / `refused` / `timeout` / `error`), and resolver disagreements labelled by kind rather than by an asserted cause. Works for any domain.
 
 **Input:**
 ```ts
@@ -559,20 +562,25 @@ z.object({
     records: z.record(
       z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS']),
       z.array(z.string())
-    ).describe('Resolved records from the primary resolver (8.8.8.8 or first in list). Keyed by record type.'),
+    ).describe('Resolved records from one resolver — the primary (first in list), or the first resolver that returned records when the primary returned none. Keyed by record type.'),
+    records_source: z.string().nullable().describe('Resolver IP whose answers populated `records`, or null when no resolver was queried.'),
     resolver_results: z.array(z.object({
       resolver: z.string().describe('Resolver IP address.'),
       latency_ms: z.number().int(),
       records: z.record(z.string(), z.array(z.string())),
-      error: z.string().nullable(),
+      status: z.enum(DNS_QUERY_STATUSES).describe('Headline outcome: ok when any requested type resolved, else the most actionable failure across types.'),
+      status_by_type: z.record(z.string(), z.enum(DNS_QUERY_STATUSES)).describe('Outcome per requested record type. nodata = the domain exists but has no record of this type; nxdomain = the domain does not exist; servfail = the resolver could not answer, commonly DNSSEC.'),
+      error: z.string().nullable().describe('Failure summary such as "SERVFAIL on A, MX", or null when every type resolved or returned nodata.'),
     })).describe('Per-resolver breakdown for propagation analysis.'),
     propagation_discrepancies: z.array(z.object({
       record_type: z.string(),
       resolvers_agree: z.boolean(),
+      kind: z.enum(['value_variation', 'partial_resolution']).describe('partial_resolution = some resolvers answered and some did not (the signal worth investigating); value_variation = every resolver answered with different values (anycast/geo-steering, or an in-flight change).'),
       values_by_resolver: z.record(z.string(), z.array(z.string())),
-    })).describe('Record types where resolvers returned different values. Empty when all resolvers agree.'),
-    flags: z.array(z.string()).describe('Human-readable observations: "propagation mismatch on A records", "no MX records found", "CNAME detected — further records resolve via the CNAME target", etc.'),
-    error: z.string().nullable(),
+      status_by_resolver: z.record(z.string(), z.enum(DNS_QUERY_STATUSES)).describe('Per-resolver outcome for this record type — explains why an entry in values_by_resolver is empty.'),
+    })).describe('Record types where resolvers returned different answers, labelled by kind. Empty when all resolvers agree.'),
+    flags: z.array(z.string()).describe('Observations needing attention: "NXDOMAIN from 8.8.8.8 on A — the domain does not exist …", "SERVFAIL from 1.1.1.1 on A — …", "Partial resolution on A records — 9.9.9.9 (nodata) returned nothing while 8.8.8.8 answered", "No MX records found", "CNAME detected — further records resolve via the CNAME target". A value_variation is deliberately not flagged.'),
+    error: z.string().nullable().describe('Set only when every resolver failed and none returned records; names each resolver with its own outcome so a split result stays visible.'),
   })),
 })
 ```
@@ -591,7 +599,7 @@ errors: [
 
 **Annotations:** `readOnlyHint: true`, `openWorldHint: true`
 
-Implementation: `node:dns` `Resolver` class, instantiate one per resolver address, fan out all domain × resolver × record-type queries with `Promise.allSettled`, collect latency with `performance.now()`.
+Implementation: `node:dns` `Resolver` class, instantiate one per resolver address, fan out all domain × resolver × record-type queries with `Promise.allSettled`, collect latency with `performance.now()`. Each query's error code is mapped to a typed status (`ENODATA` → nodata, `ESERVFAIL` → servfail, `EREFUSED`/`ECONNREFUSED` → refused, `ETIMEOUT`/`ETIMEDOUT` → timeout, unmapped → error). `ENOTFOUND` is handled separately: c-ares raises it both for a true NXDOMAIN and for a NOERROR response with an empty answer section on some record types, so nxdomain is claimed only when every requested type for that resolver came back `ENOTFOUND` — otherwise the name demonstrably resolves and the empty type is a nodata.
 
 ---
 
@@ -761,6 +769,26 @@ Atlassian's `/api/v2/incidents.json` returns at most 50 records and ignores `?pa
 
 `format()` receives only the domain object, which carries no `filter`, `offset`, or backend — so a single static sentence was the most it could say, and that sentence recommended the filter the caller had just used and history from backends that publish none. Widening `output` to carry the call's parameters back into `format()` would put request echo in the domain payload of every response, including the ones that need no explanation. `ctx.enrich.notice()` is the framework's success-path channel for exactly this: it reaches `structuredContent` and the `content[]` trailer without touching the domain contract, and it is written only when there is something to say. `format()`'s empty branch is correspondingly narrowed to stating the empty result, since anything it named would contradict the trailer beside it.
 
+### Why the DNS outcome is a typed enum rather than a message
+
+`queryResolver()` collapsed `ENODATA`, `ENOTFOUND`, and `ESERVFAIL` into one silent "no records of this type", so a domain that does not exist, a resolver that could not answer, and a record that is genuinely absent produced byte-identical output. Those three call for different operator actions — register or fix the name, fix the zone signing or delegation, add the record — and a DNSSEC validation failure is one of the outage causes the tool most needs to name. The outcome is an enum (`status_by_type`, rolled up into `status`) rather than prose in `error` because two consumers branch on it programmatically: the disagreement classifier below needs to tell "this resolver returned nothing" from "this resolver returned something different", and an agent triaging an incident needs a stable value to key on. `nodata` stays the only silent case, since it is a valid DNS answer rather than a failure.
+
+### Why geo-steering is not reported as a propagation mismatch
+
+`findDiscrepancies()` compared resolver answers for exact equality and labelled every difference `Propagation mismatch on <type> records`, asserting an in-flight DNS change the data never established. Anycast and geo-steered domains return different addresses per resolver at steady state — a CDN-fronted hostname trips this on every call while nothing is wrong. The two cases are now separated by `kind`: `partial_resolution` (at least one resolver answered and at least one returned nothing) is the shape that actually indicates propagation lag, a broken resolver, or a partial delegation, and it is flagged; `value_variation` (every resolver answered, values differ) is recorded in `propagation_discrepancies` with its per-resolver values but deliberately not flagged, so it does not read as a fault. Neither value names a cause on its own — the tool reports what it observed and leaves the diagnosis to the reader.
+
+### Why the domain-level flags and error span every resolver
+
+Both were derived from a single resolver: `records` and the "no A or AAAA records found" flag came from `resolverResults[0]`, and the domain `error` took the first erroring resolver's message. A failing primary therefore reported a healthy domain as record-less, and a split outcome — one resolver NXDOMAIN, another SERVFAIL — lost exactly the divergence worth seeing. Flags are now derived from every resolver, grouped per condition and naming the resolvers and record types affected. `records` falls back to the first resolver that answered, with `records_source` naming which one, so the summary is never emptier than the data. The domain-level `error` is reserved for "could not be queried at all" — every resolver failed and none returned records — and lists each resolver's own outcome; a partial failure leaves `error` null and surfaces in `flags` instead.
+
+### Why `chain_depth` is nullable rather than defaulted to 1
+
+`inspectCert()` initialized depth to 1 and walked `getPeerCertificate(true).issuerCertificate`, but that link is not populated on every supported runtime — under Bun it is absent even for CA-issued chains, so an ordinary three-certificate chain collapsed to `chain_depth: 1` while the output contract documented `1` as self-signed. A consumer reading that for a major site concludes "leaf only, no intermediates", which is false. Reading the served chain another way would mean shelling out to `openssl` — a process dependency well out of proportion to one diagnostic field. So the field reports what it can actually measure: a count when the chain is traversable, `null` plus `chain_depth_unavailable_reason` when it is not. A missing number is honest; a wrong one is not. Self-signed detection is detached from depth entirely and now comes from `authorization_error`, which is populated regardless.
+
+### Why hostname and chain trust are read as two separate signals
+
+`inspectCert()` connects with `rejectUnauthorized: false` and overrides `checkServerIdentity` so a broken certificate can still be inspected rather than failing the connection — but the override discarded Node's hostname-validation result, letting a wrong-host certificate report `ok`. `socket.authorized` does not cover the gap: with `checkServerIdentity` overridden it is `true` even for a hostname mismatch, so it reflects chain trust only. The two are therefore read independently — `tls.checkServerIdentity(host, cert)` called explicitly inside the callback (which still returns `undefined` to keep the connection open) for hostname coverage, and `socket.authorizationError` for chain verification, which catches an untrusted root that the issuer-versus-subject heuristic cannot see. Both land at `critical`: a hostname mismatch, a self-signed leaf, and an untrusted root are all hard client-side rejections, the same tier as expiry, which is why self-signed was raised from `warning`.
+
 ### Instruction tool vs. LLM sampling
 
 `devops_suggest_action` could use `ctx.sample` to ask the client's LLM for dynamic guidance. The risk: non-deterministic output, client dependency, potential latency. The value proposition of this tool is predictable, category-specific playbooks — "Cloudflare CDN is down, here are the known mitigation patterns." Static playbook dispatch by vendor category is deterministic, fast, and works in all clients. If `ctx.sample` is present and the vendor/incident is complex, the handler can optionally enrich the response — but the base path is always static.
@@ -778,4 +806,6 @@ Statuspage APIs are designed for polling (vendors use them for their own dashboa
 - **Vendor self-reporting:** Statuspage data is vendor-published. Vendors may lag incident acknowledgment. `devops_check_certs` and `devops_check_dns` provide ground-truth checks that complement self-reported status.
 - **TLS inspection from server host:** `devops_check_certs` connects from wherever the MCP server runs. If the server is hosted, cert checks reflect connectivity from that host — a cert served correctly to the host may still be broken in a specific region. For complete coverage, run the server locally.
 - **DNS propagation scope:** `devops_check_dns` queries three public resolvers. Propagation completeness across all global resolvers requires a larger resolver set or a dedicated propagation service.
+- **No raw DNS response code:** `node:dns` surfaces per-query error codes, not the response rcode, and `ENOTFOUND` covers both NXDOMAIN and an empty answer on some record types. `nxdomain` is therefore inferred — claimed only when every requested type for a resolver returns `ENOTFOUND`. A name that exists with no records of any requested type (an empty non-terminal) is indistinguishable from NXDOMAIN at this layer and reports as `nxdomain`.
+- **Certificate chain depth:** `chain_depth` depends on `getPeerCertificate(true).issuerCertificate`, which the Bun runtime does not populate for a real handshake. On Bun the field is `null` with a reason rather than a count; chain validity is still reported in full via `authorization_error`.
 - **`ctx.state` scope:** Stack configuration persisted by `devops_watch_stack` is tenant-scoped (per client session in stdio mode, per JWT tenant in HTTP mode). Stack configurations do not persist across server restarts in the default memory storage backend.

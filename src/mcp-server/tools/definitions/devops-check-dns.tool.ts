@@ -8,16 +8,24 @@ import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
 import type { DnsResult, RecordType } from '@/services/dns/dns-service.js';
-import { getDnsService } from '@/services/dns/dns-service.js';
+import {
+  DISCREPANCY_KINDS,
+  DNS_QUERY_STATUSES,
+  getDnsService,
+} from '@/services/dns/dns-service.js';
 
 const PROTOCOL_RE = /^https?:\/\//i;
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS'] as const;
 
 export const devopsCheckDns = tool('devops_check_dns', {
   description:
-    'Resolve DNS records and verify propagation for one or more domains across multiple public resolvers. ' +
+    'Resolve DNS records for one or more domains across multiple public resolvers and compare what each resolver returned. ' +
     'Works for any domain — no vendor registry required. ' +
-    'Reports records found (A/AAAA/CNAME/MX/TXT/NS), resolution latency per resolver, and discrepancies between resolvers (propagation gaps).',
+    'Reports records found (A/AAAA/CNAME/MX/TXT/NS), resolution latency per resolver, and a typed outcome per resolver and record type ' +
+    'so "the domain does not exist" (nxdomain), "the resolver could not answer" (servfail), and "no record of this type" (nodata) stay distinguishable. ' +
+    'Resolver disagreements are reported without asserting a cause: partial_resolution (some resolvers answered, others returned nothing) points at a real propagation or resolver problem, ' +
+    'while value_variation (every resolver answered with different values) is the normal steady state for anycast and geo-steered domains. ' +
+    'Pair with devops_check_certs when a domain resolves but TLS to it is failing.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -73,7 +81,13 @@ export const devopsCheckDns = tool('devops_check_dns', {
             records: z
               .record(z.string(), z.array(z.string()))
               .describe(
-                'Resolved records from the primary resolver (first in list). Keyed by record type (A, AAAA, CNAME, MX, TXT, NS).',
+                'Resolved records from a single resolver, keyed by record type (A, AAAA, CNAME, MX, TXT, NS). Taken from the primary resolver (first in "resolvers"), or from the first resolver that returned records when the primary returned none. Read "records_source" for which resolver these came from, and "resolver_results" for the full per-resolver picture.',
+              ),
+            records_source: z
+              .string()
+              .nullable()
+              .describe(
+                'Resolver IP whose answers populated "records", or null when no resolver was queried.',
               ),
             resolver_results: z
               .array(
@@ -87,10 +101,22 @@ export const devopsCheckDns = tool('devops_check_dns', {
                     records: z
                       .record(z.string(), z.array(z.string()))
                       .describe('Records returned by this resolver, keyed by type.'),
+                    status: z
+                      .enum(DNS_QUERY_STATUSES)
+                      .describe(
+                        'Headline outcome for this resolver: "ok" when any requested record type resolved, otherwise the most actionable failure across the requested types (servfail, timeout, refused, error, nxdomain, nodata — in that order). Read "status_by_type" for the per-record-type detail.',
+                      ),
+                    status_by_type: z
+                      .record(z.string(), z.enum(DNS_QUERY_STATUSES))
+                      .describe(
+                        'Outcome for each requested record type, keyed by type. "ok" = records returned; "nodata" = the domain exists but has no record of this type; "nxdomain" = the domain does not exist (check for a typo, an expired registration, or a missing delegation); "servfail" = the resolver could not complete the query, commonly a DNSSEC validation failure; "refused" = the resolver declined; "timeout" = no answer within timeout_ms; "error" = any other failure, described in "error".',
+                      ),
                     error: z
                       .string()
                       .nullable()
-                      .describe('Error message if this resolver failed, or null on success.'),
+                      .describe(
+                        'Failure summary for this resolver in the form "SERVFAIL on A, MX", or null when every requested type either resolved or returned nodata. Nodata is never reported as an error — it is a valid DNS answer.',
+                      ),
                   })
                   .describe('DNS resolution result from one resolver.'),
               )
@@ -99,28 +125,42 @@ export const devopsCheckDns = tool('devops_check_dns', {
               .array(
                 z
                   .object({
-                    record_type: z.string().describe('The DNS record type with differing values.'),
+                    record_type: z.string().describe('The DNS record type resolvers disagreed on.'),
                     resolvers_agree: z
                       .boolean()
-                      .describe('False when resolvers returned different values.'),
+                      .describe('Always false — an entry only exists when resolvers disagreed.'),
+                    kind: z
+                      .enum(DISCREPANCY_KINDS)
+                      .describe(
+                        'What the disagreement is. "partial_resolution" = at least one resolver returned records and at least one returned nothing; this is the signal worth investigating (in-flight propagation, a broken resolver, or a partial delegation) — read "status_by_resolver" for why each empty resolver was empty. "value_variation" = every resolver answered but with different values; this is the expected steady state for anycast and geo-steered domains such as CDN-fronted hostnames, and is also consistent with an in-flight DNS change. Neither value asserts a cause on its own.',
+                      ),
                     values_by_resolver: z
                       .record(z.string(), z.array(z.string()))
-                      .describe('Values reported per resolver IP address.'),
+                      .describe(
+                        'Values reported per resolver IP address. An empty array means that resolver returned no records of this type.',
+                      ),
+                    status_by_resolver: z
+                      .record(z.string(), z.enum(DNS_QUERY_STATUSES))
+                      .describe(
+                        'Outcome for this record type per resolver IP address — explains an empty entry in "values_by_resolver" as nodata, nxdomain, servfail, timeout, refused, or error.',
+                      ),
                   })
-                  .describe('A record type where resolvers returned different values.'),
+                  .describe('A record type where resolvers returned different answers.'),
               )
               .describe(
-                'Record types where resolvers returned different values. Empty when all resolvers agree.',
+                'Record types where resolvers returned different answers, each labelled by "kind". Empty when all resolvers agree.',
               ),
             flags: z
               .array(z.string())
               .describe(
-                'Human-readable observations: "propagation mismatch on A records", "no MX records found", "CNAME detected — further records resolve via the CNAME target", etc.',
+                'Human-readable observations that need attention: "NXDOMAIN from 8.8.8.8, 1.1.1.1 on A, MX — the domain does not exist …", "Partial resolution on A records — 9.9.9.9 (nodata) returned nothing while 8.8.8.8 answered", "No MX records found", "CNAME detected — further records resolve via the CNAME target". A value_variation disagreement is not flagged here — it is reported in "propagation_discrepancies" because it is normal for geo-steered domains.',
               ),
             error: z
               .string()
               .nullable()
-              .describe('Overall error message if the domain could not be queried at all.'),
+              .describe(
+                'Set only when the domain could not be queried at all — every resolver failed and none returned records. Each failing resolver is named with its own outcome ("8.8.8.8: SERVFAIL on A; 1.1.1.1: NXDOMAIN on A") so a split result stays visible. Null when at least one resolver answered; per-resolver failures are still in "resolver_results" and "flags".',
+              ),
           })
           .describe('DNS resolution result for one domain.'),
       )
@@ -191,40 +231,57 @@ export const devopsCheckDns = tool('devops_check_dns', {
   format: (result) => {
     const lines: string[] = [`## DNS Check — ${result.results.length} domain(s)`, ''];
     for (const r of result.results) {
-      const hasIssues = r.propagation_discrepancies.length > 0 || r.flags.length > 0 || r.error;
-      const icon = r.error ? '❌' : hasIssues ? '⚠️' : '✅';
+      /**
+       * A value_variation disagreement on its own is the expected steady state for a geo-steered
+       * domain, so it does not raise the icon — everything in `flags` does.
+       */
+      const needsAttention =
+        r.flags.length > 0 ||
+        r.propagation_discrepancies.some((d) => d.kind === 'partial_resolution');
+      const icon = r.error ? '❌' : needsAttention ? '⚠️' : '✅';
       lines.push(`### ${icon} ${r.domain}`);
       if (r.error) lines.push(`**Error:** ${r.error}`);
       if (r.flags.length > 0) lines.push(`**Flags:** ${r.flags.join(' | ')}`);
 
-      // Records summary from primary resolver
+      // Records summary, naming the resolver they came from
       const recordEntries = Object.entries(r.records);
       if (recordEntries.length > 0) {
-        lines.push('**Records (primary resolver):**');
+        lines.push(`**Records (from ${r.records_source ?? 'no resolver'}):**`);
         for (const [type, values] of recordEntries) {
           lines.push(`- ${type}: ${values.join(', ')}`);
         }
+      } else if (r.records_source) {
+        lines.push(`**Records:** none returned by ${r.records_source}`);
       }
 
-      // Per-resolver breakdown (latency, records, errors)
+      // Per-resolver breakdown (latency, outcome, records, errors)
       lines.push('**Resolver results:**');
       for (const rr of r.resolver_results) {
         lines.push(
-          `- ${rr.resolver}: ${rr.latency_ms} ms${rr.error ? ` (error: ${rr.error})` : ''}`,
+          `- ${rr.resolver}: ${rr.status} in ${rr.latency_ms} ms${rr.error ? ` (${rr.error})` : ''}`,
         );
-        for (const [type, values] of Object.entries(rr.records)) {
-          lines.push(`  - ${type}: ${values.join(', ')}`);
+        for (const [type, status] of Object.entries(rr.status_by_type)) {
+          const values = rr.records[type];
+          lines.push(
+            `  - ${type}: ${status}${values && values.length > 0 ? ` → ${values.join(', ')}` : ''}`,
+          );
         }
       }
 
-      // Propagation discrepancies
+      // Resolver disagreements, labelled by kind
       if (r.propagation_discrepancies.length > 0) {
-        lines.push('**Propagation discrepancies:**');
+        lines.push('**Resolver disagreements:**');
         for (const d of r.propagation_discrepancies) {
-          lines.push(`- ${d.record_type} (resolvers_agree: ${d.resolvers_agree}):`);
+          lines.push(
+            `- ${d.record_type} — ${d.kind} (resolvers_agree: ${d.resolvers_agree})${
+              d.kind === 'value_variation'
+                ? ': every resolver answered with different values — normal for anycast or geo-steered domains, and also consistent with an in-flight DNS change'
+                : ': some resolvers answered and some did not'
+            }`,
+          );
           for (const [resolver, values] of Object.entries(d.values_by_resolver)) {
             lines.push(
-              `  - ${resolver}: ${values.length > 0 ? values.join(', ') : '(no records)'}`,
+              `  - ${resolver} (${d.status_by_resolver[resolver]}): ${values.length > 0 ? values.join(', ') : 'no records'}`,
             );
           }
         }

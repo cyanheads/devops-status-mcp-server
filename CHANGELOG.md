@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.5.7](changelog/0.5.x/0.5.7.md) — 2026-07-30
+
+devops_get_incidents now surfaces nextOffset and discloses when a vendor's own feed capped incident history; empty-result guidance and the status_check/watch_stack component-cap notice reach structuredContent and content[] instead of being silently stripped.
+
 ## [0.5.6](changelog/0.5.x/0.5.6.md) — 2026-07-30
 
 devops_status_check and devops_watch_stack no longer discard a whole batch on one bad vendor entry; devops_status_check gains an unavailable summary bucket; detailed-mode component lists are capped, filterable, and disclosed via enrichment.

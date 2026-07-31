@@ -114,6 +114,69 @@ describe('assertSafeResolverIp (synchronous, no DNS)', () => {
     expect(() => assertSafeResolverIp('2001:4860:4860::8888')).not.toThrow();
   });
 
+  /**
+   * The IPv6 ranges are matched by prefix length over the parsed 128-bit value, not by
+   * string prefix. A string prefix fails in both directions: it swallows every address
+   * that merely starts with the text, and it covers only the part of a range whose
+   * spelling happens to share those characters.
+   */
+  describe('IPv6 range matching (#38)', () => {
+    it('classifies an IPv4-mapped address by the IPv4 it embeds, in both encodings', () => {
+      expect(() => assertSafeResolverIp('::ffff:8.8.8.8')).not.toThrow();
+      expect(() => assertSafeResolverIp('::ffff:808:808')).not.toThrow();
+      expect(() => assertSafeResolverIp('::ffff:127.0.0.1')).toThrow(/IPv4-mapped loopback/);
+      expect(() => assertSafeResolverIp('::ffff:7f00:1')).toThrow(/IPv4-mapped loopback/);
+      expect(() => assertSafeResolverIp('::ffff:10.0.0.1')).toThrow(/IPv4-mapped private/);
+      expect(() => assertSafeResolverIp('::ffff:a00:1')).toThrow(/IPv4-mapped private/);
+    });
+
+    it('covers the whole fe80::/10 link-local span, not just the fe80: spelling', () => {
+      for (const ip of ['fe80::1', 'fe90::1', 'fea0::1', 'febf::1', 'febf:ffff::1']) {
+        expect(() => assertSafeResolverIp(ip)).toThrow(/link-local/);
+      }
+      // febf::/16 is the last link-local block; fec0:: is the deprecated site-local range.
+      expect(() => assertSafeResolverIp('fec0::1')).toThrow(/site-local/);
+    });
+
+    it('blocks multicast (ff00::/8)', () => {
+      expect(() => assertSafeResolverIp('ff02::1')).toThrow(/multicast/);
+      expect(() => assertSafeResolverIp('ff00::')).toThrow(/multicast/);
+      expect(() => assertSafeResolverIp('ffff::1')).toThrow(/multicast/);
+    });
+
+    it('reports IPv4-compatible IPv6 as its own category rather than loopback', () => {
+      const thrown = (ip: string) => {
+        try {
+          assertSafeResolverIp(ip);
+        } catch (err) {
+          return (err as Error).message;
+        }
+        return '';
+      };
+      expect(thrown('::1234:5678')).toMatch(/IPv4-compatible/);
+      expect(thrown('::1234:5678')).not.toMatch(/loopback/);
+      // ::1 and :: sit inside ::/96 but are their own, more specific ranges.
+      expect(thrown('::1')).toMatch(/loopback/);
+      expect(thrown('::')).toMatch(/unspecified/);
+    });
+
+    it('blocks the documentation range (2001:db8::/32)', () => {
+      expect(() => assertSafeResolverIp('2001:db8::1')).toThrow(/documentation/);
+      expect(() => assertSafeResolverIp('2001:db8:ffff::1')).toThrow(/documentation/);
+      expect(() => assertSafeResolverIp('2001:db9::1')).not.toThrow();
+    });
+
+    it('blocks unique-local by the fc00::/7 range, not by the leading characters', () => {
+      expect(() => assertSafeResolverIp('fc00::1')).toThrow(/unique local/);
+      expect(() => assertSafeResolverIp('fd00::1')).toThrow(/unique local/);
+      expect(() => assertSafeResolverIp('fdff:ffff::1')).toThrow(/unique local/);
+      expect(() => assertSafeResolverIp('fb00::1')).not.toThrow();
+      // 00fc:0001:: only spells like fc00::/7 — its first hextet is 0x00fc.
+      expect(() => assertSafeResolverIp('fc:1::')).not.toThrow();
+      expect(() => assertSafeResolverIp('fd:1::')).not.toThrow();
+    });
+  });
+
   it('is a no-op when allowPrivateTargets is true (config-driven)', () => {
     setAllowPrivateTargets(true);
     expect(() => assertSafeResolverIp('127.0.0.1')).not.toThrow();
@@ -174,6 +237,33 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
   it('proceeds normally when DNS lookup fails (network failure is not a security block)', async () => {
     mockLookup.mockRejectedValue(new Error('ENOTFOUND'));
     await expect(assertSafeUrl('https://somepublic.example.com')).resolves.toBeUndefined();
+  });
+
+  /**
+   * A resolved address reaches the range check without passing through `isIP`, so the
+   * IPv6 parser is the only thing standing between malformed text and a pass. It fails
+   * closed: text it cannot parse is blocked rather than assumed public.
+   */
+  it.each(['::ffff:zzzz', '::ffff:1.2.3.999', '::ffff:256.0.0.1', '1::2::3', '12345::1', ':::'])(
+    'blocks the unparsable resolved address %j rather than passing it (#38)',
+    async (address) => {
+      mockAddresses([{ address, family: 6 }]);
+      await expect(assertSafeUrl('http://malformed-answer.example')).rejects.toThrow(
+        'SSRF_BLOCKED',
+      );
+    },
+  );
+
+  it('resolves an IPv4-mapped public address to a pass (#38)', async () => {
+    mockAddresses([{ address: '::ffff:8.8.8.8', family: 6 }]);
+    await expect(assertSafeUrl('http://mapped-public.example')).resolves.toBeUndefined();
+  });
+
+  it('blocks a resolved IPv4-mapped private address by the embedded IPv4 (#38)', async () => {
+    mockAddresses([{ address: '::ffff:169.254.169.254', family: 6 }]);
+    await expect(assertSafeUrl('http://mapped-metadata.example')).rejects.toThrow(
+      /IPv4-mapped link-local \/ cloud-metadata/,
+    );
   });
 
   it('blocks when any resolved address is private (even if others are public)', async () => {

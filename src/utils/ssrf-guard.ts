@@ -41,20 +41,74 @@ const PRIVATE_RANGES: Array<{ base: bigint; mask: bigint; label: string }> = (()
   ];
 })();
 
-/**
- * IPv6 addresses matched whole rather than by prefix. `::` is the unspecified
- * address and routes to the local host, but prefix-matching it would swallow
- * every address that merely starts with `::`.
- */
-const UNSPECIFIED_IPV6 = new Set(['::', '0:0:0:0:0:0:0:0']);
+const IPV6_ALL_ONES = (1n << 128n) - 1n;
 
-/** IPv6 prefixes that are non-public. */
-const PRIVATE_IPV6_PREFIXES: Array<{ prefix: string; label: string }> = [
-  { prefix: '::1', label: 'loopback' },
-  { prefix: 'fc', label: 'unique local (RFC 4193)' },
-  { prefix: 'fd', label: 'unique local (RFC 4193)' },
-  { prefix: 'fe80', label: 'link-local' },
-  { prefix: '::ffff:', label: 'IPv4-mapped' }, // checked separately via parsed v4
+/**
+ * Parse an IPv6 literal to its 128-bit value, or null when the text is not a valid
+ * address. Handles `::` elision and the trailing-dotted-quad forms (`::ffff:127.0.0.1`,
+ * `::1.2.3.4`), which carry the same value as their all-hex spellings — the reason
+ * ranges are matched on the parsed value rather than on the text.
+ */
+function ipv6ToBigInt(ip: string): bigint | null {
+  /** A trailing dotted quad occupies the low two groups; rewrite it as hex first. */
+  let text = ip;
+  const dotted = /^(.*:)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text);
+  if (dotted) {
+    const octets = dotted.slice(2).map((o) => parseInt(o, 10));
+    if (octets.some((o) => o > 255)) return null;
+    const packed = octets.reduce((acc, o) => (acc << 8) | o, 0);
+    text = `${dotted[1]}${((packed >>> 16) & 0xffff).toString(16)}:${(packed & 0xffff).toString(16)}`;
+  }
+
+  const halves = text.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  if (halves.length === 1) {
+    if (head.length !== 8) return null;
+  } else if (head.length + tail.length > 7) {
+    // `::` stands for at least one all-zero group, so the explicit groups cannot fill all 8.
+    return null;
+  }
+
+  const groups = [...head, ...Array<string>(8 - head.length - tail.length).fill('0'), ...tail];
+  let value = 0n;
+  for (const group of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(group)) return null;
+    value = (value << 16n) | BigInt(parseInt(group, 16));
+  }
+  return value;
+}
+
+/** Build a prefix-length matcher from an IPv6 CIDR string. */
+function cidr6(cidr: string, label: string): { base: bigint; mask: bigint; label: string } {
+  const [ip, bits] = cidr.split('/') as [string, string];
+  const base = ipv6ToBigInt(ip);
+  if (base === null) throw new Error(`Unparsable IPv6 CIDR in the SSRF range table: ${cidr}`);
+  const mask = (IPV6_ALL_ONES << BigInt(128 - parseInt(bits, 10))) & IPV6_ALL_ONES;
+  return { base: base & mask, mask, label };
+}
+
+/**
+ * `::ffff:0:0/96` — matched ahead of the table below because an IPv4-mapped address is
+ * classified by the IPv4 it embeds, not by the prefix: `::ffff:8.8.8.8` is public.
+ */
+const IPV4_MAPPED_RANGE = cidr6('::ffff:0:0/96', 'IPv4-mapped');
+
+/**
+ * IPv6 ranges that are non-public, matched by prefix length over the parsed 128-bit
+ * value — the same shape PRIVATE_RANGES uses for IPv4. Ordered most-specific first:
+ * `::/128` and `::1/128` both sit inside `::/96`, which is a distinct category.
+ */
+const PRIVATE_IPV6_RANGES: Array<{ base: bigint; mask: bigint; label: string }> = [
+  cidr6('::/128', 'unspecified (routes to the local host)'),
+  cidr6('::1/128', 'loopback'),
+  cidr6('::/96', 'IPv4-compatible (deprecated, RFC 4291)'),
+  cidr6('fc00::/7', 'unique local (RFC 4193)'),
+  cidr6('fe80::/10', 'link-local'),
+  cidr6('fec0::/10', 'site-local (deprecated, RFC 3879)'),
+  cidr6('ff00::/8', 'multicast'),
+  cidr6('2001:db8::/32', 'documentation (RFC 3849)'),
 ];
 
 /** Returns true if the IPv4 address string falls in a private/reserved range. */
@@ -72,15 +126,18 @@ function isPrivateIPv4(ip: string): string | null {
 /** Returns true if the IPv6 address string falls in a private/reserved range. */
 function isPrivateIPv6(ip: string): string | null {
   const normalized = ip.toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
-  if (UNSPECIFIED_IPV6.has(normalized)) return 'unspecified (routes to the local host)';
-  for (const { prefix, label } of PRIVATE_IPV6_PREFIXES) {
-    if (normalized === prefix || normalized.startsWith(prefix)) return label;
+  const value = ipv6ToBigInt(normalized);
+  // Fail closed: text that does not parse is never asserted to be public.
+  if (value === null) return 'unparsable IPv6 address';
+
+  if ((value & IPV4_MAPPED_RANGE.mask) === IPV4_MAPPED_RANGE.base) {
+    const embedded = [24n, 16n, 8n, 0n].map((shift) => Number((value >> shift) & 0xffn)).join('.');
+    const label = isPrivateIPv4(embedded);
+    return label ? `IPv4-mapped ${label}` : null;
   }
-  // IPv4-mapped: ::ffff:10.0.0.1
-  const v4MappedMatch = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(normalized);
-  if (v4MappedMatch?.[1]) {
-    const label = isPrivateIPv4(v4MappedMatch[1]);
-    if (label) return `IPv4-mapped ${label}`;
+
+  for (const { base, mask, label } of PRIVATE_IPV6_RANGES) {
+    if ((value & mask) === base) return label;
   }
   return null;
 }

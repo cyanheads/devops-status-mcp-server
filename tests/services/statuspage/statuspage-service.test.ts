@@ -292,6 +292,33 @@ describe('StatuspageService', () => {
   });
 
   /**
+   * A page publishes `status.indicator: "maintenance"` for the duration of an open
+   * window (verified live on brevo). It sits outside the severity ladder, and
+   * rejecting it failed the entire payload — reporting a well-formed, reachable
+   * page as not a Statuspage at all.
+   */
+  it('accepts a summary whose status indicator is "maintenance" (#44)', async () => {
+    const underMaintenance = {
+      ...MOCK_SUMMARY,
+      status: { indicator: 'maintenance', description: 'Under Maintenance' },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: vi.fn().mockResolvedValue(underMaintenance),
+      }),
+    );
+    const service = new StatuspageService();
+    const { data } = await service.fetchSummary(freshUrl());
+
+    expect(data.status.indicator).toBe('maintenance');
+    expect(data.status.description).toBe('Under Maintenance');
+  });
+
+  /**
    * A page with nothing to report may omit `incidents` / `scheduled_maintenances`
    * entirely instead of sending `[]` (openai, clerk, cohere, brevo, elevenlabs,
    * planetscale all do). Requiring the keys would reject a healthy live page.

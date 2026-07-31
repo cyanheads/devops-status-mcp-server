@@ -28,7 +28,7 @@ import type {
   StatuspageIncidentsResponse,
   StatuspagePage,
   StatuspageScheduledMaintenancesResponse,
-  StatuspageStatus,
+  StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
@@ -82,7 +82,7 @@ export function decodeUtf16(buf: ArrayBuffer): string {
 // --- Mappings ---
 
 /** Empirical severity mapping — see module fileoverview for the rationale. */
-function statusToImpact(status: string | number | undefined): StatuspageStatus['indicator'] {
+function statusToImpact(status: string | number | undefined): StatuspageSeverityIndicator {
   switch (String(status)) {
     case '0':
       return 'none';
@@ -169,7 +169,7 @@ export function mapAwsEvent(event: AwsEvent, target: AwsTarget): StatuspageIncid
 /** Normalize the open-events feed into a Statuspage summary. */
 export function mapAwsSummary(events: AwsEvent[], target: AwsTarget): StatuspageSummaryResponse {
   const incidents = (events ?? []).map((e) => mapAwsEvent(e, target));
-  let indicator: StatuspageStatus['indicator'] = 'none';
+  let indicator: StatuspageSeverityIndicator = 'none';
   for (const inc of incidents) {
     if (inc.impact !== 'maintenance' && SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator])
       indicator = inc.impact;

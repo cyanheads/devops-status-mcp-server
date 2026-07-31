@@ -49,9 +49,9 @@ export const VendorResultSchema = z
     vendor: z.string().describe('Vendor slug or URL as provided.'),
     name: z.string().describe('Display name of the vendor.'),
     indicator: z
-      .enum(['none', 'minor', 'major', 'critical'])
+      .enum(['none', 'minor', 'major', 'critical', 'maintenance'])
       .describe(
-        'Overall health indicator: none = all clear, minor = some degradation, major = significant outage, critical = complete outage.',
+        'Overall health indicator: none = all clear, minor = some degradation, major = significant outage, critical = complete outage, maintenance = scheduled window in progress, planned rather than a fault.',
       ),
     description: z
       .string()
@@ -69,7 +69,9 @@ export const VendorResultSchema = z
           })
           .describe('A degraded component entry.'),
       )
-      .describe('Components not in operational state. Empty when all clear.'),
+      .describe(
+        'Every component not in an operational state, uncapped — a vendor with a large edge-node fleet routinely publishes dozens. Includes in-progress maintenance windows (status under_maintenance) alongside genuine outages; read status to tell a planned window from a fault. Empty when all clear.',
+      ),
     active_incidents: z
       .array(
         z
@@ -145,23 +147,76 @@ export const VendorResultSchema = z
 
 export type VendorResult = z.infer<typeof VendorResultSchema>;
 
+type DegradedStatus = VendorResult['degraded_components'][number]['status'];
+
+/**
+ * Degraded statuses in the order they are rendered — worst first, with the scheduled
+ * window last. `under_maintenance` is a planned window rather than a fault, so it is
+ * grouped and marked separately instead of reading as one more outage in the list.
+ */
+const DEGRADED_STATUS_ORDER = [
+  'major_outage',
+  'partial_outage',
+  'degraded_performance',
+  'under_maintenance',
+] as const satisfies readonly DegradedStatus[];
+
+const DEGRADED_STATUS_MARKER: Record<DegradedStatus, string> = {
+  major_outage: '🔴',
+  partial_outage: '⚠️',
+  degraded_performance: '⚠️',
+  under_maintenance: '🛠️',
+};
+
+/**
+ * Render the degraded-component block: a count-led headline with the per-status
+ * breakdown, then every component on its own line under its status.
+ *
+ * Nothing is capped. A vendor with a large edge-node fleet publishes dozens of
+ * non-operational components and those are the signal this tool exists to surface —
+ * dropping any of them would hide an outage. The list is grouped and counted so a
+ * long one stays readable rather than shortened.
+ */
+function renderDegradedComponents(components: VendorResult['degraded_components']): string[] {
+  const grouped = DEGRADED_STATUS_ORDER.map(
+    (status) => [status, components.filter((c) => c.status === status).map((c) => c.name)] as const,
+  ).filter(([, names]) => names.length > 0);
+
+  const lines = [
+    `**Degraded (${components.length}):** ${grouped.map(([status, names]) => `${names.length} ${status}`).join(', ')}`,
+  ];
+  for (const [status, names] of grouped) {
+    lines.push(
+      `**${status} (${names.length})${status === 'under_maintenance' ? ' — scheduled window, not an outage' : ''}:**`,
+    );
+    for (const name of names) lines.push(`- ${DEGRADED_STATUS_MARKER[status]} ${name}`);
+  }
+  return lines;
+}
+
+/**
+ * Status icon per indicator. A record rather than a ternary chain so a new
+ * indicator is a compile error here instead of falling through to the wrong glyph.
+ * `maintenance` reuses the 🛠️ the degraded-component list already marks scheduled
+ * windows with, so a planned window reads the same wherever it appears.
+ */
+const INDICATOR_ICON: Record<VendorResult['indicator'], string> = {
+  none: '✅',
+  minor: '⚠️',
+  major: '⚠️',
+  critical: '🔴',
+  maintenance: '🛠️',
+};
+
 /** Render a vendor result block for use in format(). */
 export function renderVendorBlock(v: VendorResult): string[] {
   const lines: string[] = [];
-  const icon = v.error
-    ? '❓'
-    : v.indicator === 'none'
-      ? '✅'
-      : v.indicator === 'critical'
-        ? '🔴'
-        : '⚠️';
+  const icon = v.error ? '❓' : INDICATOR_ICON[v.indicator];
   lines.push(`### ${icon} ${v.name} (${v.vendor})`);
   lines.push(`**Status:** ${v.description} | **Indicator:** ${v.indicator}`);
   if (v.error) lines.push(`**Error:** ${v.error}`);
   if (v.degraded_components.length > 0) {
-    lines.push(
-      `**Degraded:** ${v.degraded_components.map((c) => `${c.name} (${c.status})`).join(', ')}`,
-    );
+    lines.push(...renderDegradedComponents(v.degraded_components));
   }
   if (v.active_incidents.length > 0) {
     for (const inc of v.active_incidents) {
@@ -226,15 +281,20 @@ export type VendorSummary = {
   operational: number;
   degraded: number;
   down: number;
+  maintenance: number;
   unavailable: number;
 };
 
 /**
- * Count vendors into the four aggregate buckets.
+ * Count vendors into the five aggregate buckets.
  *
  * One definition for both tools: a vendor carrying `error` — unresolvable slug,
  * blocked target, or failed fetch — is `unavailable`, never `operational`, so
- * `operational + degraded + down + unavailable === total` always holds.
+ * `operational + degraded + down + maintenance + unavailable === total` always
+ * holds. `maintenance` is its own bucket rather than folded into `degraded`:
+ * the vendor published a planned window, and counting it as a fault would put a
+ * scheduled window in the same number as an outage. Every indicator maps to a
+ * bucket — a vendor absent from all of them would silently leave the totals.
  */
 export function summarizeVendorResults(results: readonly VendorResult[]): VendorSummary {
   return {
@@ -242,6 +302,7 @@ export function summarizeVendorResults(results: readonly VendorResult[]): Vendor
     operational: results.filter((r) => r.indicator === 'none' && !r.error).length,
     degraded: results.filter((r) => r.indicator === 'minor' || r.indicator === 'major').length,
     down: results.filter((r) => r.indicator === 'critical').length,
+    maintenance: results.filter((r) => r.indicator === 'maintenance').length,
     unavailable: results.filter((r) => r.error !== undefined).length,
   };
 }

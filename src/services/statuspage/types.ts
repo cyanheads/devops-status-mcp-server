@@ -14,9 +14,22 @@ export interface StatuspagePage {
   url: string;
 }
 
+/**
+ * The severity ladder an outage is rated on. The native adapters synthesize an
+ * indicator by ranking incident impacts and skip maintenance records while doing
+ * it, so they only ever produce a value from this ladder — `maintenance` reaches
+ * a caller from a Statuspage page's own `status` block, never from a mapper.
+ */
+export type StatuspageSeverityIndicator = 'none' | 'minor' | 'major' | 'critical';
+
 export interface StatuspageStatus {
   description: string;
-  indicator: 'none' | 'minor' | 'major' | 'critical';
+  /**
+   * Statuspage publishes `maintenance` here for the duration of an open
+   * maintenance window — off the severity ladder, and a planned window rather
+   * than a fault. Verified live on brevo.
+   */
+  indicator: StatuspageSeverityIndicator | 'maintenance';
 }
 
 /**
@@ -160,7 +173,12 @@ const IncidentSchema = z.object({
 export const StatuspageSummaryResponseSchema = z.object({
   page: PageSchema,
   status: z.object({
-    indicator: z.enum(['none', 'minor', 'major', 'critical']),
+    /**
+     * `maintenance` is not on the severity ladder but a page publishes it while a
+     * window is open (verified live on brevo). Rejecting it failed the whole
+     * payload and reported a healthy, well-formed page as not a Statuspage at all.
+     */
+    indicator: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']),
     description: z.string(),
   }),
   components: z.array(ComponentSchema),

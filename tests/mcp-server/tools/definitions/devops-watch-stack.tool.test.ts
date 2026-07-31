@@ -172,8 +172,8 @@ describe('devopsWatchStack', () => {
     expect(result.vendors[1]!.error).toContain('is not a known vendor slug');
     expect(result.summary.unavailable).toBe(1);
     expect(result.summary.operational).toBe(2);
-    const { total, operational, degraded, down, unavailable } = result.summary;
-    expect(operational + degraded + down + unavailable).toBe(total);
+    const { total, operational, degraded, down, maintenance, unavailable } = result.summary;
+    expect(operational + degraded + down + maintenance + unavailable).toBe(total);
     // An unchecked vendor can never roll up green.
     expect(result.health).toBe('unknown');
 
@@ -191,6 +191,50 @@ describe('devopsWatchStack', () => {
     expect(replay.omitted_vendors).toEqual([]);
     expect(replay.summary.unavailable).toBe(0);
     expect(replay.health).toBe('all_operational');
+  });
+
+  it('renders degraded components grouped by status through the shared renderer (#39)', async () => {
+    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    const component = (id: string, name: string, status: string) => ({
+      id,
+      name,
+      status,
+      group: false,
+      group_id: null,
+      description: null,
+      position: 1,
+      showcase: true,
+      only_show_if_degraded: false,
+      created_at: '',
+      updated_at: '',
+    });
+    const MIXED_DEGRADED = {
+      ...OPERATIONAL_SUMMARY,
+      status: { indicator: 'major', description: 'Partial System Outage' },
+      components: [
+        component('c1', 'Git Operations', 'major_outage'),
+        component('c2', 'Actions', 'partial_outage'),
+        component('c3', 'Packages Registry', 'under_maintenance'),
+      ],
+    } as StatuspageSummaryResponse;
+    _mockFetchSummary.mockResolvedValue({ data: MIXED_DEGRADED, cached: false });
+
+    const ctx = createMockContext({ tenantId: 'degraded-stack', errors: devopsWatchStack.errors });
+    const result = await devopsWatchStack.handler(
+      devopsWatchStack.input.parse({ vendors: ['github'], stack_name: 'degraded' }),
+      ctx,
+    );
+    const text = (devopsWatchStack.format!(result)[0] as { text: string }).text;
+
+    expect(text).toContain(
+      '**Degraded (3):** 1 major_outage, 1 partial_outage, 1 under_maintenance',
+    );
+    expect(text).toContain('- 🔴 Git Operations');
+    expect(text).toContain('- ⚠️ Actions');
+    expect(text).toContain('**under_maintenance (1) — scheduled window, not an outage:**');
+    expect(text).toContain('- 🛠️ Packages Registry');
   });
 
   it('caps detailed components per vendor and discloses the omission (#36)', async () => {
@@ -393,6 +437,87 @@ describe('devopsWatchStack', () => {
     expect(r2.health).toBe('partial_outage');
   });
 
+  /**
+   * A vendor publishing `indicator: "maintenance"` gets its own rung: below every
+   * outage rung and below unknown, above all_operational, which stays reserved for
+   * a stack with nothing open at all.
+   */
+  describe('health rung for a vendor in a maintenance window (#44)', () => {
+    const MAINTENANCE_SUMMARY: StatuspageSummaryResponse = {
+      ...OPERATIONAL_SUMMARY,
+      status: { indicator: 'maintenance', description: 'Under Maintenance' },
+    };
+
+    async function mockSummary() {
+      return (await import('@/services/statuspage/statuspage-service.js')) as {
+        _mockFetchSummary: ReturnType<typeof vi.fn>;
+      };
+    }
+
+    it('rolls up as maintenance, not all_operational and not an outage', async () => {
+      const { _mockFetchSummary } = await mockSummary();
+      _mockFetchSummary.mockResolvedValue({ data: MAINTENANCE_SUMMARY, cached: false });
+
+      const ctx = createMockContext({ tenantId: 'maint-stack', errors: devopsWatchStack.errors });
+      const result = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: ['brevo'], stack_name: 'maint' }),
+        ctx,
+      );
+
+      expect(result.health).toBe('maintenance');
+      expect(result.summary.maintenance).toBe(1);
+      expect(result.summary.operational).toBe(0);
+      expect(result.summary.degraded).toBe(0);
+      const { total, operational, degraded, down, maintenance, unavailable } = result.summary;
+      expect(operational + degraded + down + maintenance + unavailable).toBe(total);
+      // The rollup has to survive the declared output contract, not just the handler.
+      expect(() => devopsWatchStack.output.parse(result)).not.toThrow();
+
+      const text = (devopsWatchStack.format!(result)[0] as { text: string }).text;
+      expect(text).toContain('🛠️ Stack "maint" — maintenance');
+      expect(text).toContain('1 maintenance');
+      expect(text).toContain('### 🛠️');
+    });
+
+    it('does not mask a real outage elsewhere in the stack', async () => {
+      const { _mockFetchSummary } = await mockSummary();
+      _mockFetchSummary
+        .mockResolvedValueOnce({ data: MAINTENANCE_SUMMARY, cached: false })
+        .mockResolvedValueOnce({ data: CRITICAL_SUMMARY, cached: false });
+
+      const ctx = createMockContext({ tenantId: 'maint-crit', errors: devopsWatchStack.errors });
+      const result = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({
+          vendors: ['brevo', 'cloudflare'],
+          stack_name: 'maint-and-outage',
+        }),
+        ctx,
+      );
+
+      expect(result.health).toBe('major_outage');
+      expect(result.summary.maintenance).toBe(1);
+      expect(result.summary.down).toBe(1);
+    });
+
+    it('ranks below unknown — an unchecked vendor still dominates the rollup', async () => {
+      const { _mockFetchSummary } = await mockSummary();
+      _mockFetchSummary.mockResolvedValue({ data: MAINTENANCE_SUMMARY, cached: false });
+
+      const ctx = createMockContext({ tenantId: 'maint-unknown', errors: devopsWatchStack.errors });
+      const result = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({
+          vendors: ['brevo', 'unknown-xyz-999'],
+          stack_name: 'maint-and-unknown',
+        }),
+        ctx,
+      );
+
+      expect(result.health).toBe('unknown');
+      expect(result.summary.maintenance).toBe(1);
+      expect(result.summary.unavailable).toBe(1);
+    });
+  });
+
   it('errored vendors force health = unknown, count as unavailable, and never roll up as all_operational', async () => {
     const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
@@ -417,8 +542,8 @@ describe('devopsWatchStack', () => {
     expect(result.summary.operational).toBe(0);
     expect(result.summary.unavailable).toBe(1);
     // Every vendor lands in exactly one bucket, so the buckets sum to total.
-    const { total, operational, degraded, down, unavailable } = result.summary;
-    expect(operational + degraded + down + unavailable).toBe(total);
+    const { total, operational, degraded, down, maintenance, unavailable } = result.summary;
+    expect(operational + degraded + down + maintenance + unavailable).toBe(total);
 
     // The rendered header must not claim green either.
     const text = (devopsWatchStack.format!(result)[0] as { text: string }).text;

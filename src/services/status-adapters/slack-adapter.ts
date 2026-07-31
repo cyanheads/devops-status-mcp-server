@@ -16,7 +16,7 @@ import type {
   StatuspageIncidentsResponse,
   StatuspagePage,
   StatuspageScheduledMaintenancesResponse,
-  StatuspageStatus,
+  StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchJsonCached } from '@/utils/cached-fetch.js';
@@ -62,7 +62,7 @@ export interface SlackTarget {
 
 const SEVERITY_RANK = { none: 0, minor: 1, major: 2, critical: 3 } as const;
 
-function typeToImpact(type: string | undefined): StatuspageStatus['indicator'] {
+function typeToImpact(type: string | undefined): StatuspageSeverityIndicator {
   switch (type) {
     case 'outage':
       return 'critical';
@@ -130,7 +130,7 @@ export function mapSlackIncident(item: SlackIncident, target: SlackTarget): Stat
 export function mapSlackSummary(raw: SlackCurrent, target: SlackTarget): StatuspageSummaryResponse {
   const active = (raw.active_incidents ?? []).map((i) => mapSlackIncident(i, target));
   const ok = raw.status === 'ok';
-  let indicator: StatuspageStatus['indicator'] = 'none';
+  let indicator: StatuspageSeverityIndicator = 'none';
   if (!ok) {
     indicator = 'minor'; // active but empty/unknown incident list — at least a degradation
     for (const inc of active) {

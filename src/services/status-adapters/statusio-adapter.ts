@@ -22,7 +22,7 @@ import type {
   StatuspageIncidentsResponse,
   StatuspagePage,
   StatuspageScheduledMaintenancesResponse,
-  StatuspageStatus,
+  StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchJsonCached } from '@/utils/cached-fetch.js';
@@ -84,7 +84,7 @@ export interface StatusioTarget {
 
 // --- Code mappings ---
 
-function severityToIndicator(code: number | undefined): StatuspageStatus['indicator'] {
+function severityToIndicator(code: number | undefined): StatuspageSeverityIndicator {
   switch (code) {
     case 100:
       return 'none';

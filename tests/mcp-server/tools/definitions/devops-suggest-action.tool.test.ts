@@ -208,7 +208,9 @@ describe('devopsSuggestAction', () => {
 
     it('tailors the severity framing per indicator value', () => {
       const ctx = createMockContext();
-      for (const indicator of ['none', 'minor', 'major', 'critical'] as const) {
+      // Every value devops_status_check can report, so an indicator copied out of a
+      // status result is always accepted here and always has framing behind it.
+      for (const indicator of ['none', 'minor', 'major', 'critical', 'maintenance'] as const) {
         const input = devopsSuggestAction.input.parse({
           vendor: 'github',
           vendor_indicator: indicator,
@@ -216,6 +218,21 @@ describe('devopsSuggestAction', () => {
         const result = devopsSuggestAction.handler(input, ctx);
         expect(result.guidance).toContain(`Reported severity: ${indicator}`);
       }
+    });
+
+    it('frames a maintenance indicator as a planned window, not an outage (#44)', () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'brevo',
+        vendor_indicator: 'maintenance',
+      });
+      const result = devopsSuggestAction.handler(input, ctx);
+
+      expect(result.diagnostics_summary.vendor_indicator).toBe('maintenance');
+      expect(result.guidance.startsWith('**Reported severity: maintenance')).toBe(true);
+      expect(result.guidance).toContain('scheduled window');
+      // The advice is to wait the window out, not to execute an outage response.
+      expect(result.guidance).toContain('waiting it out');
     });
 
     it('returns null indicator and unmodified guidance when omitted', () => {

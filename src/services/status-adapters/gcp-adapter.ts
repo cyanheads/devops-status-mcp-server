@@ -45,7 +45,7 @@ import type {
   StatuspageIncidentsResponse,
   StatuspagePage,
   StatuspageScheduledMaintenancesResponse,
-  StatuspageStatus,
+  StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
@@ -115,7 +115,7 @@ export interface GcpTarget {
 const SEVERITY_RANK = { none: 0, minor: 1, major: 2, critical: 3 } as const;
 
 /** Google Cloud severity → normalized indicator; see module fileoverview. */
-function severityToImpact(severity: string | undefined): StatuspageStatus['indicator'] {
+function severityToImpact(severity: string | undefined): StatuspageSeverityIndicator {
   switch (severity) {
     case 'low':
       return 'minor';
@@ -220,7 +220,7 @@ export function mapGcpIncident(incident: GcpIncident, target: GcpTarget): Status
 
 /** Component status for a product carried by an active incident of this impact. */
 function impactToComponentStatus(
-  impact: StatuspageStatus['indicator'],
+  impact: StatuspageSeverityIndicator,
 ): StatuspageComponent['status'] {
   switch (impact) {
     case 'critical':
@@ -247,8 +247,8 @@ export function mapGcpSummary(
 
   // One component per product touched by an active incident, at the worst
   // impact affecting it — a product named by two incidents appears once.
-  let indicator: StatuspageStatus['indicator'] = 'none';
-  const worstByProduct = new Map<string, { name: string; impact: StatuspageStatus['indicator'] }>();
+  let indicator: StatuspageSeverityIndicator = 'none';
+  const worstByProduct = new Map<string, { name: string; impact: StatuspageSeverityIndicator }>();
   for (const incident of active) {
     const impact = severityToImpact(incident.severity);
     if (SEVERITY_RANK[impact] > SEVERITY_RANK[indicator]) indicator = impact;

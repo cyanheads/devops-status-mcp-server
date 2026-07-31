@@ -148,6 +148,53 @@ function pageWithComponents(count: number, extraNames: string[] = []): Statuspag
   };
 }
 
+/**
+ * A page publishing the non-operational fleet an edge network routinely has open:
+ * dozens of components across several statuses, with in-progress maintenance windows
+ * sitting in the same list as genuine outages.
+ */
+function pageWithDegradedFleet(): StatuspageSummaryResponse {
+  const entries: Array<[string, 'major_outage' | 'partial_outage' | 'under_maintenance']> = [
+    ...Array.from({ length: 2 }, (_, i) => [`Edge Major ${i + 1}`, 'major_outage'] as const),
+    ...Array.from(
+      { length: 26 },
+      (_, i) => [`Edge Partial ${String(i + 1).padStart(2, '0')}`, 'partial_outage'] as const,
+    ),
+    ...Array.from(
+      { length: 20 },
+      (_, i) => [`Edge Maint ${String(i + 1).padStart(2, '0')}`, 'under_maintenance'] as const,
+    ),
+  ];
+  return {
+    ...ALL_OPERATIONAL,
+    status: { indicator: 'major', description: 'Partial System Outage' },
+    components: [
+      {
+        id: 'grp-edge',
+        name: 'Edge Network',
+        status: 'major_outage',
+        group: true,
+        position: 0,
+        created_at: '',
+        updated_at: '',
+      },
+      ...entries.map(([name, status], i) => ({
+        id: `cmp-${i}`,
+        name,
+        status,
+        group: false,
+        group_id: 'grp-edge',
+        description: null,
+        position: i + 1,
+        showcase: true,
+        only_show_if_degraded: false,
+        created_at: '',
+        updated_at: '',
+      })),
+    ],
+  };
+}
+
 beforeAll(() => {
   initVendorRegistryService();
 });
@@ -245,8 +292,8 @@ describe('devopsStatusCheck', () => {
     expect(result.summary.total).toBe(4);
     expect(result.summary.operational).toBe(2);
     expect(result.summary.unavailable).toBe(2);
-    const { total, operational, degraded, down, unavailable } = result.summary;
-    expect(operational + degraded + down + unavailable).toBe(total);
+    const { total, operational, degraded, down, maintenance, unavailable } = result.summary;
+    expect(operational + degraded + down + maintenance + unavailable).toBe(total);
 
     // The headline discloses the unavailable count instead of dropping it (#23).
     const text = (devopsStatusCheck.format!(result)[0] as { text: string }).text;
@@ -270,11 +317,65 @@ describe('devopsStatusCheck', () => {
     const result = await devopsStatusCheck.handler(input, ctx);
 
     expect(result.summary.unavailable).toBe(1);
-    const { total, operational, degraded, down, unavailable } = result.summary;
-    expect(operational + degraded + down + unavailable).toBe(total);
+    const { total, operational, degraded, down, maintenance, unavailable } = result.summary;
+    expect(operational + degraded + down + maintenance + unavailable).toBe(total);
     expect((devopsStatusCheck.format!(result)[0] as { text: string }).text).toContain(
       '1 unavailable',
     );
+  });
+
+  describe('degraded component rendering (#39)', () => {
+    async function renderDegradedFleet() {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchSummary: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchSummary.mockResolvedValue({ data: pageWithDegradedFleet(), cached: false });
+
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const input = devopsStatusCheck.input.parse({ vendors: ['cloudflare'] });
+      const result = await devopsStatusCheck.handler(input, ctx);
+      return { result, text: (devopsStatusCheck.format!(result)[0] as { text: string }).text };
+    }
+
+    it('leads with the count and the per-status breakdown', async () => {
+      const { result, text } = await renderDegradedFleet();
+      expect(result.results[0]!.degraded_components).toHaveLength(48);
+      expect(text).toContain(
+        '**Degraded (48):** 2 major_outage, 26 partial_outage, 20 under_maintenance',
+      );
+    });
+
+    it('renders every component on its own line, uncapped, not one comma-joined paragraph', async () => {
+      const { text } = await renderDegradedFleet();
+      // The old renderer put every entry on the `**Degraded:**` line as `name (status)`.
+      expect(text).not.toContain('Edge Partial 01 (partial_outage),');
+      const componentLines = text
+        .split('\n')
+        .filter((l) => l.startsWith('- ') && l.includes('Edge'));
+      // One line each, none dropped — degraded components are never capped.
+      expect(componentLines).toHaveLength(48);
+      expect(text).toContain('Edge Partial 01');
+      expect(text).toContain('Edge Partial 26');
+      expect(text).toContain('Edge Maint 20');
+      expect(text).toContain('Edge Major 2');
+    });
+
+    it('marks a scheduled maintenance window apart from a genuine outage', async () => {
+      const { text } = await renderDegradedFleet();
+      expect(text).toContain('**under_maintenance (20) — scheduled window, not an outage:**');
+      expect(text).toContain('- 🛠️ Edge Maint 01');
+      expect(text).toContain('- 🔴 Edge Major 1');
+      expect(text).toContain('- ⚠️ Edge Partial 01');
+      // Worst first, scheduled last.
+      expect(text.indexOf('**major_outage (2)')).toBeLessThan(
+        text.indexOf('**partial_outage (26)'),
+      );
+      expect(text.indexOf('**partial_outage (26)')).toBeLessThan(
+        text.indexOf('**under_maintenance (20)'),
+      );
+    });
   });
 
   it('caps detailed components per vendor and discloses the omission (#36)', async () => {
@@ -491,6 +592,81 @@ describe('devopsStatusCheck', () => {
     expect(result.results[0]!.indicator).toBe('critical');
     expect(result.summary.down).toBe(1);
     expect(result.summary.operational).toBe(0);
+  });
+
+  /**
+   * A page publishes `indicator: "maintenance"` while a window is open. It is
+   * neither a fault nor all-clear, so it carries through to its own bucket and
+   * its own icon rather than being folded into an existing one.
+   */
+  describe('indicator: maintenance (#44)', () => {
+    const MAINTENANCE_RESPONSE: StatuspageSummaryResponse = {
+      ...ALL_OPERATIONAL,
+      status: { indicator: 'maintenance', description: 'Under Maintenance' },
+      components: [
+        {
+          id: 'c1',
+          name: 'Transactional Email',
+          status: 'under_maintenance',
+          group: false,
+          group_id: null,
+          description: null,
+          position: 1,
+          showcase: true,
+          only_show_if_degraded: false,
+          created_at: '',
+          updated_at: '',
+        },
+      ],
+    };
+
+    async function checkMaintenanceVendor() {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchSummary: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchSummary.mockResolvedValue({ data: MAINTENANCE_RESPONSE, cached: false });
+
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const input = devopsStatusCheck.input.parse({ vendors: ['brevo'] });
+      return await devopsStatusCheck.handler(input, ctx);
+    }
+
+    it('carries the published indicator through to the caller, unmapped', async () => {
+      const result = await checkMaintenanceVendor();
+
+      expect(result.results[0]!.indicator).toBe('maintenance');
+      expect(result.results[0]!.description).toBe('Under Maintenance');
+      expect(result.results[0]!.error).toBeUndefined();
+      // The value has to survive the declared output contract, not just the handler.
+      expect(() => devopsStatusCheck.output.parse(result)).not.toThrow();
+    });
+
+    it('lands in the maintenance bucket only, and the buckets still partition', async () => {
+      const result = await checkMaintenanceVendor();
+
+      expect(result.summary.maintenance).toBe(1);
+      expect(result.summary.operational).toBe(0);
+      expect(result.summary.degraded).toBe(0);
+      expect(result.summary.down).toBe(0);
+      expect(result.summary.unavailable).toBe(0);
+      const { total, operational, degraded, down, maintenance, unavailable } = result.summary;
+      expect(operational + degraded + down + maintenance + unavailable).toBe(total);
+    });
+
+    it('renders with the scheduled-window icon and discloses the count', async () => {
+      const result = await checkMaintenanceVendor();
+      const text = (devopsStatusCheck.format!(result)[0] as { text: string }).text;
+
+      // Same glyph the degraded-component list marks a scheduled window with.
+      expect(text).toContain('### 🛠️');
+      expect(text).toContain('**Indicator:** maintenance');
+      expect(text).toContain('1 maintenance');
+      // Not an outage and not all clear.
+      expect(text).not.toContain('### 🔴');
+      expect(text).not.toContain('### ✅');
+    });
   });
 
   it('indicator: major maps to degraded count in summary', async () => {

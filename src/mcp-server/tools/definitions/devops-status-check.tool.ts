@@ -21,7 +21,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
     'Check the current health status for one or more vendors. Accepts registered vendor slugs ' +
     '(e.g., "github", "aws", "gcp", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served ' +
     "by each vendor's native status API (Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, Firehydrant) and normalized to one shape. " +
-    'Returns per-vendor operational indicator (none = all clear, minor, major, critical), degraded components, and active incidents. ' +
+    'Returns per-vendor operational indicator (none = all clear, minor, major, critical, maintenance = scheduled window), degraded components, and active incidents. ' +
     'Use mode: "detailed" for component lists and maintenance windows, narrowed with component_filter and bounded by component_limit. ' +
     'Batch-friendly — pass a list to check your full stack in one call; a vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
@@ -72,6 +72,11 @@ export const devopsStatusCheck = tool('devops_status_check', {
         operational: z.number().describe('Vendors with indicator = none and no error.'),
         degraded: z.number().describe('Vendors with indicator = minor or major.'),
         down: z.number().describe('Vendors with indicator = critical.'),
+        maintenance: z
+          .number()
+          .describe(
+            'Vendors with indicator = maintenance — in a scheduled window the vendor published. Counted apart from degraded and down, which are faults.',
+          ),
         unavailable: z
           .number()
           .describe(
@@ -79,7 +84,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
           ),
       })
       .describe(
-        'Aggregate health counts across all checked vendors. Buckets partition the batch: operational + degraded + down + unavailable = total.',
+        'Aggregate health counts across all checked vendors. Buckets partition the batch: operational + degraded + down + maintenance + unavailable = total.',
       ),
   }),
 
@@ -174,7 +179,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
   format: (result) => {
     const lines: string[] = [
       `## Stack Health — ${result.summary.total} vendors checked`,
-      `✅ ${result.summary.operational} operational  ⚠️ ${result.summary.degraded} degraded  🔴 ${result.summary.down} down  ❓ ${result.summary.unavailable} unavailable`,
+      `✅ ${result.summary.operational} operational  ⚠️ ${result.summary.degraded} degraded  🔴 ${result.summary.down} down  🛠️ ${result.summary.maintenance} maintenance  ❓ ${result.summary.unavailable} unavailable`,
       '',
     ];
     for (const v of result.results) {

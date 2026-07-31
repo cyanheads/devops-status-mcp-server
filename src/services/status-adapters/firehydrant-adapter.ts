@@ -34,7 +34,7 @@ import type {
   StatuspageIncidentsResponse,
   StatuspagePage,
   StatuspageScheduledMaintenancesResponse,
-  StatuspageStatus,
+  StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchJsonCached } from '@/utils/cached-fetch.js';
@@ -96,7 +96,7 @@ export interface FirehydrantTarget {
 
 const SEVERITY_RANK = { none: 0, minor: 1, major: 2, critical: 3 } as const;
 
-function severityToImpact(slug: string | undefined): StatuspageStatus['indicator'] {
+function severityToImpact(slug: string | undefined): StatuspageSeverityIndicator {
   switch (slug) {
     case 'SEV1':
       return 'critical';
@@ -239,7 +239,7 @@ export function mapFirehydrantSummary(
   const activeItems = (raw.incidents ?? []).filter((i) => isActive(i) && !isMaintenance(i));
   const activeIncidents = activeItems.map((i) => mapFirehydrantIncident(i, target));
 
-  let indicator: StatuspageStatus['indicator'] = 'none';
+  let indicator: StatuspageSeverityIndicator = 'none';
   for (const inc of activeIncidents) {
     if (inc.impact !== 'maintenance' && SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator])
       indicator = inc.impact;

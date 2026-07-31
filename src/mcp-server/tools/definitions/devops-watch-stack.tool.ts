@@ -18,9 +18,19 @@ import {
 
 const STACK_STATE_PREFIX = 'stack/';
 
-function computeStackHealth(
-  results: VendorResult[],
-): 'all_operational' | 'degraded' | 'partial_outage' | 'major_outage' | 'unknown' {
+/** The health rungs, best first — one list behind the output enum and the icon table. */
+const STACK_HEALTH_RUNGS = [
+  'all_operational',
+  'maintenance',
+  'degraded',
+  'partial_outage',
+  'major_outage',
+  'unknown',
+] as const;
+
+type StackHealth = (typeof STACK_HEALTH_RUNGS)[number];
+
+function computeStackHealth(results: VendorResult[]): StackHealth {
   const indicators = results.filter((r) => !r.error).map((r) => r.indicator);
   if (indicators.some((i) => i === 'critical')) return 'major_outage';
   if (indicators.some((i) => i === 'major')) return 'partial_outage';
@@ -29,8 +39,22 @@ function computeStackHealth(
   // presence forces a non-green rollup, so an all-errored (or partially-errored)
   // stack can never fall through to all_operational.
   if (results.some((r) => r.error)) return 'unknown';
+  // A published maintenance window is planned, so it ranks below every outage rung
+  // and below unknown — but it is not unqualified health either, and all_operational
+  // stays reserved for a stack with nothing open at all.
+  if (indicators.some((i) => i === 'maintenance')) return 'maintenance';
   return 'all_operational';
 }
+
+/** Rollup icon per health rung — a record so a new rung is a compile error here. */
+const HEALTH_ICON: Record<StackHealth, string> = {
+  all_operational: '✅',
+  maintenance: '🛠️',
+  degraded: '⚠️',
+  partial_outage: '⚠️',
+  major_outage: '🔴',
+  unknown: '❓',
+};
 
 export const devopsWatchStack = tool('devops_watch_stack', {
   description:
@@ -90,9 +114,9 @@ export const devopsWatchStack = tool('devops_watch_stack', {
   output: z.object({
     stack_name: z.string().describe('Name of the stack checked.'),
     health: z
-      .enum(['all_operational', 'degraded', 'partial_outage', 'major_outage', 'unknown'])
+      .enum(STACK_HEALTH_RUNGS)
       .describe(
-        'Aggregate health rollup: all_operational = everything clear, degraded = at least one minor issue, partial_outage = at least one major issue, major_outage = at least one critical outage, unknown = at least one vendor could not be checked (unresolvable entry, blocked target, or failed fetch) and no checked vendor reported a worse issue. Never all_operational when any vendor errored.',
+        'Aggregate health rollup: all_operational = everything clear, maintenance = at least one vendor in a scheduled window and nothing worse open, degraded = at least one minor issue, partial_outage = at least one major issue, major_outage = at least one critical outage, unknown = at least one vendor could not be checked (unresolvable entry, blocked target, or failed fetch) and no checked vendor reported a worse issue. Never all_operational when any vendor errored or is in a window.',
       ),
     summary: z
       .object({
@@ -100,6 +124,11 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         operational: z.number().describe('Vendors with indicator = none and no error.'),
         degraded: z.number().describe('Vendors with indicator = minor or major.'),
         down: z.number().describe('Vendors with indicator = critical.'),
+        maintenance: z
+          .number()
+          .describe(
+            'Vendors with indicator = maintenance — in a scheduled window the vendor published. Counted apart from degraded and down, which are faults.',
+          ),
         unavailable: z
           .number()
           .describe(
@@ -107,7 +136,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
           ),
       })
       .describe(
-        'Aggregate health counts across all checked vendors. Buckets partition the stack: operational + degraded + down + unavailable = total.',
+        'Aggregate health counts across all checked vendors. Buckets partition the stack: operational + degraded + down + maintenance + unavailable = total.',
       ),
     vendors: z.array(VendorResultSchema).describe('Per-vendor status results.'),
     stack_persisted: z
@@ -256,17 +285,9 @@ export const devopsWatchStack = tool('devops_watch_stack', {
   },
 
   format: (result) => {
-    const healthIcon =
-      result.health === 'all_operational'
-        ? '✅'
-        : result.health === 'major_outage'
-          ? '🔴'
-          : result.health === 'unknown'
-            ? '❓'
-            : '⚠️';
     const lines: string[] = [
-      `## ${healthIcon} Stack "${result.stack_name}" — ${result.health}`,
-      `${result.summary.total} vendors | ✅ ${result.summary.operational} operational ⚠️ ${result.summary.degraded} degraded 🔴 ${result.summary.down} down ❓ ${result.summary.unavailable} unavailable`,
+      `## ${HEALTH_ICON[result.health]} Stack "${result.stack_name}" — ${result.health}`,
+      `${result.summary.total} vendors | ✅ ${result.summary.operational} operational ⚠️ ${result.summary.degraded} degraded 🔴 ${result.summary.down} down 🛠️ ${result.summary.maintenance} maintenance ❓ ${result.summary.unavailable} unavailable`,
       result.stack_persisted ? '*(Stack list saved for future calls)*' : '',
     ];
     if (result.omitted_vendors.length > 0) {

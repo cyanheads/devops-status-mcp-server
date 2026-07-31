@@ -27,9 +27,19 @@ function renderPlaybook(template: string, probesEnabled: boolean): string {
   return template.replaceAll(DNS_TOOL_TOKEN, dns).replaceAll(CERT_TOOL_TOKEN, certs);
 }
 
+/**
+ * Every indicator devops_status_check can report. The accepted input, the echoed
+ * output, and the guidance table below all read from this one list, so a value
+ * copied straight out of a status result is always accepted and always has framing
+ * behind it.
+ */
+const VENDOR_INDICATORS = ['none', 'minor', 'major', 'critical', 'maintenance'] as const;
+
 /** Severity-tailored urgency framing, keyed by the vendor_indicator input. */
-const SEVERITY_GUIDANCE: Record<'none' | 'minor' | 'major' | 'critical', string> = {
+const SEVERITY_GUIDANCE: Record<(typeof VENDOR_INDICATORS)[number], string> = {
   none: '**Reported severity: none.** The vendor reports normal operations — verify the problem from your side first; the cause may be local (config, credentials, network) rather than vendor-wide.',
+  maintenance:
+    '**Reported severity: maintenance (scheduled window).** The disruption is planned and time-boxed — check when the window ends before treating this as an incident, and prefer waiting it out over failover.',
   minor:
     '**Reported severity: minor (degraded performance).** Run the diagnostic checks before disruptive mitigations — confirm your own error rates justify failover.',
   major:
@@ -315,7 +325,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
         'Your own domain or service URL. When provided, nextToolSuggestions will be pre-filled with your domain for cert and DNS checks.',
       ),
     vendor_indicator: z
-      .enum(['none', 'minor', 'major', 'critical'])
+      .enum(VENDOR_INDICATORS)
       .optional()
       .describe(
         'Overall vendor status indicator from a prior devops_status_check call (its indicator field). ' +
@@ -339,7 +349,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
     diagnostics_summary: z
       .object({
         vendor_indicator: z
-          .enum(['none', 'minor', 'major', 'critical'])
+          .enum(VENDOR_INDICATORS)
           .nullable()
           .describe(
             'Vendor status indicator echoed from the vendor_indicator input, or null when not provided.',

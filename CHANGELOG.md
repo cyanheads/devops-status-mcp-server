@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.8.0](changelog/0.8.x/0.8.0.md) — 2026-07-30 · ⚠️ Breaking · 🛡️ Security
+
+IPv6 SSRF matching moves to bitwise prefix length, devops_check_dns elides per-resolver records that agree with the domain-level set, degraded-component output is uncapped and grouped by status, devops_get_incidents covers a fully-quiet feed, and a maintenance status indicator is carried end to end.
+
 ## [0.7.0](changelog/0.7.x/0.7.0.md) — 2026-07-30
 
 Google Cloud joins the vendor registry as a native status adapter — devops_status_check, devops_get_incidents, and devops_watch_stack now cover Google Cloud Service Health alongside AWS Health.

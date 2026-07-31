@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.7.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.8.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^1.29.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -63,7 +63,7 @@ Built-in vendor registry:
 | `monitoring` | datadog, sentry, new-relic, grafana-cloud, honeycomb |
 | `ai` | openai, anthropic, elevenlabs, pinecone, cohere |
 
-Most registry entries are Atlassian Statuspage endpoints; `aws` (AWS Health Dashboard), `gitlab` / `neon` (Status.io), `slack` (Slack's own status API), and `redis-cloud` (Firehydrant) are served through adapters that normalize into the same shapes, so every tool works identically for them. GCP and Azure publish no keyless machine-readable feed and remain out of the registry — Statuspage-compatible pages can still be reached by passing a raw base URL.
+Most registry entries are Atlassian Statuspage endpoints; `aws` (AWS Health Dashboard), `gcp` (Google Cloud Service Health), `gitlab` / `neon` (Status.io), `slack` (Slack's own status API), and `redis-cloud` (Firehydrant) are served through adapters that normalize into the same shapes, so every tool works identically for them. Azure remains out of the registry: its status feed is RSS with no severity or lifecycle field, so the normalized shapes cannot be filled from it without inventing values. Statuspage-compatible pages not listed here can still be reached by passing a raw base URL.
 
 ---
 

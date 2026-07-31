@@ -121,13 +121,13 @@ All Statuspage vendors respond to `{base_url}/api/v2/{endpoint}.json` — no aut
     "updated_at": "2026-05-30T10:35:19.208Z"
   },
   "status": {
-    "indicator": "none",           // enum: "none" | "minor" | "major" | "critical"
+    "indicator": "none",           // enum: "none" | "minor" | "major" | "critical" | "maintenance"
     "description": "All Systems Operational"
   }
 }
 ```
 
-**Indicator enum:** `none` (all operational), `minor`, `major`, `critical`.
+**Indicator enum:** `none` (all operational), `minor`, `major`, `critical`, plus `maintenance` while a window is open (verified live on brevo — `{"description":"Under Maintenance","indicator":"maintenance"}`). `maintenance` sits outside the severity ladder: it is a window the vendor scheduled, not a fault.
 
 ### `GET /api/v2/components.json`
 
@@ -250,7 +250,7 @@ Keyless, `content-type: application/json`, no auth and no rate limit. The body i
 
 ### `devops_status_check`
 
-**Description:** Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., `"github"`, `"cloudflare"`) or raw Statuspage base URLs. Returns per-vendor operational indicator (`none` = all clear, `minor`, `major`, `critical`), a list of degraded components with their current status, and summaries of any active incidents. Use `mode: "detailed"` to include component lists even when all are operational, and to surface scheduled maintenance windows.
+**Description:** Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., `"github"`, `"cloudflare"`) or raw Statuspage base URLs. Returns per-vendor operational indicator (`none` = all clear, `minor`, `major`, `critical`, `maintenance` = scheduled window), a list of degraded components with their current status, and summaries of any active incidents. Use `mode: "detailed"` to include component lists even when all are operational, and to surface scheduled maintenance windows.
 
 **Input:**
 ```ts
@@ -273,12 +273,12 @@ z.object({
   results: z.array(z.object({
     vendor: z.string().describe('Vendor slug or URL as provided.'),
     name: z.string().describe('Display name from registry or Statuspage page.name.'),
-    indicator: z.enum(['none', 'minor', 'major', 'critical']).describe('Overall health indicator from Statuspage status.json.'),
+    indicator: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']).describe('Overall health indicator from Statuspage status.json. maintenance = scheduled window in progress, planned rather than a fault.'),
     description: z.string().describe('Human-readable status description (e.g., "All Systems Operational").'),
     degraded_components: z.array(z.object({
       name: z.string(),
       status: z.enum(['degraded_performance', 'partial_outage', 'major_outage', 'under_maintenance']),
-    })).describe('Components not in operational state. Empty when all clear.'),
+    })).describe('Every component not in an operational state, uncapped. Includes in-progress maintenance windows (under_maintenance) alongside genuine outages — read status to tell a planned window from a fault. Empty when all clear.'),
     active_incidents: z.array(z.object({
       id: z.string(),
       name: z.string(),
@@ -310,8 +310,9 @@ z.object({
     operational: z.number(),
     degraded: z.number(),
     down: z.number(),
+    maintenance: z.number(),
     unavailable: z.number(),
-  }).describe('Aggregate health counts across all checked vendors. Buckets partition the batch: operational + degraded + down + unavailable = total.'),
+  }).describe('Aggregate health counts across all checked vendors. Buckets partition the batch: operational + degraded + down + maintenance + unavailable = total.'),
 })
 ```
 
@@ -471,12 +472,13 @@ z.object({
 ```ts
 z.object({
   stack_name: z.string(),
-  health: z.enum(['all_operational', 'degraded', 'partial_outage', 'major_outage', 'unknown']),
+  health: z.enum(['all_operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage', 'unknown']),
   summary: z.object({
     total: z.number(),
     operational: z.number(),
     degraded: z.number(),
     down: z.number(),
+    maintenance: z.number(),
     unavailable: z.number(),
   }),
   vendors: z.array(/* same per-vendor shape as devops_status_check results[] */),
@@ -611,12 +613,13 @@ z.object({
     records: z.record(
       z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS']),
       z.array(z.string())
-    ).describe('Resolved records from one resolver — the primary (first in list), or the first resolver that returned records when the primary returned none. Keyed by record type.'),
+    ).describe('Resolved records from one resolver — the primary (first in list), or the first resolver that returned records when the primary returned none. Keyed by record type. Also the reference set the per-resolver answers are reported against.'),
     records_source: z.string().nullable().describe('Resolver IP whose answers populated `records`, or null when no resolver was queried.'),
     resolver_results: z.array(z.object({
       resolver: z.string().describe('Resolver IP address.'),
       latency_ms: z.number().int(),
-      records: z.record(z.string(), z.array(z.string())),
+      records: z.record(z.string(), z.array(z.string())).describe('Only the types whose values differ from the domain-level `records` set. A type answered identically is named in `records_same_as_domain` instead; a requested type in neither returned nothing from this resolver, and `status_by_type` says why.'),
+      records_same_as_domain: z.array(z.string()).describe('Record types this resolver answered with exactly the domain-level values, omitted from `records` rather than duplicated.'),
       status: z.enum(DNS_QUERY_STATUSES).describe('Headline outcome: ok when any requested type resolved, else the most actionable failure across types.'),
       status_by_type: z.record(z.string(), z.enum(DNS_QUERY_STATUSES)).describe('Outcome per requested record type. nodata = the domain exists but has no record of this type; nxdomain = the domain does not exist; servfail = the resolver could not answer, commonly DNSSEC.'),
       error: z.string().nullable().describe('Failure summary such as "SERVFAIL on A, MX", or null when every type resolved or returned nodata.'),
@@ -667,6 +670,8 @@ z.object({
     .describe('Component names affected (from devops_status_check degraded_components or devops_get_incidents affected_components). Tailor suggestions to which subsystem is impacted.'),
   your_domain: z.string().optional()
     .describe('Your own domain or service URL. When provided, nextToolSuggestions will be pre-filled with your domain for cert and DNS checks.'),
+  vendor_indicator: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']).optional()
+    .describe('Overall vendor status indicator from a prior devops_status_check call (its indicator field). When provided, the playbook leads with severity-tailored urgency guidance. Omit if status has not been checked yet.'),
 })
 ```
 
@@ -677,7 +682,8 @@ z.object({
   vendor_category: z.string().nullable().describe('Detected category from registry (e.g., "cdn-edge", "auth"). Null for unrecognized vendors.'),
   guidance: z.string().describe('Markdown playbook — immediate steps, diagnostic checks, mitigation options, and what to monitor for resolution. Tailored to the vendor category and affected components.'),
   diagnostics_summary: z.object({
-    vendor_indicator: z.string().nullable(),
+    vendor_indicator: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']).nullable()
+      .describe('Vendor status indicator echoed from the vendor_indicator input, or null when not provided.'),
     affected_components: z.array(z.string()),
     incident_snippet: z.string().nullable(),
   }),
@@ -810,6 +816,18 @@ A saved stack is replayed on every later call, so persisting an entry that resol
 
 Component lists are unbounded upstream — a single large page publishes several hundred, and a full-stack detailed sweep runs to six figures of response bytes, most of it operational rows nobody asked about. `component_limit` (default 50) bounds it, `component_filter` reaches a specific component past the cap, and `ctx.enrich.truncated()` discloses what was dropped rather than silently returning a partial list. The disclosure is aggregated across the fan-out because `buildVendorResult()` has no `ctx`; it returns component counts and the handler emits one signal for the batch.
 
+### Why the SSRF guard matches IPv6 by prefix length rather than by string
+
+The IPv4 side of `ssrf-guard.ts` was always a bitwise CIDR table; the IPv6 side matched `normalized.startsWith(prefix)`, which fails in both directions. It under-blocks, because a range is only partly spelled by its leading characters — link-local is `fe80::/10`, spanning `fe80::`–`febf::`, so the `'fe80'` prefix left `fe90::` through `febf::` open, and multicast `ff00::/8` was absent entirely. It over-blocks, because a string prefix swallows anything that merely starts with those characters — `'::ffff:'` rejected every IPv4-mapped address including public ones, and `'::1'` reported `::1234:5678` as loopback when it is IPv4-compatible IPv6 (deprecated, RFC 4291), a different category with a different reason to be blocked.
+
+Both halves are now the same shape: parse to the 128-bit value, match `(value & mask) === base`. `::ffff:0:0/96` is checked ahead of the table because an IPv4-mapped address is classified by the IPv4 it embeds — `::ffff:8.8.8.8` is public, `::ffff:127.0.0.1` is not — and both encodings of the embedded address parse to the same value, so the hex spelling `::ffff:7f00:1` can no longer slip past a dotted-form regex. `node:net`'s `BlockList` handles mapped addresses natively, but adopting it would leave the file with two different matchers for the same job and would not carry the per-range labels the block message names; keeping one bitwise table for both families is worth more than the dependency saved. The parser fails closed: text it cannot parse returns a label rather than `null`, so an unparsable address is blocked rather than assumed public.
+
+### Why `degraded_components` is not capped
+
+The cap above covers `all_components`, which is mostly operational rows. `degraded_components` is the opposite: it is the signal the tool exists to surface, so a silent slice would hide an outage, and even a disclosed cap would make the caller pay a second round trip to see a component that is already down. It stays unbounded in both modes. The volume problem is real — a large edge network routinely publishes dozens of non-operational components — but it is a presentation problem, so `renderVendorBlock()` leads with a count and a per-status breakdown (`Degraded (46): 26 partial_outage, 20 under_maintenance`), then groups the entries by status one per line instead of joining them into a single paragraph.
+
+`under_maintenance` stays inside the array: it is a non-operational state, and removing it would change the output contract and hide in-progress windows from anyone reading only that field. It is a planned window rather than a fault, though, so it renders in its own group, marked as such and ordered last behind the real outages.
+
 ### Why the upstream history cap is disclosed rather than paged around
 
 Atlassian's `/api/v2/incidents.json` returns at most 50 records and ignores `?page=`, and Slack's `/api/v2.0.0/history` behaves identically. The tool used to present a full 50-record window as complete history, so a caller doing postmortem work could not tell a vendor whose incidents genuinely stop there from one whose older incidents were simply out of reach. Reaching further means a second, undocumented surface with its own shape and failure modes; that is a separate change, and pretending it exists is worse than naming the ceiling. So the fix is disclosure: `upstreamCeiling` and a `notice` state the cap when it was hit and point at the vendor status page, which is where the omitted incidents actually live. The tool never claims history it did not fetch.
@@ -818,9 +836,17 @@ Atlassian's `/api/v2/incidents.json` returns at most 50 records and ignores `?pa
 
 `format()` receives only the domain object, which carries no `filter`, `offset`, or backend — so a single static sentence was the most it could say, and that sentence recommended the filter the caller had just used and history from backends that publish none. Widening `output` to carry the call's parameters back into `format()` would put request echo in the domain payload of every response, including the ones that need no explanation. `ctx.enrich.notice()` is the framework's success-path channel for exactly this: it reaches `structuredContent` and the `content[]` trailer without touching the domain contract, and it is written only when there is something to say. `format()`'s empty branch is correspondingly narrowed to stating the empty result, since anything it named would contradict the trailer beside it.
 
+Which filters the message may name is bounded by containment, not just by what the backend serves. `all` is assembled from the incident list plus the maintenance list, so `active`, `resolved`, and `scheduled` all draw from data it already covers: an empty `all` guarantees each of them is empty too, and naming one buys the caller a round trip that cannot succeed. `FILTER_SUBSETS` records that relation and `alternativeFilters()` drops any strict subset of the filter just used, which leaves an empty `all` with nothing to recommend — so it gets its own branch, stating that the vendor's feed currently lists nothing at all and pointing at its status page. The relation is one-directional: `active`, `resolved`, and `scheduled` are disjoint and subsume nothing, so an empty `active` still recommends the genuinely wider `all` and `resolved`. The nothing-published branch sits behind the offset branch, so an `all` that matched incidents but overshot them still gets the offset guidance.
+
 ### Why the DNS outcome is a typed enum rather than a message
 
 `queryResolver()` collapsed `ENODATA`, `ENOTFOUND`, and `ESERVFAIL` into one silent "no records of this type", so a domain that does not exist, a resolver that could not answer, and a record that is genuinely absent produced byte-identical output. Those three call for different operator actions — register or fix the name, fix the zone signing or delegation, add the record — and a DNSSEC validation failure is one of the outage causes the tool most needs to name. The outcome is an enum (`status_by_type`, rolled up into `status`) rather than prose in `error` because two consumers branch on it programmatically: the disagreement classifier below needs to tell "this resolver returned nothing" from "this resolver returned something different", and an agent triaging an incident needs a stable value to key on. `nodata` stays the only silent case, since it is a valid DNS answer rather than a failure.
+
+### Why an agreeing per-resolver record set is elided rather than repeated
+
+Every record set was serialized once per resolver plus once at the domain level, so a domain with a large TXT set — `github.com` publishes roughly two dozen entries including a long SPF chain — was carried four times in a three-resolver call, and the tool accepts a batch of ten domains. Per-resolver records exist so a caller can see *where* resolvers disagree, but when a resolver returned exactly the domain-level values for a type, its copy carries nothing that set does not already hold, and agreement is the common case.
+
+`elideAgreeingRecords()` drops only those exact matches and names the dropped types in `records_same_as_domain`. A divergent type keeps its full per-resolver values, so no disagreement can be hidden, and the elision runs after `findDiscrepancies()` and the flag derivation so nothing upstream reads a thinned set. This changes the output shape, deliberately: an absent field with no marker would be indistinguishable from "this resolver returned nothing", which is the one thing agreement is not. Between `records`, `records_same_as_domain`, and `status_by_type`, every requested type has exactly one explanation — its own values, the domain-level values, or the outcome that left it empty. `format()` states the agreement in words for the same reason a bare status line would read as an empty answer.
 
 ### Why geo-steering is not reported as a propagation mismatch
 
@@ -841,6 +867,14 @@ Both were derived from a single resolver: `records` and the "no A or AAAA record
 ### Why Google Cloud severity maps onto the indicator scale the way it does
 
 The feed's own schema documents `severity` as "(high, medium)" while the live feed emits `low`, so the vocabulary is open and an enum that rejected an unlisted value would fail on a payload Google actually publishes. Three known values map onto four indicator slots as `low` → `minor`, `medium` → `major`, `high` → `critical`, calibrated against what the records carry: the live `medium` record is a fifteen-hour multi-product regional outage and the live `low` record is a two-hour error-rate elevation. `none` is deliberately unreachable — every record in this feed is a published incident, so none of them mean "no impact." An unrecognized severity degrades to `minor` rather than throwing or dropping the record: a published incident is at least a degradation, and losing it entirely is worse than under-rating it. `critical` is named alongside `high` so a hypothetical escalation past the documented top value is not silently downgraded to `minor` by the default branch.
+
+### Why `maintenance` is carried end to end instead of mapped away
+
+A Statuspage page publishes `status.indicator: "maintenance"` while a window is open. Rejecting it at the parse boundary failed the whole payload, so a healthy, reachable vendor was reported as not serving a Statuspage summary at all and sat in the `unavailable` bucket for the duration of the window. Mapping it down to `none` at the boundary would have avoided the contract change, but a page under maintenance would then read as all clear — a silent fallback over a state the vendor deliberately published. So the value travels: through `StatuspageSummaryResponseSchema`, through `VendorResultSchema.indicator`, into its own `summary.maintenance` bucket, and onto its own `computeStackHealth()` rung.
+
+It gets a bucket of its own rather than joining `degraded` because `degraded` counts faults, and a scheduled window is not one — `degraded_components` already separates `under_maintenance` entries from genuine outages, and folding the indicator back together would undo that distinction one level up. The rollup rung sits below every outage rung and below `unknown` (an unchecked vendor is a bigger gap than a planned window) and above `all_operational`, which stays reserved for a stack with nothing open at all. The rendered icon is the 🛠️ the degraded-component list already uses, so a window reads the same wherever it appears.
+
+Only a Statuspage page reaches this state. The native adapters synthesize an indicator by ranking incident impacts and skip maintenance records while doing it, which `StatuspageSeverityIndicator` — the narrower type they return — states in the type system rather than in a comment.
 
 ### Why `SERVICE_INFORMATION` stays in the incident stream
 

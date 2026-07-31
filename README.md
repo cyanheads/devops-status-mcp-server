@@ -34,7 +34,7 @@ Seven tools in three capability groups — vendor status (51 built-in vendors ac
 | Tool | Description |
 |:-----|:------------|
 | `devops_list_vendors` | List vendors in the built-in registry, optionally filtered by name or category. Returns slug, display name, category, and status page URL. |
-| `devops_status_check` | Check the current health status for one or more vendors. Returns per-vendor indicator (`none` / `minor` / `major` / `critical`), degraded components, and active incident summaries. |
+| `devops_status_check` | Check the current health status for one or more vendors. Returns per-vendor indicator (`none` / `minor` / `major` / `critical` / `maintenance`), degraded components, and active incident summaries. |
 | `devops_get_incidents` | Fetch incident history for a vendor — active, resolved, or scheduled maintenance. Returns the full incident timeline with per-update bodies and affected components. |
 | `devops_watch_stack` | Check the health of a named vendor stack persisted in session state. Pass `vendors` once to save the list; subsequent calls reuse it. Returns an aggregate health rollup plus per-vendor detail. |
 | `devops_check_certs` | Inspect SSL/TLS certificate health for one or more domains via a real TLS handshake. Reports expiry, chain depth, protocol version, cipher suite, and HSTS presence. Pure TypeScript — no external API. |
@@ -138,7 +138,7 @@ Deterministic incident-response guidance, no external calls.
 - `nextToolSuggestions` pre-populated with arguments from the provided context — execute in sequence to gather diagnostic data
 - Optional `your_domain` populates cert and DNS check arguments automatically
 - Optional `incident_summary` / `affected_components` prepend a targeted section to the playbook and add a component re-check when they identify a subsystem (e.g. GitHub `Actions` → CI/CD-prioritized steps; Cloudflare `DNS` → DNS/TTL guidance)
-- Optional `vendor_indicator` — pass the `indicator` from `devops_status_check` to lead the playbook with severity-tailored urgency guidance (`none` / `minor` / `major` / `critical`)
+- Optional `vendor_indicator` — pass the `indicator` from `devops_status_check` to lead the playbook with severity-tailored urgency guidance (`none` / `minor` / `major` / `critical` / `maintenance`)
 - Falls back to generic guidance for unrecognized vendors
 - When `DEVOPS_STATUS_DISABLE_ACTIVE_PROBES=true`, suggestions and playbook text replace the unregistered probe tools with equivalent manual commands (`dig`, `openssl s_client`)
 
@@ -177,7 +177,7 @@ Agent-friendly output:
 
 - Batch tools (`devops_status_check`, `devops_watch_stack`, `devops_check_certs`, `devops_check_dns`) use `Promise.allSettled` — one failing target never blocks the rest; errors surface as inline `error` fields
 - `cached: true` / `checked_at` on every status result — agents know when data was fetched
-- Discriminated indicator and status enums (`none` / `minor` / `major` / `critical`; `operational` / `degraded_performance` / `partial_outage` / `major_outage` / `under_maintenance`) — callers branch on data, not string parsing
+- Discriminated indicator and status enums (`none` / `minor` / `major` / `critical` / `maintenance`; `operational` / `degraded_performance` / `partial_outage` / `major_outage` / `under_maintenance`) — callers branch on data, not string parsing
 - `nextToolSuggestions` in `devops_suggest_action` pre-fills tool arguments from incident context — agents can execute the playbook mechanically
 
 ---

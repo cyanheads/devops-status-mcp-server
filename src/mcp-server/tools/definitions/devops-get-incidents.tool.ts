@@ -70,6 +70,11 @@ type IncidentFilter = 'all' | 'active' | 'resolved' | 'scheduled';
  * The filters this backend can actually serve, minus the one just used, rendered
  * for a guidance sentence. Recommending the filter the caller passed, or one the
  * backend can never satisfy, sends them back for a second empty result.
+ *
+ * Every branch that renders this string passes `active`, `resolved`, or `scheduled`,
+ * and those three are disjoint, so nothing offered here is a subset of the filter that
+ * just came back empty. An empty `all` never reaches it — it is answered on its own
+ * below, because every narrower filter is empty by construction once `all` is.
  */
 function alternativeFilters(history: BackendHistory, used: IncidentFilter): string {
   const servable: IncidentFilter[] = ['all', 'active'];
@@ -92,8 +97,8 @@ function emptyResultGuidance(
   offset: number,
   matched: number,
   history: BackendHistory,
+  url: string,
 ): string {
-  const alternatives = alternativeFilters(history, filter);
   if (matched > 0) {
     return (
       `offset ${offset} is past the end of this result: filter "${filter}" matched ${matched} ` +
@@ -101,6 +106,20 @@ function emptyResultGuidance(
       'Call again with a lower offset.'
     );
   }
+  if (filter === 'all') {
+    /**
+     * "all" spans every event the vendor's feed publishes, so the narrower filters are
+     * empty by construction — naming one here would send the caller back for another
+     * empty result. The vendor's own page is the only place left to look.
+     */
+    return (
+      `${name} currently lists no incidents and no maintenance windows at all. Filter "all" ` +
+      'already spans everything its status feed publishes, so the narrower filters have ' +
+      `nothing to return either. See ${url} to confirm on the vendor's own status page.`
+    );
+  }
+
+  const alternatives = alternativeFilters(history, filter);
   if (filter === 'resolved' && history.resolved === 'none') {
     return (
       `${name} publishes currently-open events with no resolution lifecycle, so ` +
@@ -292,7 +311,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .string()
       .optional()
       .describe(
-        'Plain-language explanation of this result — how to page onward, why it came back empty (filter the backend cannot satisfy, or an offset past the end), or that the vendor feed capped the history. Absent when the result needs no explanation.',
+        'Plain-language explanation of this result — how to page onward, why it came back empty (the vendor currently publishes nothing at all, a filter the backend cannot satisfy, or an offset past the end), or that the vendor feed capped the history. Absent when the result needs no explanation.',
       ),
   },
 
@@ -420,7 +439,14 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       );
     } else if (windowed.length === 0) {
       notices.push(
-        emptyResultGuidance(resolved.name, input.filter, input.offset, incidents.length, history),
+        emptyResultGuidance(
+          resolved.name,
+          input.filter,
+          input.offset,
+          incidents.length,
+          history,
+          resolved.url,
+        ),
       );
     }
     if (upstreamCeiling !== null) {

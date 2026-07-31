@@ -660,6 +660,8 @@ describe('devopsGetIncidents', () => {
       // The suggestion list is what must not echo the caller's own filter back.
       const suggestions = String(structured.notice).split('Try filter:')[1] ?? '';
       expect(suggestions).not.toContain('"active"');
+      // `all`, `resolved`, and `scheduled` are all genuinely wider than or disjoint
+      // from `active`, so subset awareness (#43) must leave this direction intact.
       expect(suggestions).toContain('"all"');
       expect(suggestions).toContain('"resolved"');
       expect(suggestions).toContain('"scheduled"');
@@ -746,6 +748,73 @@ describe('devopsGetIncidents', () => {
       expect(suggestions).not.toContain('"scheduled"');
       // Slack's /history does carry resolved incidents, so that one stays on offer.
       expect(suggestions).toContain('"resolved"');
+    });
+
+    /**
+     * `all` is built from the incident list plus the maintenance list, so an empty
+     * `all` guarantees every narrower filter is empty too. Recommending one sends the
+     * caller on a round trip that cannot succeed (#43).
+     */
+    it('says the vendor lists nothing rather than naming subsets of an empty all (#43)', async () => {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({
+        data: { ...RESOLVED_INCIDENT, incidents: [] },
+        cached: false,
+      });
+      _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'github', filter: 'all' }),
+        ctx,
+      );
+
+      expect(result.total_returned).toBe(0);
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      expect(structured.notice).toContain('GitHub');
+      expect(structured.notice).toContain('https://www.githubstatus.com');
+      expect(structured.notice).toMatch(/no incidents and no maintenance windows/i);
+      // No sub-filter may be named — each is empty by construction.
+      expect(structured.notice).not.toContain('Try filter:');
+      expect(structured.notice).not.toContain('"active"');
+      expect(structured.notice).not.toContain('"resolved"');
+      expect(structured.notice).not.toContain('"scheduled"');
+    });
+
+    /**
+     * The nothing-published branch sits behind the offset branch, so an `all` that
+     * matched incidents but overshot them keeps the offset guidance (#43).
+     */
+    it('keeps the offset guidance when an overshooting all matched incidents (#43)', async () => {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
+      _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'github', filter: 'all', offset: 9999 }),
+        ctx,
+      );
+
+      const effectiveOutput = devopsGetIncidents.output.extend(devopsGetIncidents.enrichment!);
+      const structured = effectiveOutput.parse({ ...result, ...getEnrichment(ctx) });
+
+      expect(result.total_returned).toBe(0);
+      expect(structured.notice).toContain('9999');
+      expect(structured.notice).toContain('matched 1 incident');
+      expect(structured.notice).not.toMatch(/no incidents and no maintenance windows/i);
     });
   });
 

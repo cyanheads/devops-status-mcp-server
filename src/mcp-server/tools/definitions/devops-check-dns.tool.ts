@@ -81,7 +81,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
             records: z
               .record(z.string(), z.array(z.string()))
               .describe(
-                'Resolved records from a single resolver, keyed by record type (A, AAAA, CNAME, MX, TXT, NS). Taken from the primary resolver (first in "resolvers"), or from the first resolver that returned records when the primary returned none. Read "records_source" for which resolver these came from, and "resolver_results" for the full per-resolver picture.',
+                'Resolved records from a single resolver, keyed by record type (A, AAAA, CNAME, MX, TXT, NS). Taken from the primary resolver (first in "resolvers"), or from the first resolver that returned records when the primary returned none. Read "records_source" for which resolver these came from, and "resolver_results" for the full per-resolver picture. This is also the reference set the per-resolver answers are reported against: a resolver that returned exactly these values for a type names it in "records_same_as_domain" rather than repeating them.',
               ),
             records_source: z
               .string()
@@ -100,7 +100,18 @@ export const devopsCheckDns = tool('devops_check_dns', {
                       .describe('Round-trip resolution latency in milliseconds.'),
                     records: z
                       .record(z.string(), z.array(z.string()))
-                      .describe('Records returned by this resolver, keyed by type.'),
+                      .describe(
+                        'Records returned by this resolver, keyed by type — carrying only the types whose values differ from the domain-level "records" set. A type this resolver answered identically is named in "records_same_as_domain" instead of repeated here. A requested type in neither place returned nothing from this resolver; "status_by_type" says why.',
+                      ),
+                    records_same_as_domain: z
+                      .array(
+                        z
+                          .string()
+                          .describe('A record type answered exactly as the domain-level set.'),
+                      )
+                      .describe(
+                        'Record types this resolver answered with exactly the domain-level "records" values, omitted from "records" above rather than duplicated. Read their values from the domain-level set. Resolvers agreeing is the common case, so this list is usually where most of the answer is.',
+                      ),
                     status: z
                       .enum(DNS_QUERY_STATUSES)
                       .describe(
@@ -257,14 +268,28 @@ export const devopsCheckDns = tool('devops_check_dns', {
       // Per-resolver breakdown (latency, outcome, records, errors)
       lines.push('**Resolver results:**');
       for (const rr of r.resolver_results) {
+        /**
+         * Agreement is stated, never rendered as nothing — a bare status line would
+         * read as "this resolver returned no records", which is the one thing
+         * agreement is not. The headline names the agreeing types so a reader
+         * scanning resolvers sees the shape without reading every sub-line.
+         */
+        const agreed =
+          rr.records_same_as_domain.length > 0
+            ? `, agreed with the domain-level records on ${rr.records_same_as_domain.join(', ')}`
+            : '';
         lines.push(
-          `- ${rr.resolver}: ${rr.status} in ${rr.latency_ms} ms${rr.error ? ` (${rr.error})` : ''}`,
+          `- ${rr.resolver}: ${rr.status} in ${rr.latency_ms} ms${rr.error ? ` (${rr.error})` : ''}${agreed}`,
         );
         for (const [type, status] of Object.entries(rr.status_by_type)) {
           const values = rr.records[type];
-          lines.push(
-            `  - ${type}: ${status}${values && values.length > 0 ? ` → ${values.join(', ')}` : ''}`,
-          );
+          const answer =
+            values && values.length > 0
+              ? ` → ${values.join(', ')}`
+              : rr.records_same_as_domain.includes(type)
+                ? ` → same values as the domain-level ${type} records above`
+                : '';
+          lines.push(`  - ${type}: ${status}${answer}`);
         }
       }
 

@@ -74,11 +74,20 @@ const FAILURE_PRECEDENCE = [
 export interface ResolverResult {
   error: string | null;
   latency_ms: number;
+  /**
+   * Only the record types where this resolver's answer differs from the domain-level set.
+   * Types answered identically are named in `records_same_as_domain` instead of repeated.
+   */
   records: Partial<Record<RecordType, string[]>>;
+  /** Record types this resolver answered exactly as the domain-level `records` set. */
+  records_same_as_domain: RecordType[];
   resolver: string;
   status: DnsQueryStatus;
   status_by_type: Partial<Record<RecordType, DnsQueryStatus>>;
 }
+
+/** One resolver's full answer, before its record sets are elided against the domain-level set. */
+type ResolverAnswer = Omit<ResolverResult, 'records_same_as_domain'>;
 
 export interface PropagationDiscrepancy {
   kind: DiscrepancyKind;
@@ -142,7 +151,7 @@ async function queryResolver(
   domain: string,
   types: RecordType[],
   timeoutMs: number,
-): Promise<ResolverResult> {
+): Promise<ResolverAnswer> {
   const resolver = new Resolver({ timeout: timeoutMs });
   resolver.setServers([resolverIp]);
 
@@ -231,7 +240,7 @@ async function queryResolver(
  * answered and others did not (a genuine propagation or resolver problem).
  */
 function findDiscrepancies(
-  resolverResults: ResolverResult[],
+  resolverResults: ResolverAnswer[],
   types: RecordType[],
 ): PropagationDiscrepancy[] {
   const discrepancies: PropagationDiscrepancy[] = [];
@@ -265,6 +274,40 @@ function findDiscrepancies(
   }
 
   return discrepancies;
+}
+
+/**
+ * Drop each per-resolver record set that matches the domain-level set exactly, naming the
+ * dropped types in `records_same_as_domain`.
+ *
+ * Resolvers agreeing is the common case, and an agreeing copy carries nothing the
+ * domain-level set does not already hold — a domain with a large TXT set was serialized
+ * once per resolver plus once at the domain level. Only an exact match is elided, so a
+ * divergent type keeps its full per-resolver values and no disagreement can be hidden.
+ * Absence is never ambiguous: a type in neither `records` nor `records_same_as_domain`
+ * returned nothing from that resolver, and `status_by_type` says why.
+ */
+function elideAgreeingRecords(
+  answers: ResolverAnswer[],
+  domainRecords: Partial<Record<RecordType, string[]>>,
+  types: RecordType[],
+): ResolverResult[] {
+  return answers.map((answer) => {
+    const records: Partial<Record<RecordType, string[]>> = {};
+    const sameAsDomain: RecordType[] = [];
+    for (const type of types) {
+      const values = answer.records[type];
+      if (!values) continue;
+      const domainValues = domainRecords[type];
+      const agrees =
+        domainValues !== undefined &&
+        domainValues.length === values.length &&
+        values.every((v, i) => v === domainValues[i]);
+      if (agrees) sameAsDomain.push(type);
+      else records[type] = values;
+    }
+    return { ...answer, records, records_same_as_domain: sameAsDomain };
+  });
 }
 
 export class DnsService {
@@ -394,7 +437,7 @@ export class DnsService {
       domain,
       records,
       records_source: source?.resolver ?? null,
-      resolver_results: resolverResults,
+      resolver_results: elideAgreeingRecords(resolverResults, records, types),
       propagation_discrepancies: discrepancies,
       flags,
       error,

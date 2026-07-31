@@ -333,6 +333,88 @@ describe('DnsService', () => {
     });
   });
 
+  describe('per-resolver record elision (#41)', () => {
+    it('elides an agreeing resolver record set and names the type instead', async () => {
+      dnsScript = {
+        '8.8.8.8': { A: { ok: ['1.2.3.4'] }, TXT: { ok: [['v=spf1 -all']] } },
+        '1.1.1.1': { A: { ok: ['1.2.3.4'] }, TXT: { ok: [['v=spf1 -all']] } },
+      };
+      const results = await getDnsService().checkDomains(
+        ['agree.example.com'],
+        ['A', 'TXT'],
+        ['8.8.8.8', '1.1.1.1'],
+        1000,
+      );
+      const result = results[0]!;
+
+      // The domain-level set still carries every value — nothing was lost.
+      expect(result.records.A).toEqual(['1.2.3.4']);
+      expect(result.records.TXT).toEqual(['v=spf1 -all']);
+      for (const rr of result.resolver_results) {
+        expect(rr.records).toEqual({});
+        expect(rr.records_same_as_domain).toEqual(['A', 'TXT']);
+      }
+    });
+
+    it('keeps a divergent record set in full while eliding the agreeing type', async () => {
+      dnsScript = {
+        '8.8.8.8': { A: { ok: ['1.2.3.4'] }, TXT: { ok: [['v=spf1 -all']] } },
+        '9.9.9.9': { A: { ok: ['5.6.7.8'] }, TXT: { ok: [['v=spf1 -all']] } },
+      };
+      const results = await getDnsService().checkDomains(
+        ['steered.example.com'],
+        ['A', 'TXT'],
+        ['8.8.8.8', '9.9.9.9'],
+        1000,
+      );
+      const result = results[0]!;
+
+      expect(result.resolver_results[0]!.records_same_as_domain).toEqual(['A', 'TXT']);
+      expect(result.resolver_results[1]!.records).toEqual({ A: ['5.6.7.8'] });
+      expect(result.resolver_results[1]!.records_same_as_domain).toEqual(['TXT']);
+      // The disagreement itself is still reported with both sides' values.
+      expect(result.propagation_discrepancies[0]!.values_by_resolver).toEqual({
+        '8.8.8.8': ['1.2.3.4'],
+        '9.9.9.9': ['5.6.7.8'],
+      });
+    });
+
+    it('leaves a type absent from both maps when the resolver returned nothing', async () => {
+      dnsScript = {
+        '8.8.8.8': { A: { ok: ['1.2.3.4'] } },
+        '1.1.1.1': { A: { code: 'ENODATA' } },
+      };
+      const results = await getDnsService().checkDomains(
+        ['half.example.com'],
+        ['A'],
+        ['8.8.8.8', '1.1.1.1'],
+        1000,
+      );
+      const empty = results[0]!.resolver_results[1]!;
+
+      expect(empty.records.A).toBeUndefined();
+      expect(empty.records_same_as_domain).toEqual([]);
+      // Absence is explained rather than ambiguous.
+      expect(empty.status_by_type.A).toBe('nodata');
+    });
+
+    it('does not elide against a same-length set with different values', async () => {
+      dnsScript = {
+        '8.8.8.8': { A: { ok: ['1.2.3.4', '5.6.7.8'] } },
+        '1.1.1.1': { A: { ok: ['1.2.3.4', '9.9.9.9'] } },
+      };
+      const results = await getDnsService().checkDomains(
+        ['partial-overlap.example.com'],
+        ['A'],
+        ['8.8.8.8', '1.1.1.1'],
+        1000,
+      );
+
+      expect(results[0]!.resolver_results[1]!.records.A).toEqual(['1.2.3.4', '9.9.9.9']);
+      expect(results[0]!.resolver_results[1]!.records_same_as_domain).toEqual([]);
+    });
+  });
+
   it('surfaces a per-domain rejection as an error result', async () => {
     const { assertSafeDomain } = await import('@/utils/ssrf-guard.js');
     vi.mocked(assertSafeDomain).mockRejectedValueOnce(new Error('SSRF_BLOCKED: private range'));

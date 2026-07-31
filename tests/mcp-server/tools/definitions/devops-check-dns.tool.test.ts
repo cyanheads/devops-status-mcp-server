@@ -29,6 +29,11 @@ vi.mock('@/config/server-config.js', () => ({
   }),
 }));
 
+/**
+ * Both resolvers returned the domain-level set, so the service elided both copies and
+ * named the types in `records_same_as_domain` — the shape the tool actually receives
+ * when resolvers agree, which is the common case.
+ */
 const CLEAN_DNS_RESULT: DnsResult = {
   domain: 'example.com',
   records: { A: ['93.184.216.34'], MX: ['10 mail.example.com'] },
@@ -37,7 +42,8 @@ const CLEAN_DNS_RESULT: DnsResult = {
     {
       resolver: '8.8.8.8',
       latency_ms: 42,
-      records: { A: ['93.184.216.34'], MX: ['10 mail.example.com'] },
+      records: {},
+      records_same_as_domain: ['A', 'MX'],
       status: 'ok',
       status_by_type: { A: 'ok', MX: 'ok' },
       error: null,
@@ -45,7 +51,8 @@ const CLEAN_DNS_RESULT: DnsResult = {
     {
       resolver: '1.1.1.1',
       latency_ms: 38,
-      records: { A: ['93.184.216.34'], MX: ['10 mail.example.com'] },
+      records: {},
+      records_same_as_domain: ['A', 'MX'],
       status: 'ok',
       status_by_type: { A: 'ok', MX: 'ok' },
       error: null,
@@ -65,15 +72,18 @@ const GEO_VARIATION_DNS_RESULT: DnsResult = {
     {
       resolver: '8.8.8.8',
       latency_ms: 55,
-      records: { A: ['1.2.3.4'] },
+      records: {},
+      records_same_as_domain: ['A'],
       status: 'ok',
       status_by_type: { A: 'ok' },
       error: null,
     },
     {
+      // Divergent from the domain-level set, so the values are kept in full.
       resolver: '1.1.1.1',
       latency_ms: 60,
       records: { A: ['5.6.7.8'] },
+      records_same_as_domain: [],
       status: 'ok',
       status_by_type: { A: 'ok' },
       error: null,
@@ -101,15 +111,18 @@ const PARTIAL_DNS_RESULT: DnsResult = {
     {
       resolver: '8.8.8.8',
       latency_ms: 55,
-      records: { A: ['1.2.3.4'] },
+      records: {},
+      records_same_as_domain: ['A'],
       status: 'ok',
       status_by_type: { A: 'ok' },
       error: null,
     },
     {
+      // Returned nothing, so the type is in neither map — status_by_type carries the why.
       resolver: '1.1.1.1',
       latency_ms: 60,
       records: {},
+      records_same_as_domain: [],
       status: 'nodata',
       status_by_type: { A: 'nodata' },
       error: null,
@@ -139,6 +152,7 @@ const NXDOMAIN_DNS_RESULT: DnsResult = {
       resolver: '8.8.8.8',
       latency_ms: 12,
       records: {},
+      records_same_as_domain: [],
       status: 'nxdomain',
       status_by_type: { A: 'nxdomain' },
       error: 'NXDOMAIN on A',
@@ -231,6 +245,32 @@ describe('devopsCheckDns', () => {
     expect(text).toContain('A:');
     expect(text).toContain('93.184.216.34');
     expect(text).toContain('Records (from 8.8.8.8)');
+  });
+
+  it('states resolver agreement rather than rendering an elided set as nothing (#41)', () => {
+    const result = { results: [CLEAN_DNS_RESULT] };
+    const blocks = devopsCheckDns.format!(result);
+    const text = (blocks[0] as { text: string }).text;
+    // A bare "A: ok" would read as "this resolver returned no records".
+    expect(text).toContain('agreed with the domain-level records on A, MX');
+    expect(text).toContain('A: ok → same values as the domain-level A records above');
+    expect(text).toContain('MX: ok → same values as the domain-level MX records above');
+
+    // Agreement is claimed only where it happened: a resolver that returned nothing
+    // keeps its bare status line.
+    const partial = devopsCheckDns.format!({ results: [PARTIAL_DNS_RESULT] });
+    const partialText = (partial[0] as { text: string }).text;
+    expect(partialText).toContain('A: nodata');
+    expect(partialText).not.toContain('A: nodata → same values');
+  });
+
+  it('renders divergent per-resolver values in full while eliding the agreeing side (#41)', () => {
+    const result = { results: [GEO_VARIATION_DNS_RESULT] };
+    const blocks = devopsCheckDns.format!(result);
+    const text = (blocks[0] as { text: string }).text;
+    expect(text).toContain('- 8.8.8.8: ok in 55 ms');
+    expect(text).toContain('A: ok → same values as the domain-level A records above');
+    expect(text).toContain('A: ok → 5.6.7.8');
   });
 
   it('formats a value_variation as expected steering rather than a problem', () => {

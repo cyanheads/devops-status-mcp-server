@@ -139,7 +139,7 @@ const UNTRUSTED_CERT: CertResult = {
 
 describe('devopsCheckCerts', () => {
   it('returns ok status for a healthy certificate', async () => {
-    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     _mockCheckDomains.mockResolvedValue([VALID_CERT]);
@@ -157,7 +157,7 @@ describe('devopsCheckCerts', () => {
   });
 
   it('returns critical status for expiring certificate', async () => {
-    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     _mockCheckDomains.mockResolvedValue([CRITICAL_CERT]);
@@ -171,7 +171,7 @@ describe('devopsCheckCerts', () => {
   });
 
   it('returns error status for unreachable domain', async () => {
-    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     _mockCheckDomains.mockResolvedValue([ERROR_CERT]);
@@ -199,7 +199,7 @@ describe('devopsCheckCerts', () => {
   });
 
   it('lets a malformed non-protocol domain reach the cert service as an error result', async () => {
-    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     // A domain with a path is not protocol-prefixed, so it clears the handler's PROTOCOL_RE
@@ -223,7 +223,7 @@ describe('devopsCheckCerts', () => {
   });
 
   it('returns warning status for cert expiring in 20 days', async () => {
-    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     const WARNING_CERT: CertResult = {
@@ -260,7 +260,7 @@ describe('devopsCheckCerts', () => {
   });
 
   it('batches multiple domains in one call', async () => {
-    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     _mockCheckDomains.mockResolvedValue([VALID_CERT, ERROR_CERT]);

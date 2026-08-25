@@ -73,7 +73,8 @@ describe('mapAwsSummary', () => {
 
   it('never emits critical — even the worst observed severity maps to major', () => {
     for (const status of ['1', '2', '3', '9', undefined]) {
-      const summary = mapAwsSummary([{ status, summary: 'x' }], AWS);
+      const event: AwsEvent = { summary: 'x', ...(status === undefined ? {} : { status }) };
+      const summary = mapAwsSummary([event], AWS);
       expect(['minor', 'major']).toContain(summary.status.indicator);
     }
   });

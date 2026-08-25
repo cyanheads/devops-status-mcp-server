@@ -45,7 +45,7 @@ class MockTlsSocket extends EventEmitter {
     return mockSocketConfig.authorizationError ?? null;
   }
 
-  write(data: string) {
+  write(_data: string) {
     if (this._destroyed) return false;
     // Simulate server HTTP response on the TLS socket
     const { hsts = true, noHstsResponse = false } = mockSocketConfig;
@@ -229,7 +229,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('batch: one success, one error — both results present', async () => {
     // First call succeeds (healthy cert), second call errors
     let callCount = 0;
-    const connectSpy = vi.fn((opts: Record<string, unknown>, cb?: () => void) => {
+    const connectSpy = vi.fn((_opts: Record<string, unknown>, cb?: () => void) => {
       callCount++;
       const socket = new MockTlsSocket();
       setImmediate(() => {

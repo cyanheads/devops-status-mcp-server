@@ -71,8 +71,8 @@ describe('mapFirehydrantSummary', () => {
     expect(summary.status.indicator).toBe('major'); // SEV2
     expect(summary.status.description).toBe('1 active incident');
     expect(summary.incidents).toHaveLength(1);
-    expect(summary.incidents[0]!.status).toBe('investigating');
-    expect(summary.incidents[0]!.resolved_at).toBeNull();
+    expect(summary.incidents![0]!.status).toBe('investigating');
+    expect(summary.incidents![0]!.resolved_at).toBeNull();
   });
 
   it('marks components affected by an active maintenance as under_maintenance', () => {

@@ -167,7 +167,7 @@ const NXDOMAIN_DNS_RESULT: DnsResult = {
 
 describe('devopsCheckDns', () => {
   it('returns clean results for a well-propagated domain', async () => {
-    const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     _mockCheckDomains.mockResolvedValue([CLEAN_DNS_RESULT]);
@@ -196,7 +196,7 @@ describe('devopsCheckDns', () => {
   });
 
   it('throws target_blocked for a blocked resolver IP', async () => {
-    const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     // The real checkDomains runs assertSafeResolverIp before resolving; a private resolver IP
@@ -218,7 +218,7 @@ describe('devopsCheckDns', () => {
   });
 
   it('passes custom timeout to service', async () => {
-    const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as {
+    const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
     _mockCheckDomains.mockResolvedValue([CLEAN_DNS_RESULT]);

@@ -57,7 +57,7 @@ describe('mapSlackSummary', () => {
     const summary = mapSlackSummary(active, SLACK);
     expect(summary.status.indicator).toBe('critical');
     expect(summary.incidents).toHaveLength(1);
-    expect(summary.incidents[0]!.status).toBe('investigating');
+    expect(summary.incidents![0]!.status).toBe('investigating');
   });
 
   it('reports at least minor when active with an empty incident list', () => {

@@ -4,8 +4,8 @@
  */
 
 import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
-import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { createFetchMock, createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { devopsGetIncidents } from '@/mcp-server/tools/definitions/devops-get-incidents.tool.js';
 import type {
   StatuspageIncidentsResponse,
@@ -106,7 +106,7 @@ describe('devopsGetIncidents', () => {
   it('returns resolved incidents with full detail', async () => {
     const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
       _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
     };
@@ -133,7 +133,7 @@ describe('devopsGetIncidents', () => {
   it('filters to active incidents only', async () => {
     const { _mockFetchIncidents } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
     };
     // Only resolved incident — active filter should return empty
@@ -159,7 +159,7 @@ describe('devopsGetIncidents', () => {
   it('filters to resolved incidents only', async () => {
     const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
       _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
     };
@@ -208,7 +208,7 @@ describe('devopsGetIncidents', () => {
 
     const { _mockFetchScheduledMaintenances } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
     };
     _mockFetchScheduledMaintenances.mockResolvedValue({ data: SCHEDULED_RESPONSE, cached: false });
@@ -263,7 +263,7 @@ describe('devopsGetIncidents', () => {
 
     const { _mockFetchIncidents } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
     };
     _mockFetchIncidents.mockResolvedValue({ data: SPARSE_INCIDENTS, cached: false });
@@ -286,7 +286,7 @@ describe('devopsGetIncidents', () => {
     // output.extend(enrichment) with no enrichment written at all.
     const { _mockFetchIncidents } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
     };
     _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
@@ -317,7 +317,7 @@ describe('devopsGetIncidents', () => {
     };
     const { _mockFetchIncidents } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
     };
     _mockFetchIncidents.mockResolvedValue({ data: TWO_INCIDENTS, cached: false });
@@ -349,7 +349,7 @@ describe('devopsGetIncidents', () => {
     };
     const { _mockFetchIncidents } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
     };
     _mockFetchIncidents.mockResolvedValue({ data: THREE, cached: false });
@@ -406,7 +406,7 @@ describe('devopsGetIncidents', () => {
     };
     const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
       _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
     };
@@ -461,7 +461,7 @@ describe('devopsGetIncidents', () => {
     };
     const { _mockFetchIncidents } = (await import(
       '@/services/statuspage/statuspage-service.js'
-    )) as {
+    )) as unknown as {
       _mockFetchIncidents: ReturnType<typeof vi.fn>;
     };
     _mockFetchIncidents.mockResolvedValue({ data: INVERTED, cached: false });
@@ -542,7 +542,7 @@ describe('devopsGetIncidents', () => {
     it('discloses the 50-record Statuspage cap when the feed returns 50 (#25)', async () => {
       const { _mockFetchIncidents } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchIncidents: ReturnType<typeof vi.fn>;
       };
       _mockFetchIncidents.mockResolvedValue({ data: incidentsPage(50), cached: false });
@@ -581,7 +581,7 @@ describe('devopsGetIncidents', () => {
     it('composes the ceiling with paging guidance when both bound the result (#24, #25)', async () => {
       const { _mockFetchIncidents } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchIncidents: ReturnType<typeof vi.fn>;
       };
       _mockFetchIncidents.mockResolvedValue({ data: incidentsPage(50), cached: false });
@@ -612,7 +612,7 @@ describe('devopsGetIncidents', () => {
     it('names the valid offset range when the offset overshot the matches (#34)', async () => {
       const { _mockFetchIncidents } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchIncidents: ReturnType<typeof vi.fn>;
       };
       _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
@@ -640,7 +640,7 @@ describe('devopsGetIncidents', () => {
     it('never recommends the filter that was just used (#34)', async () => {
       const { _mockFetchIncidents } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchIncidents: ReturnType<typeof vi.fn>;
       };
       // Only a resolved incident, so the active filter matches nothing.
@@ -758,7 +758,7 @@ describe('devopsGetIncidents', () => {
     it('says the vendor lists nothing rather than naming subsets of an empty all (#43)', async () => {
       const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchIncidents: ReturnType<typeof vi.fn>;
         _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
       };
@@ -795,7 +795,7 @@ describe('devopsGetIncidents', () => {
     it('keeps the offset guidance when an overshooting all matched incidents (#43)', async () => {
       const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchIncidents: ReturnType<typeof vi.fn>;
         _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
       };
@@ -831,7 +831,7 @@ describe('devopsGetIncidents', () => {
       const real = new actual.StatuspageService();
       const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchIncidents: ReturnType<typeof vi.fn>;
         _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
       };
@@ -841,20 +841,30 @@ describe('devopsGetIncidents', () => {
       );
     }
 
+    /**
+     * Strict upstream fake: a request to a URL no case routed throws rather than
+     * reaching the network, so an accidental live call is loud instead of flaky.
+     */
+    const http = createFetchMock();
+
+    beforeEach(() => {
+      http.reset();
+      http.install();
+    });
+
     afterEach(() => {
-      vi.unstubAllGlobals();
+      http.restore();
     });
 
     it('a non-2xx from the vendor API throws ServiceUnavailable with the reason on the wire', async () => {
       await useRealStatuspageService();
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue({ ok: false, status: 503, headers: new Headers() }),
-      );
+      http.route({ match: /\/api\/v2\//, respond: () => new Response(null, { status: 503 }) });
 
       const ctx = createMockContext({ errors: devopsGetIncidents.errors });
       const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'active' });
-      const err = await devopsGetIncidents.handler(input, ctx).catch((e: unknown) => e);
+      const err = await Promise.resolve(devopsGetIncidents.handler(input, ctx)).catch(
+        (e: unknown) => e,
+      );
 
       expect(err).toBeInstanceOf(McpError);
       expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
@@ -864,18 +874,18 @@ describe('devopsGetIncidents', () => {
 
     it('an unreachable vendor host throws ServiceUnavailable, not an unclassified InternalError', async () => {
       await useRealStatuspageService();
-      vi.stubGlobal(
-        'fetch',
-        vi
-          .fn()
-          .mockRejectedValue(
-            new TypeError('Unable to connect. Is the computer able to access the url?'),
-          ),
-      );
+      http.route({
+        match: /\/api\/v2\//,
+        respond: () => {
+          throw new TypeError('Unable to connect. Is the computer able to access the url?');
+        },
+      });
 
       const ctx = createMockContext({ errors: devopsGetIncidents.errors });
       const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved' });
-      const err = await devopsGetIncidents.handler(input, ctx).catch((e: unknown) => e);
+      const err = await Promise.resolve(devopsGetIncidents.handler(input, ctx)).catch(
+        (e: unknown) => e,
+      );
 
       expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
       expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
@@ -883,20 +893,17 @@ describe('devopsGetIncidents', () => {
 
     it('a 200 that is not a Statuspage payload throws the contract, never a raw TypeError', async () => {
       await useRealStatuspageService();
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue({
-          ok: true,
-          status: 200,
-          headers: new Headers(),
-          json: async () => ({ args: {}, headers: {}, method: 'GET' }),
-        }),
-      );
+      http.route({
+        match: /\/api\/v2\//,
+        respond: () => Response.json({ args: {}, headers: {}, method: 'GET' }),
+      });
 
       const ctx = createMockContext({ errors: devopsGetIncidents.errors });
       // filter 'all' is the path that used to die on `incData.data.incidents.map`.
       const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'all' });
-      const err = await devopsGetIncidents.handler(input, ctx).catch((e: unknown) => e);
+      const err = await Promise.resolve(devopsGetIncidents.handler(input, ctx)).catch(
+        (e: unknown) => e,
+      );
 
       expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
       expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
@@ -946,7 +953,7 @@ describe('devopsGetIncidents', () => {
     it('filter:all degrades to incidents only when scheduled-maintenances 404s', async () => {
       const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchIncidents: ReturnType<typeof vi.fn>;
         _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
       };
@@ -973,7 +980,7 @@ describe('devopsGetIncidents', () => {
     it('filter:scheduled still surfaces the 404 as statuspage_unavailable', async () => {
       const { _mockFetchScheduledMaintenances } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
       };
       _mockFetchScheduledMaintenances.mockRejectedValue(

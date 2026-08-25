@@ -154,17 +154,18 @@ function pageWithComponents(count: number, extraNames: string[] = []): Statuspag
  * sitting in the same list as genuine outages.
  */
 function pageWithDegradedFleet(): StatuspageSummaryResponse {
-  const entries: Array<[string, 'major_outage' | 'partial_outage' | 'under_maintenance']> = [
-    ...Array.from({ length: 2 }, (_, i) => [`Edge Major ${i + 1}`, 'major_outage'] as const),
-    ...Array.from(
-      { length: 26 },
-      (_, i) => [`Edge Partial ${String(i + 1).padStart(2, '0')}`, 'partial_outage'] as const,
-    ),
-    ...Array.from(
-      { length: 20 },
-      (_, i) => [`Edge Maint ${String(i + 1).padStart(2, '0')}`, 'under_maintenance'] as const,
-    ),
-  ];
+  const entries: Array<readonly [string, 'major_outage' | 'partial_outage' | 'under_maintenance']> =
+    [
+      ...Array.from({ length: 2 }, (_, i) => [`Edge Major ${i + 1}`, 'major_outage'] as const),
+      ...Array.from(
+        { length: 26 },
+        (_, i) => [`Edge Partial ${String(i + 1).padStart(2, '0')}`, 'partial_outage'] as const,
+      ),
+      ...Array.from(
+        { length: 20 },
+        (_, i) => [`Edge Maint ${String(i + 1).padStart(2, '0')}`, 'under_maintenance'] as const,
+      ),
+    ];
   return {
     ...ALL_OPERATIONAL,
     status: { indicator: 'major', description: 'Partial System Outage' },
@@ -201,7 +202,9 @@ beforeAll(() => {
 
 describe('devopsStatusCheck', () => {
   it('returns operational result for all-clear vendor', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
@@ -221,7 +224,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('returns degraded result with incident detail', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: DEGRADED, cached: false });
@@ -251,7 +256,7 @@ describe('devopsStatusCheck', () => {
   it('names every unresolvable entry when no vendor in the batch resolves (#33)', async () => {
     const ctx = createMockContext({ errors: devopsStatusCheck.errors });
     const input = devopsStatusCheck.input.parse({ vendors: ['nope-one', 'nope-two'] });
-    const err = await devopsStatusCheck.handler(input, ctx).catch((e: Error) => e);
+    const err = await Promise.resolve(devopsStatusCheck.handler(input, ctx)).catch((e: Error) => e);
 
     expect(err).toBeInstanceOf(Error);
     // One round trip must be enough to correct every bad entry, not just the first.
@@ -260,7 +265,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('keeps the resolvable vendors when one slug is unresolvable and one URL is blocked (#33)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
@@ -301,7 +308,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('counts a failed status fetch in the unavailable bucket (#23)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockRejectedValue(
@@ -328,7 +337,7 @@ describe('devopsStatusCheck', () => {
     async function renderDegradedFleet() {
       const { _mockFetchSummary } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchSummary: ReturnType<typeof vi.fn>;
       };
       _mockFetchSummary.mockResolvedValue({ data: pageWithDegradedFleet(), cached: false });
@@ -379,7 +388,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('caps detailed components per vendor and discloses the omission (#36)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: pageWithComponents(120), cached: false });
@@ -406,7 +417,9 @@ describe('devopsStatusCheck', () => {
     // fetchVendorResults always composed guidance for the cap, but the enrichment
     // block declared no `notice`, so output.extend(enrichment) — the schema behind
     // structuredContent and the content[] trailer — stripped it before either surface.
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: pageWithComponents(120), cached: false });
@@ -425,7 +438,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('component_filter reaches a component the cap would have dropped (#36)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     // The named component sits past the default cap, so only the filter can reach it.
@@ -449,7 +464,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('component_limit raises the cap and clears the truncation signal (#36)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: pageWithComponents(120), cached: false });
@@ -472,7 +489,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('detailed mode adds all_components and scheduled_maintenances fields', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
@@ -486,7 +505,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('formats output with vendor name and indicator', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
@@ -501,7 +522,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('reports an unreachable vendor inline while other vendors still succeed', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     // First call (github) succeeds, second (cloudflare) fails the way the service
@@ -532,7 +555,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('never puts a raw runtime TypeError message in a per-vendor error (#32)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockRejectedValue(
@@ -560,7 +585,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('accepts a raw Statuspage URL in place of a slug', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
@@ -576,7 +603,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('indicator: critical maps to down count in summary', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     const CRITICAL_RESPONSE = {
@@ -623,7 +652,7 @@ describe('devopsStatusCheck', () => {
     async function checkMaintenanceVendor() {
       const { _mockFetchSummary } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchSummary: ReturnType<typeof vi.fn>;
       };
       _mockFetchSummary.mockResolvedValue({ data: MAINTENANCE_RESPONSE, cached: false });
@@ -670,7 +699,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('indicator: major maps to degraded count in summary', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     const MAJOR_RESPONSE = {
@@ -689,7 +720,9 @@ describe('devopsStatusCheck', () => {
   });
 
   it('group components are excluded from degraded_components', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     const WITH_GROUP_COMPONENT = {
@@ -738,7 +771,9 @@ describe('devopsStatusCheck', () => {
   it('adapter-backed vendor (aws) resolves without touching the Statuspage service (#12)', async () => {
     // The aws slug dispatches to the AWS Health adapter — global fetch serves the
     // (UTF-16) feed and the mocked Statuspage service must stay untouched.
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockClear();
@@ -784,7 +819,7 @@ describe('devopsStatusCheck', () => {
     it('does NOT call assertSafeUrl for registry slugs (public, pre-verified)', async () => {
       const { _mockFetchSummary } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchSummary: ReturnType<typeof vi.fn>;
       };
       _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
@@ -806,7 +841,7 @@ describe('devopsStatusCheck', () => {
     it('reports a healthy vendor whose summary omits the incident arrays', async () => {
       const { _mockFetchSummary } = (await import(
         '@/services/statuspage/statuspage-service.js'
-      )) as {
+      )) as unknown as {
         _mockFetchSummary: ReturnType<typeof vi.fn>;
       };
       const { incidents: _i, scheduled_maintenances: _m, ...sparse } = ALL_OPERATIONAL;

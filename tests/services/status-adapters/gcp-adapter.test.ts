@@ -147,7 +147,11 @@ describe('mapGcpIncident', () => {
 
   it('does not drop or reject an incident whose severity is not in the mapping', () => {
     for (const severity of ['high', 'critical', 'catastrophic', '', undefined]) {
-      const incident = mapGcpIncident({ ...disruptionRecord(), severity }, GCP);
+      const { severity: _replaced, ...base } = disruptionRecord();
+      const incident = mapGcpIncident(
+        { ...base, ...(severity === undefined ? {} : { severity }) },
+        GCP,
+      );
       expect(incident.id).toBe('3BvH3LVGcupoYqV6F4Nw');
       expect(['minor', 'major', 'critical']).toContain(incident.impact);
     }

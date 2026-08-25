@@ -64,7 +64,11 @@ describe('mapStatusioSummary', () => {
     const withCode = (code: number | undefined): StatusioResponse => ({
       result: {
         ...base.result,
-        status_overall: { updated: '', status: 'x', status_code: code },
+        status_overall: {
+          updated: '',
+          status: 'x',
+          ...(code === undefined ? {} : { status_code: code }),
+        },
       },
     });
     expect(mapStatusioSummary(withCode(300), GITLAB).status.indicator).toBe('minor');

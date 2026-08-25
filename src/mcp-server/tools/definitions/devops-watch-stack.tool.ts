@@ -18,6 +18,17 @@ import {
 
 const STACK_STATE_PREFIX = 'stack/';
 
+/**
+ * The stack name is concatenated into a `ctx.state` key, and the framework's storage
+ * layer accepts only `[a-zA-Z0-9_.-/]` with no `..`. Constraining it here rejects a
+ * bad name against the parameter it came from, instead of letting a storage-layer
+ * "Key contains invalid characters" surface where nothing names `stack_name`. The
+ * accepted set matches the storage charset rather than narrowing it, so no name that
+ * previously round-tripped is turned away; a separator must join two segments, which
+ * is what excludes `..` and a leading or trailing `.` or `/`.
+ */
+const STACK_NAME_RE = /^[a-zA-Z0-9_-]+([./][a-zA-Z0-9_-]+)*$/;
+
 /** The health rungs, best first — one list behind the output enum and the icon table. */
 const STACK_HEALTH_RUNGS = [
   'all_operational',
@@ -84,9 +95,12 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       ),
     stack_name: z
       .string()
+      .min(1)
+      .max(64)
+      .regex(STACK_NAME_RE)
       .default('default')
       .describe(
-        'Name for this vendor stack. Defaults to "default". Use distinct names to manage multiple stacks (e.g., "production", "data-layer").',
+        'Name for this vendor stack. Defaults to "default". Use distinct names to manage multiple stacks (e.g., "production", "data-layer"). Letters, digits, hyphens, and underscores, optionally separated by single dots or slashes ("prod.eu", "team/prod"); 1-64 characters. No spaces or colons.',
       ),
     mode: z
       .enum(['summary', 'detailed'])

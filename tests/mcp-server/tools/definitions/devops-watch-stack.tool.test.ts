@@ -67,7 +67,9 @@ beforeAll(() => {
 
 describe('devopsWatchStack', () => {
   it('saves vendor list on first call and returns health', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
@@ -86,7 +88,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('reuses persisted vendor list on second call', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
@@ -121,7 +125,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('computes major_outage when any vendor is critical', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: CRITICAL_SUMMARY, cached: false });
@@ -152,7 +158,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('persists only the resolvable subset and reports what it dropped (#33)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
@@ -194,7 +202,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('renders degraded components grouped by status through the shared renderer (#39)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     const component = (id: string, name: string, status: string) => ({
@@ -238,7 +248,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('caps detailed components per vendor and discloses the omission (#36)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     const MANY_COMPONENTS: StatuspageSummaryResponse = {
@@ -300,7 +312,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('formats output with health field verbatim', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
@@ -315,7 +329,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('accepts raw Statuspage URL as vendor and persists it in stack state', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
@@ -342,7 +358,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('two stacks are isolated in tenant state (different stack_name)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
@@ -381,7 +399,9 @@ describe('devopsWatchStack', () => {
     // Regression: STACK_STATE_PREFIX was 'stack:' which violates the state store key format.
     // The key must use only alphanumeric, hyphens, underscores, dots, and slashes.
     // Verify that saving a stack (which writes to ctx.state) succeeds with the current prefix.
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
@@ -406,7 +426,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('health = degraded when any vendor is minor, partial_outage when any is major', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     const MINOR_SUMMARY = {
@@ -449,7 +471,7 @@ describe('devopsWatchStack', () => {
     };
 
     async function mockSummary() {
-      return (await import('@/services/statuspage/statuspage-service.js')) as {
+      return (await import('@/services/statuspage/statuspage-service.js')) as unknown as {
         _mockFetchSummary: ReturnType<typeof vi.fn>;
       };
     }
@@ -519,7 +541,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('errored vendors force health = unknown, count as unavailable, and never roll up as all_operational', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     // Every vendor fetch fails — the stack is uncheckable, not healthy.
@@ -553,7 +577,9 @@ describe('devopsWatchStack', () => {
   });
 
   it('never puts a raw runtime TypeError message in a per-vendor error (#32)', async () => {
-    const { _mockFetchSummary } = (await import('@/services/statuspage/statuspage-service.js')) as {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
       _mockFetchSummary: ReturnType<typeof vi.fn>;
     };
     _mockFetchSummary.mockRejectedValue(
@@ -587,5 +613,55 @@ describe('devopsWatchStack', () => {
     await expect(
       devopsWatchStack.handler(devopsWatchStack.input.parse({ stack_name: 'poison' }), ctx),
     ).rejects.toMatchObject({ data: { reason: 'no_stack' } });
+  });
+  /**
+   * `stack_name` is concatenated into a `ctx.state` key. Left unconstrained, a name
+   * carrying a character the storage layer rejects surfaced as a bare "Key contains
+   * invalid characters" from a layer that names neither the tool nor the parameter.
+   * The schema rejects it against `stack_name` instead, before the handler runs.
+   */
+  describe('stack_name charset (state-key safety)', () => {
+    it.each(['prod:eu', 'prod eu', 'prod..eu', 'prod//eu', '.prod', 'prod.', '/prod', ''])(
+      'rejects %j at the schema rather than in storage',
+      (stack_name) => {
+        const parsed = devopsWatchStack.input.safeParse({ stack_name });
+        expect(parsed.success).toBe(false);
+      },
+    );
+
+    it.each(['default', 'production', 'data-layer', 'prod_eu', 'prod.eu', 'team/prod', 'a'])(
+      'accepts %j',
+      (stack_name) => {
+        expect(devopsWatchStack.input.parse({ stack_name }).stack_name).toBe(stack_name);
+      },
+    );
+
+    it('rejects a name past the 64-character cap', () => {
+      expect(devopsWatchStack.input.safeParse({ stack_name: 'a'.repeat(65) }).success).toBe(false);
+      expect(devopsWatchStack.input.safeParse({ stack_name: 'a'.repeat(64) }).success).toBe(true);
+    });
+
+    it('round-trips a dotted name through state, proving the key stays legal', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as {
+        _mockFetchSummary: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
+
+      const ctx = createMockContext({ tenantId: 'dotted', errors: devopsWatchStack.errors });
+      const saved = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: ['github'], stack_name: 'prod.eu' }),
+        ctx,
+      );
+      expect(saved.stack_persisted).toBe(true);
+
+      const reused = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ stack_name: 'prod.eu' }),
+        ctx,
+      );
+      expect(reused.stack_persisted).toBe(false);
+      expect(reused.vendors).toHaveLength(1);
+    });
   });
 });

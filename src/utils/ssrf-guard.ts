@@ -3,6 +3,11 @@
  * addresses for user-supplied targets. Registry vendor URLs are pre-verified public endpoints and
  * bypass this guard at the call site; only user-supplied raw URLs and domain inputs go through it.
  *
+ * IPv4 is matched against an enumerated table of non-routable CIDRs; IPv6 is classified by
+ * exclusion from the one block allocated to global unicast, so an unnamed range is blocked
+ * rather than assumed public. A handful of hostnames that name an internal endpoint by
+ * convention are rejected before DNS, which the address checks cannot reach.
+ *
  * Opt-in: set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to disable all checks (for local/trusted deployments
  * where internal endpoint monitoring is the intended use case).
  * @module utils/ssrf-guard
@@ -35,8 +40,11 @@ const PRIVATE_RANGES: Array<{ base: bigint; mask: bigint; label: string }> = (()
     cidr4('100.64.0.0/10', 'shared address space (RFC 6598)'),
     cidr4('192.0.0.0/24', 'IETF protocol assignments'),
     cidr4('192.0.2.0/24', 'TEST-NET-1 (RFC 5737)'),
+    cidr4('192.88.99.0/24', '6to4 relay anycast (deprecated, RFC 7526)'),
+    cidr4('198.18.0.0/15', 'benchmarking (RFC 2544)'),
     cidr4('198.51.100.0/24', 'TEST-NET-2 (RFC 5737)'),
     cidr4('203.0.113.0/24', 'TEST-NET-3 (RFC 5737)'),
+    cidr4('224.0.0.0/4', 'multicast (RFC 5771)'),
     cidr4('240.0.0.0/4', 'reserved (RFC 1112)'),
   ];
 })();
@@ -96,9 +104,32 @@ function cidr6(cidr: string, label: string): { base: bigint; mask: bigint; label
 const IPV4_MAPPED_RANGE = cidr6('::ffff:0:0/96', 'IPv4-mapped');
 
 /**
- * IPv6 ranges that are non-public, matched by prefix length over the parsed 128-bit
- * value — the same shape PRIVATE_RANGES uses for IPv4. Ordered most-specific first:
- * `::/128` and `::1/128` both sit inside `::/96`, which is a distinct category.
+ * `64:ff9b::/96` — the well-known NAT64 prefix (RFC 6052), classified by its embedded
+ * IPv4 for the same reason as the mapped range above. A DNS64 resolver synthesizes an
+ * address in this block for every IPv4-only host, so blocking it wholesale would turn
+ * every ordinary public domain away on an IPv6-only network. Classifying by the
+ * embedded address keeps the guard honest in both directions: `64:ff9b::a9fe:a9fe`
+ * still resolves to link-local 169.254.169.254 and is still blocked. The local-use
+ * prefix `64:ff9b:1::/48` is deliberately not handled — its embedded address sits at
+ * a deployment-chosen offset, so it stays blocked by the exclusion test below.
+ */
+const NAT64_WELL_KNOWN_RANGE = cidr6('64:ff9b::/96', 'NAT64');
+
+/**
+ * `2000::/3` — the only IPv6 block currently allocated to global unicast. IPv6 is
+ * classified by exclusion rather than by an enumerated blocklist: an address outside
+ * this range is not globally routable whether or not it has a name here, so a range
+ * IANA reserves later needs no table entry to be blocked. The named ranges below stay
+ * for the diagnostic label they put in the rejection.
+ */
+const GLOBAL_IPV6_UNICAST = cidr6('2000::/3', 'global unicast');
+
+/**
+ * IPv6 ranges that are non-public and worth naming, matched by prefix length over the
+ * parsed 128-bit value — the same shape PRIVATE_RANGES uses for IPv4. Ordered
+ * most-specific first: `::/128` and `::1/128` both sit inside `::/96`, which is a
+ * distinct category. The `2001::`–`3fff::` entries sit *inside* `2000::/3`, so they
+ * are the only ones the global-unicast test below cannot reach on its own.
  */
 const PRIVATE_IPV6_RANGES: Array<{ base: bigint; mask: bigint; label: string }> = [
   cidr6('::/128', 'unspecified (routes to the local host)'),
@@ -108,7 +139,13 @@ const PRIVATE_IPV6_RANGES: Array<{ base: bigint; mask: bigint; label: string }> 
   cidr6('fe80::/10', 'link-local'),
   cidr6('fec0::/10', 'site-local (deprecated, RFC 3879)'),
   cidr6('ff00::/8', 'multicast'),
+  cidr6('2001::/32', 'Teredo (RFC 4380)'),
+  cidr6('2001:2::/48', 'benchmarking (RFC 5180)'),
+  cidr6('2001:10::/28', 'ORCHID (deprecated, RFC 4843)'),
+  cidr6('2001:20::/28', 'ORCHIDv2 (RFC 7343)'),
   cidr6('2001:db8::/32', 'documentation (RFC 3849)'),
+  cidr6('2002::/16', '6to4 (deprecated, RFC 7526)'),
+  cidr6('3fff::/20', 'documentation (RFC 9637)'),
 ];
 
 /** Returns true if the IPv4 address string falls in a private/reserved range. */
@@ -130,14 +167,24 @@ function isPrivateIPv6(ip: string): string | null {
   // Fail closed: text that does not parse is never asserted to be public.
   if (value === null) return 'unparsable IPv6 address';
 
-  if ((value & IPV4_MAPPED_RANGE.mask) === IPV4_MAPPED_RANGE.base) {
+  for (const range of [IPV4_MAPPED_RANGE, NAT64_WELL_KNOWN_RANGE]) {
+    if ((value & range.mask) !== range.base) continue;
     const embedded = [24n, 16n, 8n, 0n].map((shift) => Number((value >> shift) & 0xffn)).join('.');
     const label = isPrivateIPv4(embedded);
-    return label ? `IPv4-mapped ${label}` : null;
+    return label ? `${range.label} ${label}` : null;
   }
 
   for (const { base, mask, label } of PRIVATE_IPV6_RANGES) {
     if ((value & mask) === base) return label;
+  }
+
+  /**
+   * Anything left outside the allocated global unicast block is not routable —
+   * discard-only, the local-use NAT64 prefix, and every range IANA has not delegated
+   * yet land here without a table entry of their own.
+   */
+  if ((value & GLOBAL_IPV6_UNICAST.mask) !== GLOBAL_IPV6_UNICAST.base) {
+    return 'outside the allocated global unicast block (2000::/3)';
   }
   return null;
 }
@@ -174,8 +221,24 @@ function blocked(context: string, address: string, label: string): Error {
   );
 }
 
+/**
+ * Hostnames that name an internal endpoint by convention rather than by address.
+ * They are rejected on the name because the range check below cannot reach them:
+ * DNS failure deliberately falls through to the downstream connect, so a resolver
+ * that cannot answer `metadata.google.internal` would let the request proceed.
+ */
+const PRIVATE_HOSTNAMES = new Set(['localhost', 'metadata.google.internal', 'metadata.internal']);
+
 /** Resolve the hostname in a URL or bare domain and throw if any resolved IP is private. */
 async function resolveAndCheck(hostname: string, context: string): Promise<void> {
+  if (PRIVATE_HOSTNAMES.has(hostname.toLowerCase())) {
+    throw new Error(
+      `SSRF_BLOCKED: ${context} names a known internal host ("${hostname}"). ` +
+        `Requests to private, loopback, or cloud-metadata addresses are not permitted. ` +
+        `Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.`,
+    );
+  }
+
   /**
    * An IP literal is range-checked directly rather than resolved. `lookup()` rejects
    * the bracketed IPv6 form a URL hostname carries (`[::1]`), and the DNS-failure path

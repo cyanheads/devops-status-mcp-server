@@ -110,6 +110,32 @@ describe('assertSafeResolverIp (synchronous, no DNS)', () => {
     expect(() => assertSafeResolverIp('fe80::1')).toThrow('SSRF_BLOCKED');
   });
 
+  /** IPv4 space that is reserved or non-routable without being RFC 1918 private. */
+  it('blocks the remaining non-global IPv4 ranges', () => {
+    expect(() => assertSafeResolverIp('192.88.99.1')).toThrow(/6to4 relay anycast/);
+    expect(() => assertSafeResolverIp('198.18.0.1')).toThrow(/benchmarking/);
+    expect(() => assertSafeResolverIp('198.19.255.254')).toThrow(/benchmarking/);
+    expect(() => assertSafeResolverIp('224.0.0.1')).toThrow(/multicast/);
+    expect(() => assertSafeResolverIp('239.255.255.250')).toThrow(/multicast/);
+    expect(() => assertSafeResolverIp('240.0.0.1')).toThrow(/reserved/);
+    expect(() => assertSafeResolverIp('255.255.255.255')).toThrow(/reserved/);
+    expect(() => assertSafeResolverIp('192.0.2.1')).toThrow(/TEST-NET-1/);
+    expect(() => assertSafeResolverIp('203.0.113.1')).toThrow(/TEST-NET-3/);
+    expect(() => assertSafeResolverIp('100.64.0.1')).toThrow(/shared address space/);
+  });
+
+  it('leaves the routable addresses bordering those ranges alone', () => {
+    for (const ip of [
+      '192.88.98.255',
+      '192.88.100.1',
+      '198.17.255.255',
+      '198.20.0.1',
+      '223.255.255.255',
+    ]) {
+      expect(() => assertSafeResolverIp(ip)).not.toThrow();
+    }
+  });
+
   it('passes for public IPv6', () => {
     expect(() => assertSafeResolverIp('2001:4860:4860::8888')).not.toThrow();
   });
@@ -167,13 +193,105 @@ describe('assertSafeResolverIp (synchronous, no DNS)', () => {
     });
 
     it('blocks unique-local by the fc00::/7 range, not by the leading characters', () => {
-      expect(() => assertSafeResolverIp('fc00::1')).toThrow(/unique local/);
-      expect(() => assertSafeResolverIp('fd00::1')).toThrow(/unique local/);
-      expect(() => assertSafeResolverIp('fdff:ffff::1')).toThrow(/unique local/);
-      expect(() => assertSafeResolverIp('fb00::1')).not.toThrow();
-      // 00fc:0001:: only spells like fc00::/7 — its first hextet is 0x00fc.
-      expect(() => assertSafeResolverIp('fc:1::')).not.toThrow();
-      expect(() => assertSafeResolverIp('fd:1::')).not.toThrow();
+      const thrown = (ip: string) => {
+        try {
+          assertSafeResolverIp(ip);
+        } catch (err) {
+          return (err as Error).message;
+        }
+        return '';
+      };
+      expect(thrown('fc00::1')).toMatch(/unique local/);
+      expect(thrown('fd00::1')).toMatch(/unique local/);
+      expect(thrown('fdff:ffff::1')).toMatch(/unique local/);
+      /**
+       * fb00::/8 and 00fc:0001:: are outside fc00::/7 — a string-prefix match would
+       * label them unique-local. They are still blocked, by the global-unicast test
+       * rather than by the ULA range, so the label is what separates the two.
+       */
+      expect(thrown('fb00::1')).toMatch(/outside the allocated global unicast block/);
+      expect(thrown('fb00::1')).not.toMatch(/unique local/);
+      expect(thrown('fc:1::')).not.toMatch(/unique local/);
+      expect(thrown('fd:1::')).not.toMatch(/unique local/);
+    });
+
+    /**
+     * Only 2000::/3 is allocated to global unicast, so an address outside it is not
+     * routable whether or not it has an entry in the named-range table. Classifying
+     * by exclusion is what keeps a range IANA reserves later from reading as public.
+     */
+    it('blocks every address outside the allocated global unicast block (2000::/3)', () => {
+      for (const ip of [
+        '0100::1',
+        '64:ff9b:1::1.2.3.4',
+        '0200::1',
+        '4000::1',
+        '8000::1',
+        'c000::1',
+      ]) {
+        expect(() => assertSafeResolverIp(ip)).toThrow(
+          /outside the allocated global unicast block/,
+        );
+      }
+    });
+
+    /**
+     * A DNS64 resolver answers for every IPv4-only host with a synthesized address in
+     * the well-known NAT64 prefix, so `dns.lookup` returns one on an IPv6-only network
+     * for domains that are perfectly public. Classifying by the embedded IPv4 — the
+     * same treatment `::ffff:0:0/96` gets — is what keeps the guard from turning the
+     * whole public internet away there without letting a synthesized private target in.
+     */
+    describe('NAT64 (64:ff9b::/96) is classified by its embedded IPv4', () => {
+      const thrown = (ip: string) => {
+        try {
+          assertSafeResolverIp(ip);
+        } catch (err) {
+          return (err as Error).message;
+        }
+        return '';
+      };
+
+      it('allows a synthesized address embedding a public IPv4', () => {
+        expect(() => assertSafeResolverIp('64:ff9b::1.2.3.4')).not.toThrow();
+        expect(() => assertSafeResolverIp('64:ff9b::8.8.8.8')).not.toThrow();
+        // Same address in its all-hex spelling.
+        expect(() => assertSafeResolverIp('64:ff9b::808:808')).not.toThrow();
+      });
+
+      it('blocks a synthesized address embedding a private or metadata IPv4', () => {
+        expect(thrown('64:ff9b::169.254.169.254')).toMatch(/NAT64 link-local \/ cloud-metadata/);
+        expect(thrown('64:ff9b::a9fe:a9fe')).toMatch(/NAT64 link-local \/ cloud-metadata/);
+        expect(thrown('64:ff9b::10.0.0.1')).toMatch(/NAT64 private \(RFC 1918\)/);
+        expect(thrown('64:ff9b::127.0.0.1')).toMatch(/NAT64 loopback/);
+      });
+
+      /**
+       * The local-use prefix puts the embedded address at a deployment-chosen offset,
+       * so it is not decoded — exclusion blocks it, and the label proves which path ran.
+       */
+      it('leaves the local-use prefix 64:ff9b:1::/48 to the exclusion test', () => {
+        expect(thrown('64:ff9b:1::1.2.3.4')).toMatch(/outside the allocated global unicast block/);
+      });
+    });
+
+    /** Non-global carve-outs that sit inside 2000::/3, so exclusion alone cannot reach them. */
+    it('blocks the non-global ranges carved out of 2000::/3', () => {
+      expect(() => assertSafeResolverIp('2001::1')).toThrow(/Teredo/);
+      expect(() => assertSafeResolverIp('2001:0:ffff::1')).toThrow(/Teredo/);
+      expect(() => assertSafeResolverIp('2001:2::1')).toThrow(/benchmarking/);
+      expect(() => assertSafeResolverIp('2001:10::1')).toThrow(/ORCHID \(deprecated/);
+      expect(() => assertSafeResolverIp('2001:20::1')).toThrow(/ORCHIDv2/);
+      expect(() => assertSafeResolverIp('2002::1')).toThrow(/6to4/);
+      expect(() => assertSafeResolverIp('2002:ffff:ffff::1')).toThrow(/6to4/);
+      expect(() => assertSafeResolverIp('3fff::1')).toThrow(/documentation \(RFC 9637\)/);
+      expect(() => assertSafeResolverIp('3fff:fff::1')).toThrow(/documentation \(RFC 9637\)/);
+    });
+
+    it('still passes globally routable addresses adjacent to those carve-outs', () => {
+      for (const ip of ['2001:4860:4860::8888', '2001:3::1', '2003::1', '2600::1', '3ffe::1']) {
+        expect(() => assertSafeResolverIp(ip)).not.toThrow();
+      }
     });
   });
 
@@ -216,6 +334,17 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
   it('blocks a URL resolving to RFC 1918 private IP', async () => {
     mockAddresses([{ address: '10.0.0.50', family: 4 }]);
     await expect(assertSafeUrl('https://internal.corp')).rejects.toThrow('SSRF_BLOCKED');
+  });
+
+  it('blocks a URL whose host is a known internal hostname even when DNS cannot answer', async () => {
+    mockLookup.mockRejectedValue(new Error('ENOTFOUND'));
+    await expect(assertSafeUrl('http://localhost:3013/api/v2/summary.json')).rejects.toThrow(
+      /known internal host/,
+    );
+    await expect(assertSafeUrl('http://metadata.google.internal/')).rejects.toThrow(
+      /known internal host/,
+    );
+    expect(mockLookup).not.toHaveBeenCalled();
   });
 
   it('blocks non-http/https schemes', async () => {
@@ -326,6 +455,24 @@ describe('assertSafeDomain (async, mocked DNS)', () => {
   it('blocks a domain resolving to private RFC 1918 range', async () => {
     mockAddresses([{ address: '192.168.100.50', family: 4 }]);
     await expect(assertSafeDomain('intranet.corp')).rejects.toThrow('SSRF_BLOCKED');
+  });
+
+  /**
+   * DNS failure falls through to the downstream connect on purpose, so a name that
+   * only ever resolves inside the deployment would otherwise pass the guard whenever
+   * the resolver could not answer it. These names are rejected before DNS is consulted.
+   */
+  it('blocks a known internal hostname without consulting DNS', async () => {
+    mockLookup.mockRejectedValue(new Error('ENOTFOUND'));
+    for (const host of [
+      'localhost',
+      'LOCALHOST',
+      'metadata.google.internal',
+      'metadata.internal',
+    ]) {
+      await expect(assertSafeDomain(host)).rejects.toThrow(/known internal host/);
+    }
+    expect(mockLookup).not.toHaveBeenCalled();
   });
 
   it('is a no-op when allowPrivateTargets is true (config-driven)', async () => {

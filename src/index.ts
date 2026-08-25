@@ -4,6 +4,7 @@
  * @module index
  */
 
+import type { CacheHints } from '@cyanheads/mcp-ts-core';
 import { createApp } from '@cyanheads/mcp-ts-core';
 import { getServerConfig } from './config/server-config.js';
 import { allResourceDefinitions } from './mcp-server/resources/definitions/index.js';
@@ -34,6 +35,24 @@ const instructions = disableActiveProbes
   ? baseInstructions
   : `${baseInstructions} devops_check_certs and devops_check_dns work for any domain — not just registered vendors.`;
 
+/**
+ * The discovery surface is fixed for the life of the process: the tool list is
+ * decided once from DEVOPS_STATUS_DISABLE_ACTIVE_PROBES above, and the resource
+ * and prompt lists are compiled in. Nothing here emits a `*Changed` notification,
+ * so a client re-listing on every turn is re-fetching a constant. Vendor status
+ * itself is not covered — it moves minute to minute and is served by tools, which
+ * are not a cacheable result. `public` because none of it varies by caller.
+ */
+const DISCOVERY_CACHE_TTL_MS = 3_600_000;
+
+const cacheHints = {
+  'tools/list': { ttlMs: DISCOVERY_CACHE_TTL_MS, cacheScope: 'public' },
+  'prompts/list': { ttlMs: DISCOVERY_CACHE_TTL_MS, cacheScope: 'public' },
+  'resources/list': { ttlMs: DISCOVERY_CACHE_TTL_MS, cacheScope: 'public' },
+  'resources/templates/list': { ttlMs: DISCOVERY_CACHE_TTL_MS, cacheScope: 'public' },
+  'server/discover': { ttlMs: DISCOVERY_CACHE_TTL_MS, cacheScope: 'public' },
+} satisfies CacheHints;
+
 await createApp({
   name: 'devops-status-mcp-server',
   title: 'devops-status-mcp-server',
@@ -41,6 +60,7 @@ await createApp({
   resources: [...allResourceDefinitions],
   prompts: [],
   instructions,
+  cacheHints,
 
   setup() {
     initVendorRegistryService();

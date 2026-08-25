@@ -14,6 +14,13 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
     'Read-only, stable. Use devops_list_vendors to discover available slugs.',
   mimeType: 'application/json',
 
+  /**
+   * The registry is compiled in, so an entry changes only when a new build ships.
+   * `public` because the payload is identical for every caller — no tenant, auth,
+   * or request state reaches it.
+   */
+  cacheHint: { ttlMs: 3_600_000, cacheScope: 'public' },
+
   params: z.object({
     name: z.string().describe('Vendor slug (e.g., "github", "cloudflare"). Case-insensitive.'),
   }),

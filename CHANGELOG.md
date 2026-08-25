@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.8.1](changelog/0.8.x/0.8.1.md) — 2026-08-24 · ⚠️ Breaking · 🛡️ Security
+
+mcp-ts-core moves to ^0.12.3 — strict tool inputs, 2020-12 JSON Schema, protocol revision 2026-07-28; ssrf-guard closes IPv4/IPv6 range gaps and blocks internal hostnames by name; stack_name gets a charset constraint; discovery and the vendor resource declare cache hints.
+
 ## [0.8.0](changelog/0.8.x/0.8.0.md) — 2026-07-30 · ⚠️ Breaking · 🛡️ Security
 
 IPv6 SSRF matching moves to bitwise prefix length, devops_check_dns elides per-resolver records that agree with the domain-level set, degraded-component output is uncapped and grouped by status, devops_get_incidents covers a fully-quiet feed, and a maintenance status indicator is carried end to end.

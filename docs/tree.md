@@ -1,11 +1,9 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-07-31 08:10:03
+Generated on: 2026-08-25 05:45:46
 
 ```text
 devops-status-mcp-server/
-├── .agents/
-├── .claude/
 ├── .claude-plugin/
 │   └── plugin.json
 ├── .codex-plugin/

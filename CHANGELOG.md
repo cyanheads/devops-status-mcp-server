@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.8.2](changelog/0.8.x/0.8.2.md) — 2026-09-20
+
+mcp-ts-core moves to ^0.13.6 — sessionMode is now declared in source (stateless here), tool-argument rejections carry a reason and a recovery hint, and upstream error data no longer echoes the request URL by default. Skills move to framework-skills/, plus a bun update --latest.
+
 ## [0.8.1](changelog/0.8.x/0.8.1.md) — 2026-08-24 · ⚠️ Breaking · 🛡️ Security
 
 mcp-ts-core moves to ^0.12.3 — strict tool inputs, 2020-12 JSON Schema, protocol revision 2026-07-28; ssrf-guard closes IPv4/IPv6 range gaps and blocks internal hostnames by name; stack_name gets a charset constraint; discovery and the vendor resource declare cache hints.

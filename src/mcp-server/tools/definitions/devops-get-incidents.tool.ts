@@ -335,6 +335,9 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       when: "The vendor's status API returned an error or timed out.",
       recovery: 'Retry after 30s. If it persists, check the status page URL in a browser.',
       retryable: true,
+      // Raised below the handler: every transport failure in the shared cached-fetch
+      // helper leaves as a ServiceUnavailable carrying this reason.
+      thrownBy: 'service',
     },
   ],
 

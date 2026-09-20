@@ -2,10 +2,12 @@
  * @fileoverview Tests for the registered tool surface gated by
  * `DEVOPS_STATUS_DISABLE_ACTIVE_PROBES`. The two arbitrary-target probe tools
  * (`devops_check_dns`, `devops_check_certs`) are omitted when the flag is set;
- * the vendor-registry/incident tools always remain.
+ * the vendor-registry/incident tools always remain. Also guards the invariant
+ * behind `createApp({ sessionMode: 'stateless' })`.
  * @module tests/mcp-server/tools/definitions/tool-surface.test
  */
 
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ACTIVE_PROBE_TOOL_NAMES,
@@ -57,6 +59,30 @@ describe('registered tool surface', () => {
       expect(names).toContain(name);
     }
     expect(names).toHaveLength(ALWAYS_REGISTERED.length);
+  });
+});
+
+describe('stateless session posture', () => {
+  /**
+   * `src/index.ts` declares `sessionMode: 'stateless'`, which is only safe while no
+   * handler suspends on `ctx.requestInput` — a 2025-era HTTP client cannot answer an
+   * elicitation without a session, and nothing at startup catches the mismatch. A tool
+   * that needs mid-handler input must switch the declaration to
+   * `{ default: 'stateful', require: 'stateful' }` and update this test.
+   * `ctx.state` is tenant-scoped storage rather than the session store, so
+   * `devops_watch_stack` persisting a named stack is unaffected by the mode.
+   */
+  it('no tool or resource handler suspends on ctx.requestInput', () => {
+    const roots = [
+      new URL('../../../../src/mcp-server/tools/definitions/', import.meta.url),
+      new URL('../../../../src/mcp-server/resources/definitions/', import.meta.url),
+    ];
+    const offenders = roots.flatMap((root) =>
+      readdirSync(root)
+        .filter((f) => f.endsWith('.ts'))
+        .filter((f) => readFileSync(new URL(f, root), 'utf8').includes('requestInput')),
+    );
+    expect(offenders).toEqual([]);
   });
 });
 

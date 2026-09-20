@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.8.1-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.0.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.3.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.8.1-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.0.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -27,9 +27,11 @@
 
 ---
 
-## Tools
+## Overview
 
-Seven tools in three capability groups — vendor status (51 built-in vendors across Atlassian Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, and Firehydrant backends, normalized to one shape, + raw Statuspage URL passthrough), pure-TypeScript cert/DNS checks (any domain), and incident-response guidance:
+Vendor status pages, SSL/TLS certificates, and DNS propagation — normalized across Atlassian Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, and Firehydrant backends, plus direct TLS/DNS checks for any domain. List and check 51 built-in vendors, fetch incident timelines, watch a persisted stack, and get a tailored incident-response playbook, all without API keys. Runs as a stdio process, a local Streamable HTTP server, or the public hosted endpoint above.
+
+### Tools
 
 | Tool | Description |
 |:-----|:------------|
@@ -41,14 +43,25 @@ Seven tools in three capability groups — vendor status (51 built-in vendors ac
 | `devops_check_dns` | Resolve DNS records and verify propagation for one or more domains across Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). Reports per-resolver latency and resolver discrepancies. Pure TypeScript — no external API. |
 | `devops_suggest_action` | Instruction tool — returns a tailored incident-response playbook and pre-filled follow-up tool calls given a vendor name and optional incident context. No external calls; fully deterministic. |
 
-### `devops_list_vendors`
+### Resources
 
-Discover available vendors before running status checks or configuring a stack.
+| Resource | Description |
+|:-----|:------------|
+| `devops-status://vendors/{name}` | Full registry entry for a vendor by slug — status page URL, category, and API type. |
 
-- Accepts an optional free-text `query` (matches name and slug, case-insensitive) and an optional `category` filter
-- Eight categories: `cloud`, `cdn-edge`, `dev-platform`, `data`, `comms`, `auth`, `monitoring`, `ai`
+All resource data is also reachable via tools. Tool-only agents are fully supported.
+
+---
+
+## Capability reference
+
+### `devops_list_vendors` <sub>tool</sub>
+
+- Accepts an optional free-text `query` (matches name and slug, case-insensitive) and an optional `category` filter — eight categories: `cloud`, `cdn-edge`, `dev-platform`, `data`, `comms`, `auth`, `monitoring`, `ai`
 - Returns slug (what to pass to other tools), display name, category, and status page URL
-- 51 built-in entries — well-known public vendors with verified status endpoints (most on Atlassian Statuspage; `aws`, `gcp`, `gitlab`, `neon`, `slack`, and `redis-cloud` served through native-API adapters)
+- 51 built-in entries, most on Atlassian Statuspage; `aws`, `gcp`, `gitlab`, `neon`, `slack`, and `redis-cloud` route through native-API adapters normalized to the same shape
+- Azure is excluded — its status feed is RSS with no severity/lifecycle field, so the normalized shape can't be filled without inventing values
+- Statuspage-compatible pages not in the registry are still reachable by passing a raw base URL to other tools
 
 Built-in vendor registry:
 
@@ -63,107 +76,81 @@ Built-in vendor registry:
 | `monitoring` | datadog, sentry, new-relic, grafana-cloud, honeycomb |
 | `ai` | openai, anthropic, elevenlabs, pinecone, cohere |
 
-Most registry entries are Atlassian Statuspage endpoints; `aws` (AWS Health Dashboard), `gcp` (Google Cloud Service Health), `gitlab` / `neon` (Status.io), `slack` (Slack's own status API), and `redis-cloud` (Firehydrant) are served through adapters that normalize into the same shapes, so every tool works identically for them. Azure remains out of the registry: its status feed is RSS with no severity or lifecycle field, so the normalized shapes cannot be filled from it without inventing values. Statuspage-compatible pages not listed here can still be reached by passing a raw base URL.
+---
+
+### `devops_status_check` <sub>tool</sub>
+
+- Accepts registered vendor slugs (e.g., `github`, `aws`) or raw Atlassian Statuspage base URLs, mixed freely — up to 20 per call
+- `mode: "summary"` (default): indicator + degraded components + active incidents; `mode: "detailed"` adds the full component list (capped at `component_limit`, default 50, max 500) and scheduled maintenance windows
+- `Promise.allSettled` fan-out — one failing vendor never blocks the rest; failures surface as a per-vendor `error` field
+- Results served from a 60-second in-memory cache; `cached: true` on each result
+- `summary` partitions the batch into `operational` / `degraded` / `down` / `maintenance` / `unavailable` counts
 
 ---
 
-### `devops_status_check`
+### `devops_get_incidents` <sub>tool</sub>
 
-Batch health snapshot across one or more vendors in a single call.
-
-- Accepts registered vendor slugs (e.g., `"github"`, `"aws"`) or raw Atlassian Statuspage base URLs (e.g., `"https://www.githubstatus.com"`) — mix freely
-- `mode: "summary"` (default): indicator + degraded components + active incidents
-- `mode: "detailed"`: adds full component list and scheduled maintenance windows
-- `Promise.allSettled` fan-out — one failing vendor does not block the rest; errors surface inline
-- Results served from a 60-second in-memory cache; `cached: true` flag on each result
+- `filter`: `all` (default, incidents + scheduled maintenances), `active` (investigating/identified/monitoring), `resolved` (fully resolved), or `scheduled` (maintenance windows only)
+- Returns per-update bodies in chronological order, affected component names, duration in minutes for resolved incidents, and a direct shortlink to the incident page
+- `limit` (1–50) with `offset` for paging; a truncated result discloses the total and the next `offset` to fetch
+- Some vendor feeds cap their own history (`upstreamCeiling`) — incidents older than that ceiling are reachable only on the vendor's own status page
+- AWS exposes only currently-open events — `filter: "resolved"` and `filter: "scheduled"` are always empty for it
 
 ---
 
-### `devops_get_incidents`
-
-Full incident timeline for a vendor with filter support.
-
-- `filter: "all"` (default): incidents plus scheduled maintenances
-- `filter: "active"`: only incidents with status `investigating` / `identified` / `monitoring`
-- `filter: "resolved"`: only fully resolved incidents
-- `filter: "scheduled"`: only scheduled maintenance windows
-- Returns per-update bodies in chronological order, affected component names, duration in minutes (resolved incidents), and a direct shortlink to the incident page
-- Configurable `limit` (1–50) with `offset` for paging through longer history; a truncated result discloses the total and names the next `offset` to fetch
-- AWS exposes only currently-open events (no history feed) — `filter: "resolved"` and `filter: "scheduled"` are always empty for `aws`
-
----
-
-### `devops_watch_stack`
-
-Named, persisted vendor stack for recurring health sweeps.
+### `devops_watch_stack` <sub>tool</sub>
 
 - On the first call, provide `vendors` to define the stack — it is saved to tenant-scoped session state under `stack_name`
 - Subsequent calls can omit `vendors`; the saved list is reused automatically
 - Multiple stacks coexist via distinct `stack_name` values (e.g., `"production"`, `"data-layer"`) — letters, digits, hyphens, and underscores, optionally separated by single dots or slashes, 1-64 characters
-- Aggregate health output: `all_operational` / `degraded` / `partial_outage` / `major_outage` / `unknown` (a vendor could not be reached — errored vendors count as `unavailable` and never roll up as `all_operational`)
+- Aggregate `health` rollup: `all_operational` / `maintenance` (a vendor in a scheduled window, nothing worse open) / `degraded` / `partial_outage` / `major_outage` / `unknown` (a vendor could not be reached) — never `all_operational` when any vendor errored or is in a window
 - Note: stack state is in-memory; it does not persist across server restarts
 
 ---
 
-### `devops_check_certs`
-
-Direct TLS handshake inspection — no external API required.
+### `devops_check_certs` <sub>tool</sub>
 
 - Accepts bare hostnames (no `https://` prefix) — up to 10 per call
 - Reports: days to expiry (flagged `warning` at < 30 days, `critical` at < 7), certificate subject and SANs, issuer common name, chain depth, negotiated TLS version (flags 1.0 and 1.1 as insecure), cipher suite
 - HSTS detection: sends a minimal HTTP/1.1 GET over the same TLS socket, reads the `Strict-Transport-Security` response header
-- Per-domain failures are reported inline (status: `"error"`) rather than throwing — useful partial results when checking multiple domains
+- `status: "critical"` distinguishes a hostname mismatch (`hostname_verification_error`) from an untrusted chain (`authorization_error`) — both would be rejected by ordinary clients
+- Per-domain failures are reported inline (`status: "error"`) rather than throwing — useful partial results when checking multiple domains
 - Configurable port (default 443) and timeout per domain
 
 ---
 
-### `devops_check_dns`
-
-Multi-resolver DNS propagation check — no external API required.
+### `devops_check_dns` <sub>tool</sub>
 
 - Queries Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9) in parallel per domain
 - Supported record types: A, AAAA, CNAME, MX, TXT, NS (defaults to A, AAAA, MX, TXT)
-- Reports per-resolver latency, propagation discrepancies (where resolvers disagree), and human-readable flags
+- Reports per-resolver latency, propagation discrepancies, and human-readable flags
+- Discrepancies are typed: `partial_resolution` (some resolvers answered, others didn't) signals a real problem; `value_variation` (all answered, different values) is normal for anycast/geo-steered domains
 - Custom resolver list supported — pass any IP addresses to test internal DNS or resolver-specific behavior
 - Up to 10 domains per call; per-domain timeouts configurable
 
 ---
 
-### `devops_suggest_action`
+### `devops_suggest_action` <sub>tool</sub>
 
-Deterministic incident-response guidance, no external calls.
-
-- Returns a markdown playbook tailored to the vendor's category (CDN outage vs. CI/CD outage vs. auth provider outage vs. AI service outage)
-- Accepts a vendor slug or display name (`aws` or `Amazon Web Services`) — resolved to the canonical slug so the pre-filled follow-up arguments stay valid
-- `nextToolSuggestions` pre-populated with arguments from the provided context — execute in sequence to gather diagnostic data
-- Optional `your_domain` populates cert and DNS check arguments automatically
-- Optional `incident_summary` / `affected_components` prepend a targeted section to the playbook and add a component re-check when they identify a subsystem (e.g. GitHub `Actions` → CI/CD-prioritized steps; Cloudflare `DNS` → DNS/TTL guidance)
-- Optional `vendor_indicator` — pass the `indicator` from `devops_status_check` to lead the playbook with severity-tailored urgency guidance (`none` / `minor` / `major` / `critical` / `maintenance`)
-- Falls back to generic guidance for unrecognized vendors
-- When `DEVOPS_STATUS_DISABLE_ACTIVE_PROBES=true`, suggestions and playbook text replace the unregistered probe tools with equivalent manual commands (`dig`, `openssl s_client`)
+- Category-tailored markdown playbook (cloud, CDN, dev-platform, data, comms, auth, monitoring, AI); falls back to generic guidance for unrecognized vendors
+- Accepts a vendor slug or display name, resolved to the canonical slug so pre-filled follow-up arguments stay valid
+- Optional `incident_summary` / `affected_components` prepend a targeted subsystem section (e.g. GitHub `Actions` → CI/CD steps, Cloudflare `DNS` → DNS/TTL guidance); optional `vendor_indicator` leads with severity-tailored urgency framing
+- `nextToolSuggestions` pre-fills follow-up tool calls, including cert/DNS checks when `your_domain` is given — execute in sequence
+- When `DEVOPS_STATUS_DISABLE_ACTIVE_PROBES=true`, guidance swaps the unregistered probe tools for equivalent manual commands (`dig`, `openssl s_client`)
 
 ---
 
-## Resources and prompts
+### `devops-status://vendors/{name}` <sub>resource</sub>
 
-| Type | Name | Description |
-|:-----|:-----|:------------|
-| Resource | `devops-status://vendors/{name}` | Full registry entry for a vendor by slug — status page URL, category, API type. |
-
-All resource data is also reachable via tools. Tool-only agents are fully supported.
+- Returns the full registry entry for a vendor slug — status page URL, category, and API type (`statuspage`, `statusio`, `slack`, `aws`, `gcp`, `firehydrant`)
+- Cached publicly for 1 hour — the registry is compiled in and identical for every caller
+- Same data is reachable via `devops_list_vendors` — tool-only agents are fully supported
 
 ---
 
 ## Features
 
-Built on [`@cyanheads/mcp-ts-core`](https://www.npmjs.com/package/@cyanheads/mcp-ts-core):
-
-- Declarative tool and resource definitions — single file per primitive, framework handles registration and validation
-- Unified error handling — handlers throw, framework catches, classifies, and formats
-- Pluggable auth: `none`, `jwt`, `oauth`
-- Swappable storage backends: `in-memory`, `filesystem`, `Supabase`, `Cloudflare KV/R2/D1`
-- Structured logging with optional OpenTelemetry tracing
-- STDIO and Streamable HTTP transports
+Built on [`@cyanheads/mcp-ts-core`](https://github.com/cyanheads/mcp-ts-core): stdio and Streamable HTTP transports, pluggable auth (`none` / `jwt` / `oauth`), swappable storage (`in-memory`, `filesystem`, `Supabase`, `Cloudflare KV/R2/D1`), structured logging with optional OpenTelemetry tracing.
 
 DevOps-status-specific:
 
@@ -264,7 +251,7 @@ MCP_TRANSPORT_TYPE=http MCP_HTTP_PORT=3010 bun run start:http
 
 ### Prerequisites
 
-- [Bun v1.3.0](https://bun.sh/) or higher (or Node.js v24+).
+- [Bun v1.4.0](https://bun.sh/) or higher (or Node.js v24+).
 - No API keys or external accounts required.
 
 ### Installation
@@ -310,7 +297,7 @@ No API keys required. All environment variables are optional.
 | `DEVOPS_STATUS_DISABLE_ACTIVE_PROBES` | When `true`, omits the arbitrary-target probe tools (`devops_check_dns`, `devops_check_certs`) from the registered tool surface; the five vendor-registry/incident tools remain. For shared/public multi-tenant instances. | `false` |
 | `MCP_TRANSPORT_TYPE` | Transport: `stdio` or `http`. | `stdio` |
 | `MCP_HTTP_PORT` | Port for HTTP server. | `3010` |
-| `MCP_SESSION_MODE` | HTTP session handling: `stateless`, `stateful`, or `auto`. This server holds no per-session state, and the published container sets `stateless`. | `auto` (resolves to `stateful`) |
+| `MCP_SESSION_MODE` | HTTP session handling: `stateless`, `stateful`, or `auto`. The server declares `stateless` in source — it holds no per-session state — so setting this is only needed to override that. | `stateless` |
 | `MCP_AUTH_MODE` | Auth mode: `none`, `jwt`, or `oauth`. | `none` |
 | `MCP_LOG_LEVEL` | Log level (RFC 5424). | `info` |
 | `LOGS_DIR` | Directory for log files (Node.js only). | `<project-root>/logs` |
@@ -383,7 +370,7 @@ See [`CLAUDE.md`](./CLAUDE.md) for development guidelines and architectural rule
 
 ## Contributing
 
-Issues and pull requests are welcome. Run checks and tests before submitting:
+Issues are welcome. Run checks and tests before submitting:
 
 ```sh
 bun run devcheck

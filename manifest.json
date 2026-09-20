@@ -14,7 +14,9 @@
       "env": {
         "MCP_TRANSPORT_TYPE": "stdio",
         "MCP_AUTH_MODE": "none",
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS": "${user_config.DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS}",
+        "DEVOPS_STATUS_DISABLE_ACTIVE_PROBES": "${user_config.DEVOPS_STATUS_DISABLE_ACTIVE_PROBES}"
       }
     }
   },

@@ -313,8 +313,24 @@ z.object({
     maintenance: z.number(),
     unavailable: z.number(),
   }).describe('Aggregate health counts across all checked vendors. Buckets partition the batch: operational + degraded + down + maintenance + unavailable = total.'),
+  nextToolSuggestions: z.array(z.object({
+    toolName: z.string(),        // always "devops_suggest_action"
+    reason: z.string(),
+    args: z.record(z.string(), z.unknown()),
+  })).describe('One devops_suggest_action call per vendor with an active problem, arguments pre-filled. Empty when none qualifies.'),
 })
 ```
+
+**`nextToolSuggestions`:** a vendor qualifies when its `indicator` is `minor`, `major`, or `critical`, or when it has an open incident of one of those impacts — a page can read `none` while such an incident is open. A vendor carrying `error` never qualifies. Arguments are built per vendor, one entry per distinct `args.vendor`, in results order:
+
+| Arg | Value |
+|:----|:------|
+| `vendor` | Registry slug even when the caller typed another case (`GitHub` → `github`); a raw URL passes its normalized URL (`statuspage_url`). |
+| `vendor_indicator` | The indicator, only when it is `minor`/`major`/`critical` — `none` or `maintenance` would frame the playbook as all-clear or a planned window. |
+| `affected_components` | `degraded_components` names outside `under_maintenance`; omitted when none remain. |
+| `incident_summary` | `name` of the qualifying incident with the latest `started_at`, compared as instants (pages publish mixed offsets); undated incidents rank last, ties keep `active_incidents` order. Omitted when no incident qualifies. |
+
+`VendorResult.vendor` echoes the caller's input, so the builder pairs each result with its `PreparedVendor` (index-aligned) to read `target.slug`. `format()` renders the list under a `## Recommended Next Steps` heading in `devops_suggest_action`'s layout, only when it is non-empty.
 
 **Enrichment:** `truncated` / `shown` / `cap` / `totalCount`, written once after the fan-out when at least one vendor's component list was capped. `buildVendorResult()` runs per vendor with no `ctx`, so it returns the matched and shown component counts and the handler aggregates them into a single `ctx.enrich.truncated()` call for the whole batch.
 
@@ -485,6 +501,7 @@ z.object({
   stack_persisted: z.boolean().describe('True when the vendor list was saved to state on this call.'),
   omitted_vendors: z.array(z.string()).describe('Entries that could not be resolved or were blocked, and so are left out whenever the stack is saved. They still appear in vendors[] with an error.'),
   checked_at: z.string(),
+  nextToolSuggestions: z.array(/* same suggestion shape and rules as devops_status_check */),
 })
 ```
 
@@ -541,8 +558,8 @@ z.object({
   results: z.array(z.object({
     domain: z.string(),
     port: z.number(),
-    status: z.enum(['ok', 'warning', 'critical', 'error']).describe('critical = expired or < 7 days, hostname mismatch, chain-trust failure, or insecure TLS; warning = < 30 days; error = connection failed.'),
-    flags: z.array(z.string()).describe('Human-readable warnings and issues found: "Expires in 12 days (warning)", "Insecure TLS version in use: TLSv1.1", "Self-signed certificate", "Hostname mismatch — the certificate does not cover <domain>; clients will reject it", "Certificate chain not trusted (<CODE>); clients will reject it", etc.'),
+    status: z.enum(['ok', 'warning', 'critical', 'error']).describe('critical = expired or < 7 days, hostname mismatch, chain-trust failure, or insecure TLS; warning = < 30 days; error = no certificate retrieved (rejected target, connection failure, timeout, or no certificate presented), reason in error.'),
+    flags: z.array(z.string()).describe('Findings about the certificate and TLS session that were read: "Expires in 12 days (warning)", "Insecure TLS version in use: TLSv1.1", "Self-signed certificate", "Hostname mismatch — the certificate does not cover <domain>; clients will reject it", "Certificate chain not trusted (<CODE>); clients will reject it", etc. Empty when no handshake completed (rejected target, connection failure, timeout); a handshake with no certificate keeps its TLS-session findings.'),
     cert: z.object({
       subject: z.string().describe('Certificate subject CN.'),
       san: z.array(z.string()).describe('Subject Alternative Names covered by this certificate.'),
@@ -555,25 +572,27 @@ z.object({
       hostname_verification_error: z.string().nullable().describe('tls.checkServerIdentity() message when the requested hostname is not covered by the CN or SANs, else null.'),
       authorization_error: z.string().nullable().describe('OpenSSL chain-verification code (DEPTH_ZERO_SELF_SIGNED_CERT, SELF_SIGNED_CERT_IN_CHAIN, UNABLE_TO_VERIFY_LEAF_SIGNATURE, CERT_HAS_EXPIRED), else null. The authoritative chain-trust signal.'),
       serial: z.string(),
-    }).nullable().describe('Null when connection failed (error status).'),
+    }).nullable().describe('Null when no certificate was retrieved (error status).'),
     tls: z.object({
       protocol: z.string().describe('Negotiated TLS version, e.g., "TLSv1.3".'),
       cipher: z.string().describe('Negotiated cipher suite name.'),
-    }).nullable(),
+    }).nullable().describe('Null when no TLS handshake completed.'),
     checked_at: z.string().describe('ISO 8601 UTC.'),
-    error: z.string().nullable().describe('Connection error message when status is "error".'),
+    error: z.string().nullable().describe('Why status is "error": no handshake completed (rejected target, connection failure, or timeout — cert and tls null, flags empty), or the handshake completed without a certificate (cert null, tls and session flags kept). Null for every other status.'),
   })),
 })
 ```
 
 **Errors:**
 - Connection failures per-domain are reported inline (status: `'error'`) rather than throwing — batch semantics, partial results are useful. Only systemic errors (invalid input) throw.
+- A domain that is never inspected — rejected by the SSRF guard, a socket error, or a timeout — reports the reason in `error` alone and returns `flags: []`: `flags` holds findings about a certificate that was read, and repeating the failure there rendered it twice. A guard rejection drops the internal `SSRF_BLOCKED: ` sentinel, as every other rejection path does.
+- A handshake that completes without the server presenting a certificate is also `status: 'error'`, with `error` naming that cause. The TLS session was read, so `tls` and its findings in `flags` (insecure protocol, HSTS) stay reported; only `cert` is null. Every `status: 'error'` row carries a reason.
 
 ```ts
 errors: [
   {
     reason: 'invalid_domain',
-    code: JsonRpcErrorCode.InvalidParams,
+    code: JsonRpcErrorCode.ValidationError,
     when: 'A domain string contains a protocol prefix or invalid characters.',
     recovery: 'Remove "https://" and pass the bare hostname only (e.g., "api.github.com" not "https://api.github.com").',
   },
@@ -597,13 +616,15 @@ z.object({
     .describe('Domain names to query. Up to 10 per call.'),
   record_types: z.array(z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS']))
     .default(['A', 'AAAA', 'MX', 'TXT'])
-    .describe('DNS record types to resolve. Defaults to A, AAAA, MX, and TXT. Add NS to check nameserver delegation. Add CNAME when investigating redirect chains.'),
+    .describe('DNS record types to resolve. Defaults to A, AAAA, MX, and TXT. An empty array uses the same defaults. Add NS to check nameserver delegation. Add CNAME when investigating redirect chains.'),
   resolvers: z.array(z.string()).default(['8.8.8.8', '1.1.1.1', '9.9.9.9'])
-    .describe('Resolver IP addresses to query. Defaults to Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). Add custom resolvers to check internal DNS or test resolver-specific behavior.'),
+    .describe('Resolver IP addresses to query. Defaults to Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). An empty array uses the same defaults. Add custom resolvers to test resolver-specific behavior; private and loopback resolvers are rejected unless DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.'),
   timeout_ms: z.number().int().min(1000).max(10000).default(3000)
     .describe('Query timeout per domain+resolver combination in milliseconds.'),
 })
 ```
+
+An empty `resolvers` or `record_types` array is read as "no preference" and replaced with the defaults in the handler. Queried literally it asks nothing and returns a ✅ result with no records, no flags, and no error — a healthy-looking answer to a question never put. The mapping lives in the handler rather than a schema transform so the advertised input schema is unchanged, and no call that worked before starts failing.
 
 **Output:**
 ```ts
@@ -631,11 +652,13 @@ z.object({
       values_by_resolver: z.record(z.string(), z.array(z.string())),
       status_by_resolver: z.record(z.string(), z.enum(DNS_QUERY_STATUSES)).describe('Per-resolver outcome for this record type — explains why an entry in values_by_resolver is empty.'),
     })).describe('Record types where resolvers returned different answers, labelled by kind. Empty when all resolvers agree.'),
-    flags: z.array(z.string()).describe('Observations needing attention: "NXDOMAIN from 8.8.8.8 on A — the domain does not exist …", "SERVFAIL from 1.1.1.1 on A — …", "Partial resolution on A records — 9.9.9.9 (nodata) returned nothing while 8.8.8.8 answered", "No MX records found", "CNAME detected — further records resolve via the CNAME target". A value_variation is deliberately not flagged.'),
-    error: z.string().nullable().describe('Set only when every resolver failed and none returned records; names each resolver with its own outcome so a split result stays visible.'),
+    flags: z.array(z.string()).describe('Observations needing attention: "NXDOMAIN from 8.8.8.8 on A — the domain does not exist …", "SERVFAIL from 1.1.1.1 on A — …", "Partial resolution on A records — 9.9.9.9 (nodata) returned nothing while 8.8.8.8 answered", "No MX records found", "CNAME detected — further records resolve via the CNAME target". A value_variation is deliberately not flagged. Empty for a domain rejected before any query.'),
+    error: z.string().nullable().describe('Set only when the domain could not be queried at all: rejected before any query (resolver_results empty), or every resolver failed and none returned records — then each resolver is named with its own outcome so a split result stays visible.'),
   })),
 })
 ```
+
+A domain rejected before any query (the SSRF guard, typically) reports the reason in `error` alone, without the internal `SSRF_BLOCKED: ` sentinel, and returns `flags: []`; `format()` omits the resolver header when there are no resolver results. The all-resolvers-failed case is different: its `NXDOMAIN from …` / `SERVFAIL from …` flag carries the operator explanation the `error` string lacks, so it keeps both.
 
 **Errors:**
 ```ts
@@ -837,6 +860,10 @@ Atlassian's `/api/v2/incidents.json` returns at most 50 records and ignores `?pa
 `format()` receives only the domain object, which carries no `filter`, `offset`, or backend — so a single static sentence was the most it could say, and that sentence recommended the filter the caller had just used and history from backends that publish none. Widening `output` to carry the call's parameters back into `format()` would put request echo in the domain payload of every response, including the ones that need no explanation. `ctx.enrich.notice()` is the framework's success-path channel for exactly this: it reaches `structuredContent` and the `content[]` trailer without touching the domain contract, and it is written only when there is something to say. `format()`'s empty branch is correspondingly narrowed to stating the empty result, since anything it named would contradict the trailer beside it.
 
 Which filters the message may name is bounded by containment, not just by what the backend serves. `all` is assembled from the incident list plus the maintenance list, so `active`, `resolved`, and `scheduled` all draw from data it already covers: an empty `all` guarantees each of them is empty too, and naming one buys the caller a round trip that cannot succeed. `FILTER_SUBSETS` records that relation and `alternativeFilters()` drops any strict subset of the filter just used, which leaves an empty `all` with nothing to recommend — so it gets its own branch, stating that the vendor's feed currently lists nothing at all and pointing at its status page. The relation is one-directional: `active`, `resolved`, and `scheduled` are disjoint and subsume nothing, so an empty `active` still recommends the genuinely wider `all` and `resolved`. The nothing-published branch sits behind the offset branch, so an `all` that matched incidents but overshot them still gets the offset guidance.
+
+### Why `nextToolSuggestions` is output, not enrichment
+
+`devops_status_check` and `devops_watch_stack` already report the three inputs `devops_suggest_action` takes, so the hand-off is pre-filled rather than left for the caller to discover and assemble. The field lives in `output`: the framework has no next-tool primitive, enrichment fields must be optional and absent when unset (an all-clear batch returns an empty list), and a pointer rendered only in `format()` would never reach a client reading `structuredContent`. Keeping the `{ toolName, reason, args }` shape identical to `devops_suggest_action`'s means one handler serves suggestions from every tool.
 
 ### Why the DNS outcome is a typed enum rather than a message
 

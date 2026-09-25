@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.8.2-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.0.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.8.3-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.0.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -85,6 +85,7 @@ Built-in vendor registry:
 - `Promise.allSettled` fan-out — one failing vendor never blocks the rest; failures surface as a per-vendor `error` field
 - Results served from a 60-second in-memory cache; `cached: true` on each result
 - `summary` partitions the batch into `operational` / `degraded` / `down` / `maintenance` / `unavailable` counts
+- `nextToolSuggestions` carries one pre-filled `devops_suggest_action` call per vendor with an active problem — indicator `minor`/`major`/`critical`, or an open incident of that impact — with the vendor slug (or normalized URL), indicator, affected components, and latest incident title filled in; a vendor that could not be checked never gets one, so the list is empty when no checked vendor has a problem
 
 ---
 
@@ -104,6 +105,7 @@ Built-in vendor registry:
 - Subsequent calls can omit `vendors`; the saved list is reused automatically
 - Multiple stacks coexist via distinct `stack_name` values (e.g., `"production"`, `"data-layer"`) — letters, digits, hyphens, and underscores, optionally separated by single dots or slashes, 1-64 characters
 - Aggregate `health` rollup: `all_operational` / `maintenance` (a vendor in a scheduled window, nothing worse open) / `degraded` / `partial_outage` / `major_outage` / `unknown` (a vendor could not be reached) — never `all_operational` when any vendor errored or is in a window
+- `nextToolSuggestions` pre-fills a `devops_suggest_action` call for each vendor with an active problem, same as `devops_status_check`
 - Note: stack state is in-memory; it does not persist across server restarts
 
 ---
@@ -114,7 +116,7 @@ Built-in vendor registry:
 - Reports: days to expiry (flagged `warning` at < 30 days, `critical` at < 7), certificate subject and SANs, issuer common name, chain depth, negotiated TLS version (flags 1.0 and 1.1 as insecure), cipher suite
 - HSTS detection: sends a minimal HTTP/1.1 GET over the same TLS socket, reads the `Strict-Transport-Security` response header
 - `status: "critical"` distinguishes a hostname mismatch (`hostname_verification_error`) from an untrusted chain (`authorization_error`) — both would be rejected by ordinary clients
-- Per-domain failures are reported inline (`status: "error"`) rather than throwing — useful partial results when checking multiple domains
+- Per-domain failures are reported inline (`status: "error"`, reason in `error`) rather than throwing — useful partial results when checking multiple domains. `flags` is empty unless a handshake completed; a server that completes one without presenting a certificate still reports its TLS session
 - Configurable port (default 443) and timeout per domain
 
 ---
@@ -125,7 +127,7 @@ Built-in vendor registry:
 - Supported record types: A, AAAA, CNAME, MX, TXT, NS (defaults to A, AAAA, MX, TXT)
 - Reports per-resolver latency, propagation discrepancies, and human-readable flags
 - Discrepancies are typed: `partial_resolution` (some resolvers answered, others didn't) signals a real problem; `value_variation` (all answered, different values) is normal for anycast/geo-steered domains
-- Custom resolver list supported — pass any IP addresses to test internal DNS or resolver-specific behavior
+- Custom resolver list supported — pass public resolver IP literals to test resolver-specific behavior (private and loopback resolvers need `DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true`); an empty `resolvers` or `record_types` array uses the defaults
 - Up to 10 domains per call; per-domain timeouts configurable
 
 ---

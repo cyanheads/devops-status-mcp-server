@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.8.3](changelog/0.8.x/0.8.3.md) — 2026-09-24
+
+devops_status_check and devops_watch_stack pre-fill a devops_suggest_action call for every vendor with an active problem; a failed DNS or cert domain now reports its failure once, in error, and every certificate error row carries a reason.
+
 ## [0.8.2](changelog/0.8.x/0.8.2.md) — 2026-09-20
 
 mcp-ts-core moves to ^0.13.6 — sessionMode is now declared in source (stateless here), tool-argument rejections carry a reason and a recovery hint, and upstream error data no longer echoes the request URL by default. Skills move to framework-skills/, plus a bun update --latest.

@@ -5,10 +5,14 @@
 
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
 import { devopsWatchStack } from '@/mcp-server/tools/definitions/devops-watch-stack.tool.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
-import { initVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
+import {
+  getVendorRegistryService,
+  initVendorRegistryService,
+} from '@/services/vendor-registry/vendor-registry-service.js';
 
 vi.mock('@/services/statuspage/statuspage-service.js', () => {
   const mockFetchSummary = vi.fn();
@@ -64,6 +68,39 @@ const CRITICAL_SUMMARY: StatuspageSummaryResponse = {
 beforeAll(() => {
   initVendorRegistryService();
 });
+
+/** Every vendor here is served by the mocked Statuspage service; a stray real fetch fails loudly. */
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: unknown) => Promise.reject(new Error(`Unmocked fetch: ${String(input)}`))),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+/** Open incident on an otherwise all-clear page — the case the indicator alone misses. */
+function withIncident(
+  name: string,
+  impact: 'none' | 'minor' | 'major' | 'critical' | 'maintenance',
+  startedAt: string | null,
+): NonNullable<StatuspageSummaryResponse['incidents']>[number] {
+  return {
+    id: `i-${name}`,
+    name,
+    impact,
+    status: 'identified',
+    created_at: '2025-03-01T00:00:00Z',
+    started_at: startedAt,
+    resolved_at: null,
+    monitoring_at: null,
+    page_id: 'p',
+    components: [],
+    incident_updates: [],
+  };
+}
 
 describe('devopsWatchStack', () => {
   it('saves vendor list on first call and returns health', async () => {
@@ -662,6 +699,153 @@ describe('devopsWatchStack', () => {
       );
       expect(reused.stack_persisted).toBe(false);
       expect(reused.vendors).toHaveLength(1);
+    });
+  });
+
+  describe('nextToolSuggestions → devops_suggest_action (#47)', () => {
+    type Suggestion = { toolName: string; reason: string; args: Record<string, unknown> };
+
+    /**
+     * github: major, one component in a maintenance window. npm: indicator none with
+     * an open major incident (UTC) and a later minor one (-05:00), plus an impact-none
+     * incident later still. cloudflare: all clear. twilio: fetch fails.
+     */
+    async function serveStack() {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const registry = getVendorRegistryService();
+      const url = (slug: string) => registry.getBySlug(slug)!.statuspage_url;
+      const pages = new Map<string, StatuspageSummaryResponse>([
+        [
+          url('github'),
+          {
+            ...OPERATIONAL_SUMMARY,
+            status: { indicator: 'major', description: 'Partial System Outage' },
+            components: [
+              { ...CRITICAL_SUMMARY.components[0]!, name: 'Actions', status: 'partial_outage' },
+              { ...CRITICAL_SUMMARY.components[0]!, name: 'Pages', status: 'under_maintenance' },
+            ],
+          },
+        ],
+        [
+          url('npm'),
+          {
+            ...OPERATIONAL_SUMMARY,
+            incidents: [
+              withIncident('Registry 5xx', 'major', '2025-03-01T15:00:00Z'),
+              // 15:30Z — later than the major one despite the earlier wall-clock hour.
+              withIncident('Slow installs', 'minor', '2025-03-01T10:30:00-05:00'),
+              withIncident('FYI: new docs site', 'none', '2025-03-02T00:00:00Z'),
+            ],
+          },
+        ],
+      ]);
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockImplementation((u: string) =>
+        u === url('twilio')
+          ? Promise.reject(
+              serviceUnavailable(`HTTP 503 from ${u}`, {
+                reason: 'statuspage_unavailable',
+                url: u,
+                status: 503,
+              }),
+            )
+          : Promise.resolve({ data: pages.get(u) ?? OPERATIONAL_SUMMARY, cached: false }),
+      );
+    }
+
+    const EXPECTED_ARGS = [
+      {
+        vendor: 'github',
+        vendor_indicator: 'major',
+        affected_components: ['Actions'],
+      },
+      { vendor: 'npm', incident_summary: 'Slow installs' },
+    ];
+
+    it('suggests a playbook for each problem vendor when the stack is saved', async () => {
+      await serveStack();
+      const ctx = createMockContext({ tenantId: 'suggest-stack', errors: devopsWatchStack.errors });
+      const result = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({
+          vendors: ['GitHub', 'npm', 'cloudflare', 'twilio', 'unknown-xyz-999'],
+          stack_name: 'suggest',
+        }),
+        ctx,
+      );
+      const suggestions = (result as { nextToolSuggestions: Suggestion[] }).nextToolSuggestions;
+
+      expect(suggestions.map((s) => s.toolName)).toEqual([
+        'devops_suggest_action',
+        'devops_suggest_action',
+      ]);
+      expect(suggestions.map((s) => s.args)).toEqual(EXPECTED_ARGS);
+      for (const s of suggestions) {
+        expect(devopsSuggestAction.input.parse(s.args)).toMatchObject(s.args);
+      }
+      // The rollup and buckets are unchanged by the new field.
+      expect(result.health).toBe('partial_outage');
+      expect(result.summary).toEqual({
+        total: 5,
+        operational: 2,
+        degraded: 1,
+        down: 0,
+        maintenance: 0,
+        unavailable: 2,
+      });
+      expect(getEnrichment(ctx)).toEqual({});
+
+      const parsed = devopsWatchStack.output.parse(result);
+      const text = (devopsWatchStack.format!(parsed)[0] as { text: string }).text;
+      expect(text).toContain('## Recommended Next Steps');
+      for (const s of suggestions) {
+        expect(text).toContain(`**Why:** ${s.reason}`);
+        expect(text).toContain(`**Args:** \`${JSON.stringify(s.args)}\``);
+      }
+    });
+
+    it('suggests the same playbooks when the saved stack is reused', async () => {
+      await serveStack();
+      const ctx = createMockContext({ tenantId: 'suggest-reuse', errors: devopsWatchStack.errors });
+      await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: ['GitHub', 'npm', 'cloudflare'], stack_name: 'r' }),
+        ctx,
+      );
+
+      const reused = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ stack_name: 'r' }),
+        ctx,
+      );
+
+      expect(reused.stack_persisted).toBe(false);
+      // The saved entry is the caller's "GitHub"; the suggestion still carries the slug.
+      expect(reused.vendors[0]!.vendor).toBe('GitHub');
+      expect(
+        (reused as { nextToolSuggestions: Suggestion[] }).nextToolSuggestions.map((s) => s.args),
+      ).toEqual(EXPECTED_ARGS);
+    });
+
+    it('returns an empty list and renders no heading for an all-clear stack', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
+
+      const ctx = createMockContext({ tenantId: 'suggest-clear', errors: devopsWatchStack.errors });
+      const result = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: ['github', 'npm'], stack_name: 'clear' }),
+        ctx,
+      );
+
+      expect((result as { nextToolSuggestions: Suggestion[] }).nextToolSuggestions).toEqual([]);
+      const text = (
+        devopsWatchStack.format!(devopsWatchStack.output.parse(result))[0] as {
+          text: string;
+        }
+      ).text;
+      expect(text).not.toContain('Recommended Next Steps');
     });
   });
 });

@@ -4,11 +4,15 @@
  */
 
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
-import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { createMockContext, getEnrichment, runToolContract } from '@cyanheads/mcp-ts-core/testing';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { devopsStatusCheck } from '@/mcp-server/tools/definitions/devops-status-check.tool.js';
+import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
-import { initVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
+import {
+  getVendorRegistryService,
+  initVendorRegistryService,
+} from '@/services/vendor-registry/vendor-registry-service.js';
 
 // Mock the statuspage service module so no HTTP calls go out
 vi.mock('@/services/statuspage/statuspage-service.js', () => {
@@ -199,6 +203,167 @@ function pageWithDegradedFleet(): StatuspageSummaryResponse {
 beforeAll(() => {
   initVendorRegistryService();
 });
+
+/** Every vendor here is served by the mocked Statuspage service; a stray real fetch fails loudly. */
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: unknown) => Promise.reject(new Error(`Unmocked fetch: ${String(input)}`))),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+type Component = StatuspageSummaryResponse['components'][number];
+type Incident = NonNullable<StatuspageSummaryResponse['incidents']>[number];
+
+function component(name: string, status: Component['status'], group = false): Component {
+  return { id: `c-${name}`, name, status, group, position: 1, created_at: '', updated_at: '' };
+}
+
+function incident(
+  name: string,
+  impact: Incident['impact'],
+  startedAt?: string,
+  status = 'investigating',
+): Incident {
+  return {
+    id: `i-${name}`,
+    name,
+    impact,
+    status,
+    created_at: '2025-03-01T00:00:00Z',
+    ...(startedAt ? { started_at: startedAt } : {}),
+    resolved_at: null,
+    monitoring_at: null,
+    page_id: 'p',
+    components: [],
+    incident_updates: [
+      {
+        id: `u-${name}`,
+        body: `${name} — update`,
+        status,
+        created_at: '2025-03-01T00:00:00Z',
+        display_at: '',
+        affected_components: null,
+      },
+    ],
+  };
+}
+
+function page(
+  name: string,
+  indicator: StatuspageSummaryResponse['status']['indicator'],
+  components: Component[] = [],
+  incidents: Incident[] = [],
+): StatuspageSummaryResponse {
+  return {
+    page: { id: name, name, time_zone: 'UTC', updated_at: '', url: '' },
+    status: { indicator, description: `${name} is ${indicator}` },
+    components,
+    incidents,
+    scheduled_maintenances: [],
+  };
+}
+
+/**
+ * A mixed batch keyed by the registry slug whose status page serves it. Qualifying:
+ * github (major, mixed incident offsets and undated), npm (indicator none, open minor
+ * incidents only, all undated), openai (critical, two incidents at the same instant in
+ * different offsets, degraded only by a maintenance window), elastic (minor, no
+ * incidents). Not qualifying: cloudflare (none; a maintenance window and an
+ * impact-none incident), brevo (maintenance), twilio (fetch fails).
+ */
+const MIXED_PAGES: Record<string, StatuspageSummaryResponse> = {
+  github: page(
+    'GitHub',
+    'major',
+    [
+      component('Git Operations', 'partial_outage'),
+      component('Packages', 'under_maintenance'),
+      component('Actions', 'major_outage'),
+      component('Core', 'major_outage', true),
+    ],
+    [
+      incident('Actions delays', 'minor', '2025-03-01T10:00:00Z'),
+      // 11:30Z — the latest instant, though it sorts first as a string.
+      incident('Git push failures', 'major', '2025-03-01T03:30:00-08:00'),
+      incident('Webhook backlog', 'major'),
+      incident('Informational notice', 'none', '2025-03-02T00:00:00Z'),
+      incident('Database maintenance', 'maintenance', '2025-03-03T00:00:00Z'),
+      incident('Old outage', 'critical', '2025-03-04T00:00:00Z', 'resolved'),
+    ],
+  ),
+  cloudflare: page(
+    'Cloudflare',
+    'none',
+    [component('Lisbon, Portugal - (LIS)', 'under_maintenance')],
+    [incident('Scheduled network upgrade notice', 'none', '2025-03-01T00:00:00Z')],
+  ),
+  npm: page(
+    'npm',
+    'none',
+    [],
+    [incident('Slow package installs', 'minor'), incident('Search indexing lag', 'minor')],
+  ),
+  brevo: page(
+    'Brevo',
+    'maintenance',
+    [component('Transactional Email', 'under_maintenance')],
+    [incident('Planned database upgrade', 'maintenance', '2025-03-01T00:00:00Z')],
+  ),
+  openai: page(
+    'OpenAI',
+    'critical',
+    [component('Fine-tuning', 'under_maintenance')],
+    [
+      incident('API errors', 'critical', '2025-03-01T12:00:00Z'),
+      incident('ChatGPT errors', 'major', '2025-03-01T13:00:00+01:00'),
+    ],
+  ),
+  elastic: page('Elastic', 'minor', [component('Cloud Console', 'degraded_performance')]),
+};
+
+/** Route the mocked Statuspage service by URL: MIXED_PAGES, a 503 for twilio, else all-clear. */
+async function serveMixedPages() {
+  const { _mockFetchSummary } = (await import(
+    '@/services/statuspage/statuspage-service.js'
+  )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+  const registry = getVendorRegistryService();
+  const bySlugUrl = new Map(
+    Object.entries(MIXED_PAGES).map(([slug, data]) => [
+      registry.getBySlug(slug)!.statuspage_url,
+      data,
+    ]),
+  );
+  const twilioUrl = registry.getBySlug('twilio')!.statuspage_url;
+  _mockFetchSummary.mockImplementation((url: string) => {
+    if (url === twilioUrl) {
+      return Promise.reject(
+        serviceUnavailable(`HTTP 503 from ${url}/api/v2/summary.json`, {
+          reason: 'statuspage_unavailable',
+          url,
+          status: 503,
+        }),
+      );
+    }
+    return Promise.resolve({ data: bySlugUrl.get(url) ?? ALL_OPERATIONAL, cached: false });
+  });
+}
+
+const MIXED_VENDORS = [
+  'GitHub',
+  'cloudflare',
+  'npm',
+  'brevo',
+  'twilio',
+  'nope-vendor',
+  'openai',
+  'elastic',
+  'github',
+];
 
 describe('devopsStatusCheck', () => {
   it('returns operational result for all-clear vendor', async () => {
@@ -855,6 +1020,288 @@ describe('devopsStatusCheck', () => {
       expect(result.results[0]?.indicator).toBe('none');
       expect(result.results[0]?.active_incidents).toEqual([]);
       expect(result.results[0]?.scheduled_maintenances).toEqual([]);
+    });
+  });
+
+  describe('nextToolSuggestions → devops_suggest_action (#47)', () => {
+    type Suggestion = { toolName: string; reason: string; args: Record<string, unknown> };
+
+    beforeEach(async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      _mockFetchSummary.mockReset();
+    });
+
+    async function checkMixed() {
+      await serveMixedPages();
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const result = await devopsStatusCheck.handler(
+        devopsStatusCheck.input.parse({ vendors: MIXED_VENDORS }),
+        ctx,
+      );
+      return { result, ctx };
+    }
+
+    it('leaves every existing field of a mixed batch as it was', async () => {
+      const { result, ctx } = await checkMixed();
+
+      expect(
+        result.results.map((r) => ({
+          vendor: r.vendor,
+          name: r.name,
+          indicator: r.indicator,
+          degraded: r.degraded_components.map((c) => `${c.name}:${c.status}`),
+          incidents: r.active_incidents.map((i) => `${i.name}:${i.impact}:${i.started_at ?? '-'}`),
+          error: r.error !== undefined,
+        })),
+      ).toEqual([
+        {
+          vendor: 'GitHub',
+          name: 'GitHub',
+          indicator: 'major',
+          degraded: [
+            'Git Operations:partial_outage',
+            'Packages:under_maintenance',
+            'Actions:major_outage',
+          ],
+          incidents: [
+            'Actions delays:minor:2025-03-01T10:00:00Z',
+            'Git push failures:major:2025-03-01T03:30:00-08:00',
+            'Webhook backlog:major:-',
+            'Informational notice:none:2025-03-02T00:00:00Z',
+            'Database maintenance:maintenance:2025-03-03T00:00:00Z',
+          ],
+          error: false,
+        },
+        {
+          vendor: 'cloudflare',
+          name: 'Cloudflare',
+          indicator: 'none',
+          degraded: ['Lisbon, Portugal - (LIS):under_maintenance'],
+          incidents: ['Scheduled network upgrade notice:none:2025-03-01T00:00:00Z'],
+          error: false,
+        },
+        {
+          vendor: 'npm',
+          name: 'npm',
+          indicator: 'none',
+          degraded: [],
+          incidents: ['Slow package installs:minor:-', 'Search indexing lag:minor:-'],
+          error: false,
+        },
+        {
+          vendor: 'brevo',
+          name: 'Brevo',
+          indicator: 'maintenance',
+          degraded: ['Transactional Email:under_maintenance'],
+          incidents: ['Planned database upgrade:maintenance:2025-03-01T00:00:00Z'],
+          error: false,
+        },
+        {
+          vendor: 'twilio',
+          name: 'Twilio',
+          indicator: 'none',
+          degraded: [],
+          incidents: [],
+          error: true,
+        },
+        {
+          vendor: 'nope-vendor',
+          name: 'nope-vendor',
+          indicator: 'none',
+          degraded: [],
+          incidents: [],
+          error: true,
+        },
+        {
+          vendor: 'openai',
+          name: 'OpenAI',
+          indicator: 'critical',
+          degraded: ['Fine-tuning:under_maintenance'],
+          incidents: [
+            'API errors:critical:2025-03-01T12:00:00Z',
+            'ChatGPT errors:major:2025-03-01T13:00:00+01:00',
+          ],
+          error: false,
+        },
+        {
+          vendor: 'elastic',
+          name: 'Elastic',
+          indicator: 'minor',
+          degraded: ['Cloud Console:degraded_performance'],
+          incidents: [],
+          error: false,
+        },
+        {
+          vendor: 'github',
+          name: 'GitHub',
+          indicator: 'major',
+          degraded: [
+            'Git Operations:partial_outage',
+            'Packages:under_maintenance',
+            'Actions:major_outage',
+          ],
+          incidents: [
+            'Actions delays:minor:2025-03-01T10:00:00Z',
+            'Git push failures:major:2025-03-01T03:30:00-08:00',
+            'Webhook backlog:major:-',
+            'Informational notice:none:2025-03-02T00:00:00Z',
+            'Database maintenance:maintenance:2025-03-03T00:00:00Z',
+          ],
+          error: false,
+        },
+      ]);
+      // The buckets report each vendor's own indicator — npm stays operational.
+      expect(result.summary).toEqual({
+        total: 9,
+        operational: 2,
+        degraded: 3,
+        down: 1,
+        maintenance: 1,
+        unavailable: 2,
+      });
+      // Nothing was capped, so nothing is disclosed.
+      expect(getEnrichment(ctx)).toEqual({});
+    });
+
+    it('suggests devops_suggest_action once per vendor with an active problem, in results order', async () => {
+      const { result } = await checkMixed();
+      const suggestions = (result as { nextToolSuggestions: Suggestion[] }).nextToolSuggestions;
+
+      expect(suggestions.map((s) => s.toolName)).toEqual(Array(4).fill('devops_suggest_action'));
+      expect(suggestions.map((s) => s.args)).toEqual([
+        {
+          // The canonical slug, not the "GitHub" the caller typed (#20); the trailing
+          // duplicate "github" collapses into this entry.
+          vendor: 'github',
+          vendor_indicator: 'major',
+          affected_components: ['Git Operations', 'Actions'],
+          incident_summary: 'Git push failures',
+        },
+        // Qualifies by incident alone: no vendor_indicator, and undated incidents keep order.
+        { vendor: 'npm', incident_summary: 'Slow package installs' },
+        // Same instant in two offsets is a tie — the first listed wins. Only a
+        // maintenance window is degraded, so affected_components is omitted.
+        { vendor: 'openai', vendor_indicator: 'critical', incident_summary: 'API errors' },
+        // No qualifying incident, so incident_summary is omitted.
+        { vendor: 'elastic', vendor_indicator: 'minor', affected_components: ['Cloud Console'] },
+      ]);
+    });
+
+    it('emits args devops_suggest_action accepts as-is', async () => {
+      const { result } = await checkMixed();
+      const suggestions = (result as { nextToolSuggestions: Suggestion[] }).nextToolSuggestions;
+
+      expect(suggestions.length).toBeGreaterThan(0);
+      for (const s of suggestions) {
+        expect(devopsSuggestAction.input.parse(s.args)).toMatchObject(s.args);
+      }
+    });
+
+    it('says in each reason why the vendor qualified', async () => {
+      const { result } = await checkMixed();
+      const [github, npm, openai] = (result as { nextToolSuggestions: Suggestion[] })
+        .nextToolSuggestions;
+
+      /**
+       * Names carry commas, so the reason separates them with semicolons. The indicator is
+       * the vendor's, not each component's: Actions is in major_outage under a major page,
+       * so the reason must not read as "partial outage on Actions".
+       */
+      expect(github!.reason).toBe(
+        'github reports major (partial outage) overall; affected components: Git Operations; Actions.',
+      );
+      expect(npm!.reason).toBe(
+        'npm reports none overall but has an open minor incident: "Slow package installs".',
+      );
+      expect(openai!.reason).toBe('openai reports critical (full outage) overall.');
+    });
+
+    it('renders the suggestions in content[] and validates against the output schema', async () => {
+      await serveMixedPages();
+      const call = await runToolContract(devopsStatusCheck, { vendors: MIXED_VENDORS });
+
+      expect(call.isError).toBeFalsy();
+      const structured = call.structuredContent as { nextToolSuggestions: Suggestion[] };
+      expect(structured.nextToolSuggestions).toHaveLength(4);
+
+      const text = call.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      expect(text).toContain('## Recommended Next Steps');
+      expect(text.split('### `devops_suggest_action`')).toHaveLength(5);
+      for (const s of structured.nextToolSuggestions) {
+        expect(text).toContain(`**Why:** ${s.reason}`);
+        expect(text).toContain(`**Args:** \`${JSON.stringify(s.args)}\``);
+      }
+    });
+
+    it('returns an empty list and no heading for an all-clear batch', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      _mockFetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
+
+      const call = await runToolContract(devopsStatusCheck, { vendors: ['github', 'cloudflare'] });
+
+      expect(call.isError).toBeFalsy();
+      expect(
+        (call.structuredContent as { nextToolSuggestions: Suggestion[] }).nextToolSuggestions,
+      ).toEqual([]);
+      const text = call.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      expect(text).not.toContain('Recommended Next Steps');
+      expect(text).not.toContain('devops_suggest_action');
+    });
+
+    it('names three components in the reason and counts the rest, while args keeps them all', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const names = ['SMS, Latin America', 'Voice, APAC', 'MMS, APAC', 'Bulk Export', 'Lookup'];
+      _mockFetchSummary.mockResolvedValue({
+        data: page('Twilio', 'minor', [
+          ...names.map((n) => component(n, 'degraded_performance')),
+          component('Edge, Lisbon', 'under_maintenance'),
+        ]),
+        cached: false,
+      });
+
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const result = await devopsStatusCheck.handler(
+        devopsStatusCheck.input.parse({ vendors: ['twilio'] }),
+        ctx,
+      );
+      const [s] = (result as { nextToolSuggestions: Suggestion[] }).nextToolSuggestions;
+
+      expect(s!.reason).toBe(
+        'twilio reports minor (degraded performance) overall; affected components: SMS, Latin America; Voice, APAC; MMS, APAC and 2 more.',
+      );
+      expect(s!.args.affected_components).toEqual(names);
+    });
+
+    it('passes a raw Statuspage URL as its normalized URL', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      _mockFetchSummary.mockResolvedValue({
+        data: page('Example', 'minor', [component('API', 'degraded_performance')]),
+        cached: false,
+      });
+
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      const result = await devopsStatusCheck.handler(
+        devopsStatusCheck.input.parse({ vendors: [' https://status.example.test/ '] }),
+        ctx,
+      );
+      const suggestions = (result as { nextToolSuggestions: Suggestion[] }).nextToolSuggestions;
+
+      expect(result.results[0]!.statuspage_url).toBe('https://status.example.test');
+      expect(suggestions.map((s) => s.args)).toEqual([
+        {
+          vendor: 'https://status.example.test',
+          vendor_indicator: 'minor',
+          affected_components: ['API'],
+        },
+      ]);
     });
   });
 });

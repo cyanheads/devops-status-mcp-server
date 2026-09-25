@@ -275,6 +275,163 @@ export function vendorErrorResult(
   };
 }
 
+/**
+ * A pre-filled follow-up tool call — the same `{ toolName, reason, args }` shape
+ * `devops_suggest_action` returns, so a caller handles suggestions from every tool alike.
+ */
+const NextToolSuggestionSchema = z
+  .object({
+    toolName: z.string().describe('Tool to call next — "devops_suggest_action".'),
+    reason: z
+      .string()
+      .describe(
+        'Why the vendor qualifies: its reported indicator, or the open incident behind it.',
+      ),
+    args: z
+      .record(z.string(), z.unknown())
+      .describe(
+        'Ready-to-use devops_suggest_action arguments: vendor (registry slug, or the normalized status page URL for a raw URL), vendor_indicator (only for minor, major, or critical), affected_components (degraded components outside a maintenance window), incident_summary (title of the most recently started open incident rated minor or worse).',
+      ),
+  })
+  .describe('A recommended follow-up tool call with pre-filled arguments.');
+
+type NextToolSuggestion = z.infer<typeof NextToolSuggestionSchema>;
+
+/** The `nextToolSuggestions` output field shared by devops_status_check and devops_watch_stack. */
+export const NextToolSuggestionsSchema = z
+  .array(NextToolSuggestionSchema)
+  .describe(
+    "One devops_suggest_action call per vendor with an active problem — an indicator of minor, major, or critical, or an open incident of that impact even while the indicator reads none or maintenance — with its arguments filled from that vendor's result. Vendors that could not be checked never appear. Empty when no checked vendor has an active problem.",
+  );
+
+/**
+ * Indicator and incident-impact values that mark an active problem, each with the label
+ * devops_suggest_action frames it with. `none` and `maintenance` are all-clear and a planned
+ * window, never a problem.
+ */
+const PROBLEM_SEVERITY_LABEL = {
+  minor: 'degraded performance',
+  major: 'partial outage',
+  critical: 'full outage',
+} as const;
+
+type ProblemSeverity = keyof typeof PROBLEM_SEVERITY_LABEL;
+
+function isProblemSeverity(value: VendorResult['indicator']): value is ProblemSeverity {
+  return Object.hasOwn(PROBLEM_SEVERITY_LABEL, value);
+}
+
+/** Component names named in a reason before the rest are counted instead. */
+const REASON_COMPONENT_LIMIT = 3;
+
+type ActiveIncident = VendorResult['active_incidents'][number];
+
+/**
+ * The open incident with the latest `started_at`, compared as instants — pages publish
+ * mixed UTC offsets, so string order is wrong. An undated or unparseable start ranks last,
+ * and ties keep the order the page listed them in.
+ */
+function latestIncident(incidents: readonly ActiveIncident[]): ActiveIncident | undefined {
+  let latest: ActiveIncident | undefined;
+  let latestAt = Number.NEGATIVE_INFINITY;
+  for (const incident of incidents) {
+    const parsed = incident.started_at ? Date.parse(incident.started_at) : Number.NaN;
+    const at = Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+    if (latest === undefined || at > latestAt) {
+      latest = incident;
+      latestAt = at;
+    }
+  }
+  return latest;
+}
+
+/** Semicolon-joined, because component names routinely carry commas ("SMS, Latin America"). */
+function componentList(names: readonly string[]): string {
+  const shown = names.slice(0, REASON_COMPONENT_LIMIT).join('; ');
+  const rest = names.length - REASON_COMPONENT_LIMIT;
+  return rest > 0 ? `${shown} and ${rest} more` : shown;
+}
+
+/**
+ * Build a `devops_suggest_action` suggestion for every vendor with an active problem.
+ *
+ * `prepared` and `results` are index-aligned — `fetchVendorResults` returns one result
+ * per prepared entry, in order. The pairing is what supplies the canonical slug:
+ * `VendorResult.vendor` echoes the caller's input ("GitHub"), while the registry slug
+ * ("github") lives only on the resolved target. A raw URL has no slug, so it passes the
+ * normalized URL the status page was fetched from.
+ *
+ * A vendor qualifies on its indicator or on an open incident rated minor or worse; a page
+ * can read `none` while such an incident is open. `vendor_indicator` is passed only when it
+ * names the problem itself — `none` or `maintenance` would frame the playbook as all-clear or
+ * a planned window. Inputs that resolve to the same vendor yield one entry, the first.
+ */
+export function buildSuggestActionSuggestions(
+  prepared: readonly PreparedVendor[],
+  results: readonly VendorResult[],
+): NextToolSuggestion[] {
+  const suggestions: NextToolSuggestion[] = [];
+  const seen = new Set<string>();
+
+  results.forEach((result, i) => {
+    // An unresolved entry always produces an error row; the `ok` check narrows the pairing.
+    const entry = prepared[i];
+    if (result.error !== undefined || !entry?.ok) return;
+
+    const vendor = entry.target.slug ?? entry.target.url;
+    const severity = isProblemSeverity(result.indicator) ? result.indicator : undefined;
+    const incident = latestIncident(
+      result.active_incidents.filter((inc) => isProblemSeverity(inc.impact)),
+    );
+    const components = result.degraded_components
+      .filter((c) => c.status !== 'under_maintenance')
+      .map((c) => c.name);
+
+    /**
+     * The indicator is the vendor's overall rating, not each component's — a minor page
+     * routinely carries components in partial or major outage — so the components are
+     * listed apart from it rather than as the thing the indicator describes.
+     */
+    let reason: string;
+    if (severity) {
+      const scope =
+        components.length > 0 ? `; affected components: ${componentList(components)}` : '';
+      reason = `${vendor} reports ${severity} (${PROBLEM_SEVERITY_LABEL[severity]}) overall${scope}.`;
+    } else if (incident) {
+      reason = `${vendor} reports ${result.indicator} overall but has an open ${incident.impact} incident: "${incident.name}".`;
+    } else {
+      return;
+    }
+
+    if (seen.has(vendor)) return;
+    seen.add(vendor);
+
+    const args: Record<string, unknown> = { vendor };
+    if (severity) args.vendor_indicator = severity;
+    if (components.length > 0) args.affected_components = components;
+    if (incident) args.incident_summary = incident.name;
+
+    suggestions.push({ toolName: 'devops_suggest_action', reason, args });
+  });
+
+  return suggestions;
+}
+
+/** Render `nextToolSuggestions` for format(), in the layout devops_suggest_action uses. Empty when there are none. */
+export function renderNextToolSuggestions(suggestions: readonly NextToolSuggestion[]): string[] {
+  if (suggestions.length === 0) return [];
+  const lines = ['## Recommended Next Steps', ''];
+  for (const s of suggestions) {
+    lines.push(
+      `### \`${s.toolName}\``,
+      `**Why:** ${s.reason}`,
+      `**Args:** \`${JSON.stringify(s.args)}\``,
+      '',
+    );
+  }
+  return lines;
+}
+
 /** Aggregate health counts. The buckets partition the result set. */
 export type VendorSummary = {
   total: number;

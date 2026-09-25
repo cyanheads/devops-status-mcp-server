@@ -7,10 +7,13 @@ import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import type { PreparedVendorFailure } from './devops-vendor-result.js';
 import {
+  buildSuggestActionSuggestions,
   DEFAULT_COMPONENT_LIMIT,
   fetchVendorResults,
   MAX_COMPONENT_LIMIT,
+  NextToolSuggestionsSchema,
   prepareVendors,
+  renderNextToolSuggestions,
   renderVendorBlock,
   summarizeVendorResults,
   VendorResultSchema,
@@ -23,7 +26,8 @@ export const devopsStatusCheck = tool('devops_status_check', {
     "by each vendor's native status API (Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, Firehydrant) and normalized to one shape. " +
     'Returns per-vendor operational indicator (none = all clear, minor, major, critical, maintenance = scheduled window), degraded components, and active incidents. ' +
     'Use mode: "detailed" for component lists and maintenance windows, narrowed with component_filter and bounded by component_limit. ' +
-    'Batch-friendly — pass a list to check your full stack in one call; a vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest.',
+    'Batch-friendly — pass a list to check your full stack in one call; a vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest. ' +
+    'Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -86,6 +90,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
       .describe(
         'Aggregate health counts across all checked vendors. Buckets partition the batch: operational + degraded + down + maintenance + unavailable = total.',
       ),
+    nextToolSuggestions: NextToolSuggestionsSchema,
   }),
 
   enrichment: {
@@ -171,9 +176,10 @@ export const devopsStatusCheck = tool('devops_status_check', {
     });
 
     const summary = summarizeVendorResults(results);
+    const nextToolSuggestions = buildSuggestActionSuggestions(prepared, results);
 
     ctx.log.info('Status check completed', { vendors: input.vendors.length, ...summary });
-    return { results, summary };
+    return { results, summary, nextToolSuggestions };
   },
 
   format: (result) => {
@@ -185,6 +191,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
     for (const v of result.results) {
       lines.push(...renderVendorBlock(v), '');
     }
+    lines.push(...renderNextToolSuggestions(result.nextToolSuggestions));
     return [{ type: 'text', text: lines.join('\n') }];
   },
 });

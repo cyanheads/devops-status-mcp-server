@@ -7,10 +7,13 @@ import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import type { PreparedVendorFailure, VendorResult } from './devops-vendor-result.js';
 import {
+  buildSuggestActionSuggestions,
   DEFAULT_COMPONENT_LIMIT,
   fetchVendorResults,
   MAX_COMPONENT_LIMIT,
+  NextToolSuggestionsSchema,
   prepareVendors,
+  renderNextToolSuggestions,
   renderVendorBlock,
   summarizeVendorResults,
   VendorResultSchema,
@@ -73,6 +76,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     'On the first call, provide vendors to define the stack; subsequent calls can omit vendors to reuse the persisted list. ' +
     'Returns a unified health snapshot with an aggregate rollup plus per-vendor detail. ' +
     'A vendor that cannot be resolved or reached is reported in its own row and left out of the saved stack, so one bad entry never discards the sweep. ' +
+    'Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions. ' +
     'Ideal for morning status checks or pre-deploy sweeps. Multiple stacks can coexist (e.g., "production", "staging").',
   // Not read-only: providing `vendors` persists the stack list via ctx.state.set.
   // Not destructive: the only write is an upsert of the caller-named stack key.
@@ -164,6 +168,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         'Entries that could not be resolved or whose URL was blocked; they still appear in vendors[] with an error. A call that saved the stack left them out of the write; a call that reused a saved stack leaves them in it until you re-provide the vendors list. Empty when every entry resolved.',
       ),
     checked_at: z.string().describe('ISO 8601 UTC timestamp of this check.'),
+    nextToolSuggestions: NextToolSuggestionsSchema,
   }),
 
   enrichment: {
@@ -295,6 +300,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       stack_persisted: stackPersisted,
       omitted_vendors: omittedVendors,
       checked_at: new Date().toISOString(),
+      nextToolSuggestions: buildSuggestActionSuggestions(prepared, vendors),
     };
   },
 
@@ -313,6 +319,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     for (const v of result.vendors) {
       lines.push(...renderVendorBlock(v), '');
     }
+    lines.push(...renderNextToolSuggestions(result.nextToolSuggestions));
     lines.push(`*Stack checked: ${result.checked_at}*`);
     return [{ type: 'text', text: lines.join('\n') }];
   },

@@ -37,6 +37,30 @@ function liveEvents(): AwsEvent[] {
   return JSON.parse(decodeUtf16(liveBytes())) as AwsEvent[];
 }
 
+/** A resolved event as the feed lists it: status "0", `[RESOLVED]` summary. */
+const RESOLVED_EVENT: AwsEvent = {
+  arn: 'a',
+  status: '0',
+  service_name: 'Amazon EC2',
+  region_name: 'N. Virginia',
+  date: '1772043269',
+  summary: '[RESOLVED] Increased Error Rates',
+  event_log: [
+    { status: 1, message: 'Investigating.', timestamp: 1772043269 },
+    { status: 0, message: 'Resolved.', timestamp: 1772052712 },
+  ],
+};
+
+const OPEN_EVENT: AwsEvent = {
+  arn: 'open-arn',
+  status: '3',
+  service_name: 'Amazon S3',
+  region_name: 'N. Virginia',
+  date: '1772050000',
+  summary: 'Increased Error Rates',
+  event_log: [{ status: 3, message: 'We are investigating.', timestamp: 1772050000 }],
+};
+
 describe('decodeUtf16', () => {
   it('decodes the real UTF-16BE (BOM FE FF) feed bytes into parseable JSON', () => {
     const text = decodeUtf16(liveBytes());
@@ -78,6 +102,50 @@ describe('mapAwsSummary', () => {
       expect(['minor', 'major']).toContain(summary.status.indicator);
     }
   });
+
+  it('maps each open status to its indicator and component status', () => {
+    const cases = [
+      ['1', 'minor', 'degraded_performance'],
+      ['2', 'major', 'partial_outage'],
+      ['3', 'major', 'partial_outage'],
+      ['9', 'minor', 'degraded_performance'],
+    ] as const;
+    for (const [status, indicator, component] of cases) {
+      const summary = mapAwsSummary([{ ...OPEN_EVENT, status }], AWS);
+      expect(summary.status.indicator, status).toBe(indicator);
+      expect(
+        summary.components.map((c) => c.status),
+        status,
+      ).toEqual([component]);
+      expect(
+        summary.incidents?.map((i) => i.status),
+        status,
+      ).toEqual(['investigating']);
+      expect(summary.status.description, status).toBe('1 open event on the AWS Health Dashboard');
+    }
+  });
+
+  /**
+   * The feed keeps a resolved event listed for hours, with status "0" and a
+   * `[RESOLVED]` summary prefix; it is history, not current health.
+   */
+  it('leaves a resolved (status 0) event out of the summary entirely', () => {
+    const summary = mapAwsSummary([RESOLVED_EVENT], AWS);
+    expect(summary.status.indicator).toBe('none');
+    expect(summary.status.description).toBe('All Systems Operational');
+    expect(summary.components).toEqual([]);
+    expect(summary.incidents).toEqual([]);
+  });
+
+  it('counts and componentizes only the open event when a resolved one is listed beside it', () => {
+    const summary = mapAwsSummary([RESOLVED_EVENT, OPEN_EVENT], AWS);
+    expect(summary.status.indicator).toBe('major');
+    expect(summary.status.description).toBe('1 open event on the AWS Health Dashboard');
+    expect(summary.components.map((c) => [c.name, c.status])).toEqual([
+      ['Amazon S3 (N. Virginia)', 'partial_outage'],
+    ]);
+    expect(summary.incidents?.map((i) => i.id)).toEqual(['open-arn']);
+  });
 });
 
 describe('mapAwsEvent', () => {
@@ -97,6 +165,71 @@ describe('mapAwsEvent', () => {
     // Impacted services ride the latest update as affected components
     const last = inc.incident_updates[inc.incident_updates.length - 1]!;
     expect(last.affected_components?.length).toBeGreaterThan(0);
+  });
+
+  it('maps a status-0 event to a resolved incident, dated by its newest log entry', () => {
+    const inc = mapAwsEvent(RESOLVED_EVENT, AWS);
+    expect(inc.status).toBe('resolved');
+    expect(inc.resolved_at).toBe('2026-02-25T20:51:52.000Z');
+    expect(inc.started_at).toBe('2026-02-25T18:14:29.000Z');
+    // The highest severity its log reached, not the resolved event's own "0".
+    expect(inc.impact).toBe('minor');
+    expect(inc.incident_updates.map((u) => u.status)).toEqual(['informational', 'resolved']);
+  });
+
+  it('walks every log entry for a resolved event, whatever order the feed lists them in', () => {
+    const inc = mapAwsEvent(
+      {
+        ...RESOLVED_EVENT,
+        event_log: [
+          { status: 0, message: 'Resolved.', timestamp: 1772060000 },
+          { status: 1, message: 'Investigating.', timestamp: 1772043269 },
+          { status: 3, message: 'Disruption.', timestamp: 1772050000 },
+          { status: 2, message: 'Recovering.', timestamp: 1772055000 },
+        ],
+      },
+      AWS,
+    );
+    expect(inc.impact).toBe('major');
+    expect(inc.resolved_at).toBe(new Date(1772060000 * 1000).toISOString());
+    expect(inc.incident_updates.map((u) => u.status)).toEqual([
+      'informational',
+      'disruption',
+      'degradation',
+      'resolved',
+    ]);
+  });
+
+  it('rates a resolved event whose log never rose above 0 as none', () => {
+    const inc = mapAwsEvent(
+      {
+        ...RESOLVED_EVENT,
+        event_log: [{ status: 0, message: 'Resolved.', timestamp: 1772052712 }],
+      },
+      AWS,
+    );
+    expect(inc.impact).toBe('none');
+    expect(inc.status).toBe('resolved');
+  });
+
+  it('keeps a resolved event with no log resolved, with no resolution time and minor impact', () => {
+    const inc = mapAwsEvent({ ...RESOLVED_EVENT, event_log: [] }, AWS);
+    expect(inc.status).toBe('resolved');
+    expect(inc.resolved_at).toBeNull();
+    expect(inc.impact).toBe('minor'); // unknown severity — the adapter's conservative default
+  });
+
+  it('labels a recovered impacted service resolved on the latest update', () => {
+    const inc = mapAwsEvent(
+      {
+        ...RESOLVED_EVENT,
+        impacted_services: { ec2: { service_name: 'Amazon EC2', current: '0', max: '1' } },
+      },
+      AWS,
+    );
+    expect(inc.incident_updates.at(-1)?.affected_components).toEqual([
+      { code: 'ec2', name: 'Amazon EC2', new_status: 'resolved', old_status: '' },
+    ]);
   });
 
   it('does not crash on a sparse event with omitted fields', () => {
@@ -125,6 +258,28 @@ describe('fetchers', () => {
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(
       'https://health.aws.amazon.com/public/currentevents',
     );
+  });
+
+  it('fetchAwsIncidents keeps a listed resolved event beside the open ones', async () => {
+    const bytes = new Uint8Array(
+      Buffer.from(JSON.stringify([RESOLVED_EVENT, OPEN_EVENT]), 'utf16le'),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(bytes.buffer),
+      }),
+    );
+    // The feed URL is fixed, so a fresh module graph is what keeps the shared
+    // response cache from serving another case's capture.
+    vi.resetModules();
+    const fresh = await import('@/services/status-adapters/aws-adapter.js');
+    const { data } = await fresh.fetchAwsIncidents(AWS);
+    expect(data.incidents.map((i) => [i.id, i.status])).toEqual([
+      ['a', 'resolved'],
+      ['open-arn', 'investigating'],
+    ]);
   });
 
   it('fetchAwsIncidents returns all open events; second call hits the cache', async () => {

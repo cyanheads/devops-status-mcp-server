@@ -72,12 +72,7 @@ const HEALTH_ICON: Record<StackHealth, string> = {
 
 export const devopsWatchStack = tool('devops_watch_stack', {
   description:
-    'Check the health of a named vendor stack — a saved list of vendors representing your infrastructure dependencies. ' +
-    'On the first call, provide vendors to define the stack; subsequent calls can omit vendors to reuse the persisted list. ' +
-    'Returns a unified health snapshot with an aggregate rollup plus per-vendor detail. ' +
-    'A vendor that cannot be resolved or reached is reported in its own row and left out of the saved stack, so one bad entry never discards the sweep. ' +
-    'Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions. ' +
-    'Ideal for morning status checks or pre-deploy sweeps. Multiple stacks can coexist (e.g., "production", "staging").',
+    'Check the health of a named vendor stack — a saved list of vendors representing your infrastructure dependencies. On the first call, provide vendors to define the stack; subsequent calls can omit vendors to reuse the persisted list. Returns a unified health snapshot with an aggregate rollup plus per-vendor detail. A vendor that cannot be resolved or reached is reported in its own row and left out of the saved stack, so one bad entry never discards the sweep. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions. Ideal for morning status checks or pre-deploy sweeps. Multiple stacks can coexist (e.g., "production", "staging").',
   // Not read-only: providing `vendors` persists the stack list via ctx.state.set.
   // Not destructive: the only write is an upsert of the caller-named stack key.
   // Idempotent: repeating a call with the same arguments re-saves the same list.

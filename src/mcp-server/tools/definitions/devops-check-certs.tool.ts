@@ -14,14 +14,7 @@ const PROTOCOL_RE = /^https?:\/\//i;
 
 export const devopsCheckCerts = tool('devops_check_certs', {
   description:
-    'Inspect SSL/TLS certificate health for one or more domains by performing a real TLS handshake. ' +
-    'Works for any internet-accessible domain — no vendor registry required. ' +
-    'Reports days to expiry (flagged at < 30 days warning and < 7 days critical), ' +
-    'certificate subject and SANs, issuer, hostname coverage, chain-trust verification, ' +
-    'TLS protocol version negotiated (flags TLS 1.0/1.1 as insecure), cipher suite, and HSTS presence. ' +
-    'The handshake completes even for a certificate clients would reject, so a broken certificate is reported rather than hidden behind a connection error: ' +
-    'a hostname mismatch surfaces in cert.hostname_verification_error and a chain-trust failure (self-signed, untrusted root) in cert.authorization_error, both status "critical". ' +
-    'If a domain fails to connect at all, check devops_check_dns first — the name may not resolve.',
+    'Inspect SSL/TLS certificate health for one or more domains by performing a real TLS handshake. Works for any internet-accessible domain — no vendor registry required. Reports days to expiry (flagged at < 30 days warning and < 7 days critical), certificate subject and SANs, issuer, hostname coverage, chain-trust verification, TLS protocol version negotiated (flags TLS 1.0/1.1 as insecure), cipher suite, and HSTS presence. The handshake completes even for a certificate clients would reject, so a broken certificate is reported rather than hidden behind a connection error: a hostname mismatch surfaces in cert.hostname_verification_error and a chain-trust failure (self-signed, untrusted root) in cert.authorization_error, both status "critical". If a domain fails to connect at all, check devops_check_dns first — the name may not resolve.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({

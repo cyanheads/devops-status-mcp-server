@@ -294,9 +294,7 @@ const CONTEXT_RULES: readonly ContextRule[] = [
 
 export const devopsSuggestAction = tool('devops_suggest_action', {
   description:
-    'Return an incident-response playbook tailored to a vendor degradation, with pre-filled follow-up tool calls. ' +
-    'Synthesizes category-specific guidance (cloud, CDN, dev-platform, auth, etc.) from built-in incident knowledge and the provided context. ' +
-    'Use after devops_status_check or devops_get_incidents surfaces a problem to determine what to investigate next.',
+    'Return an incident-response playbook tailored to a vendor degradation, with pre-filled follow-up tool calls. Synthesizes category-specific guidance (cloud, CDN, dev-platform, auth, etc.) from built-in incident knowledge and the provided context. Use after devops_status_check or devops_get_incidents surfaces a problem to determine what to investigate next.',
   annotations: { readOnlyHint: true, openWorldHint: false, idempotentHint: true },
 
   input: z.object({
@@ -328,8 +326,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
       .enum(VENDOR_INDICATORS)
       .optional()
       .describe(
-        'Overall vendor status indicator from a prior devops_status_check call (its indicator field). ' +
-          'When provided, the playbook leads with severity-tailored urgency guidance. Omit if status has not been checked yet.',
+        'Overall vendor status indicator from a prior devops_status_check call (its indicator field). When provided, the playbook leads with severity-tailored urgency guidance. Omit if status has not been checked yet.',
       ),
   }),
 

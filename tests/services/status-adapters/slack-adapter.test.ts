@@ -64,6 +64,70 @@ describe('mapSlackSummary', () => {
     const summary = mapSlackSummary({ status: 'active', active_incidents: [] }, SLACK);
     expect(summary.status.indicator).toBe('minor');
   });
+
+  /** A notice is informational (impact none), so a list of only notices is no degradation. */
+  it('reports none when every active item is a notice', () => {
+    const summary = mapSlackSummary(
+      { status: 'active', active_incidents: [{ id: 1, type: 'notice', status: 'active' }] },
+      SLACK,
+    );
+    expect(summary.status.indicator).toBe('none');
+    expect(summary.incidents?.map((i) => i.impact)).toEqual(['none']);
+  });
+
+  it('reports none for several notices and minor once an incident joins them', () => {
+    const notices = [
+      { id: 1, type: 'notice', status: 'active' },
+      { id: 2, type: 'notice', status: 'active' },
+    ];
+    expect(mapSlackSummary({ status: 'active', active_incidents: notices }, SLACK).status).toEqual({
+      indicator: 'none',
+      description: 'Active incidents reported',
+    });
+    const mixed = mapSlackSummary(
+      {
+        status: 'active',
+        active_incidents: [...notices, { id: 3, type: 'incident', status: 'active' }],
+      },
+      SLACK,
+    );
+    expect(mixed.status.indicator).toBe('minor');
+    expect(mixed.incidents?.map((i) => i.impact)).toEqual(['none', 'none', 'minor']);
+  });
+
+  it('keeps the worst item across a mixed list (notice, outage, incident → critical)', () => {
+    const summary = mapSlackSummary(
+      {
+        status: 'active',
+        active_incidents: [
+          { id: 1, type: 'notice' },
+          { id: 2, type: 'outage' },
+          { id: 3, type: 'incident' },
+        ],
+      },
+      SLACK,
+    );
+    expect(summary.status.indicator).toBe('critical');
+  });
+
+  it('reads an item of unknown kind beside a notice as minor', () => {
+    const summary = mapSlackSummary(
+      {
+        status: 'active',
+        active_incidents: [{ id: 1, type: 'notice' }, { id: 2, type: 'maintenance' }, { id: 3 }],
+      },
+      SLACK,
+    );
+    expect(summary.status.indicator).toBe('minor');
+  });
+
+  it('reads status ok as none whatever the list holds', () => {
+    const summary = mapSlackSummary(
+      { status: 'ok', active_incidents: [{ id: 1, type: 'incident' }] },
+      SLACK,
+    );
+    expect(summary.status).toEqual({ indicator: 'none', description: 'All Systems Operational' });
+  });
 });
 
 describe('mapSlackIncident', () => {

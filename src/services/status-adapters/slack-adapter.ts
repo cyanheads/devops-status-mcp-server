@@ -132,7 +132,12 @@ export function mapSlackSummary(raw: SlackCurrent, target: SlackTarget): Statusp
   const ok = raw.status === 'ok';
   let indicator: StatuspageSeverityIndicator = 'none';
   if (!ok) {
-    indicator = 'minor'; // active but empty/unknown incident list — at least a degradation
+    /**
+     * Not ok with nothing listed is at least a degradation. A listed item carries its
+     * own impact — a notice is informational, an item of unknown kind already rates
+     * minor — so the worst of them is the indicator.
+     */
+    if (active.length === 0) indicator = 'minor';
     for (const inc of active) {
       if (inc.impact !== 'maintenance' && SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator])
         indicator = inc.impact;

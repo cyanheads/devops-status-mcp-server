@@ -167,12 +167,21 @@ function tidyLines(text: string): string {
 }
 
 /**
+ * Drop every tag. Text `<` arrives escaped as `&lt;`, so a `<` still left once the
+ * tags are gone belongs to malformed markup and goes too — a nested fragment such as
+ * `<scr<b>ipt>` cannot reassemble into a tag.
+ */
+function stripTags(html: string): string {
+  return html.replace(/<[^<>]*>/g, '').replace(/</g, '');
+}
+
+/**
  * Render the description's HTML as plain text: paragraphs and list items on their
  * own lines, a link as its text with the URL after it when the two differ, every
  * other tag dropped, and HTML entities decoded.
  */
 function htmlToText(html: string): string {
-  const text = html
+  const markup = html
     /**
      * The attributes and the label are each matched by one unambiguous run — the label
      * stops at the next anchor tag — so malformed markup cannot make the match backtrack.
@@ -182,7 +191,7 @@ function htmlToText(html: string): string {
       (_match, attributes: string, label: string) => {
         const href = /\bhref="([^"]*)"/i.exec(attributes)?.[1];
         if (href === undefined) return label;
-        const shown = label.replace(/<[^<>]*>/g, '').trim();
+        const shown = stripTags(label).trim();
         return shown.replace(/\/$/, '') === href.replace(/\/$/, '') || shown === ''
           ? href
           : `${shown} (${href})`;
@@ -190,9 +199,8 @@ function htmlToText(html: string): string {
     )
     // Tag runs stop at the next `<`, so an unterminated tag fails at once, not at the end.
     .replace(/<li(?:\s[^<>]*)?>/gi, '\n- ')
-    .replace(/<br\s*\/?>|<\/(?:p|div|li|ul|ol|h[1-6])>/gi, '\n')
-    .replace(/<[^<>]*>/g, '');
-  return tidyLines(decodeEntities(text, HTML_ENTITIES));
+    .replace(/<br\s*\/?>|<\/(?:p|div|li|ul|ol|h[1-6])>/gi, '\n');
+  return tidyLines(decodeEntities(stripTags(markup), HTML_ENTITIES));
 }
 
 /**

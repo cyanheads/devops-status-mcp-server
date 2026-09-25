@@ -151,6 +151,20 @@ describe('parseAzureFeed', () => {
     );
   });
 
+  it('leaves no tag reassembled from nested malformed markup, in the body or a link label', () => {
+    const [item] = parseAzureFeed(
+      feed(
+        '<guid>g</guid><description>&lt;p&gt;a &lt;scr&lt;b&gt;ipt&gt;x&lt;/p&gt;' +
+          '&lt;p&gt;&lt;a href="https://example.com/"&gt;see &lt;i&lt;b&gt;mg&gt;&lt;/a&gt;&lt;/p&gt;' +
+          '&lt;p&gt;1 &amp;lt; 2&lt;/p&gt;</description>',
+      ),
+    );
+    // Escaped text `<` survives; a `<` left by stripping nested tags does not.
+    expect(item!.description).toBe(
+      ['a script>x', 'see img> (https://example.com/)', '1 < 2'].join('\n'),
+    );
+  });
+
   it('extracts every item of a multi-item channel, attributes on any open tag', () => {
     const items = parseAzureFeed(
       feed(

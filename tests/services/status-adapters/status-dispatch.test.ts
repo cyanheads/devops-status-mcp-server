@@ -77,6 +77,12 @@ beforeEach(() => {
       return Promise.resolve({
         ok: true,
         json: vi.fn().mockResolvedValue(body),
+        // The Azure feed is RSS; an empty channel is its all-clear shape.
+        text: vi
+          .fn()
+          .mockResolvedValue(
+            '<rss version="2.0"><channel><title>Azure Status</title></channel></rss>',
+          ),
         arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array(Buffer.from('[]', 'utf16le')).buffer),
       });
     }),
@@ -136,6 +142,13 @@ describe('fetchVendorSummary dispatch', () => {
     expect(lastUrl()).toBe('https://status.cloud.google.com/incidents.json');
   });
 
+  it('azure vendor hits the Azure status RSS feed', async () => {
+    const { data } = await fetchVendorSummary(resolve('azure'));
+    expect(data.status.indicator).toBe('none');
+    expect(data.page.name).toBe('Microsoft Azure');
+    expect(lastUrl()).toBe('https://rssfeed.azure.status.microsoft/en-us/status/feed/');
+  });
+
   it('firehydrant vendor (redis-cloud) hits the page payload feed', async () => {
     const { data } = await fetchVendorSummary(resolve('redis-cloud'));
     expect(data.status.indicator).toBe('none');
@@ -163,6 +176,12 @@ describe('fetchVendorIncidents / fetchVendorScheduledMaintenances dispatch', () 
     expect(lastUrl()).toBe('https://status.cloud.google.com/incidents.json');
   });
 
+  it('azure incidents hit the same RSS feed as the summary', async () => {
+    const { data } = await fetchVendorIncidents(resolve('azure'));
+    expect(data.incidents).toEqual([]);
+    expect(lastUrl()).toBe('https://rssfeed.azure.status.microsoft/en-us/status/feed/');
+  });
+
   it('firehydrant incidents and maintenances both read the payload feed', async () => {
     await fetchVendorIncidents(resolve('redis-cloud'));
     expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
@@ -170,14 +189,12 @@ describe('fetchVendorIncidents / fetchVendorScheduledMaintenances dispatch', () 
     expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
   });
 
-  it('slack, aws and gcp maintenances are empty and skip the network', async () => {
+  it('slack, aws, gcp and azure maintenances are empty and skip the network', async () => {
     const before = vi.mocked(fetch).mock.calls.length;
-    const slack = await fetchVendorScheduledMaintenances(resolve('slack'));
-    const aws = await fetchVendorScheduledMaintenances(resolve('aws'));
-    const gcp = await fetchVendorScheduledMaintenances(resolve('gcp'));
-    expect(slack.data.scheduled_maintenances).toHaveLength(0);
-    expect(aws.data.scheduled_maintenances).toHaveLength(0);
-    expect(gcp.data.scheduled_maintenances).toHaveLength(0);
+    for (const slug of ['slack', 'aws', 'gcp', 'azure']) {
+      const { data } = await fetchVendorScheduledMaintenances(resolve(slug));
+      expect(data.scheduled_maintenances, slug).toHaveLength(0);
+    }
     expect(vi.mocked(fetch).mock.calls.length).toBe(before);
   });
 });
@@ -193,6 +210,7 @@ describe('backendHistory', () => {
       incidentCeiling: 50,
       resolved: 'full',
       scheduledMaintenance: true,
+      historyPages: true,
     });
   });
 
@@ -202,15 +220,17 @@ describe('backendHistory', () => {
       incidentCeiling: 50,
       resolved: 'full',
       scheduledMaintenance: false,
+      historyPages: false,
     });
   });
 
-  it('aws has no resolution lifecycle and no maintenance feed', () => {
-    // mapAwsEvent pins every event to 'investigating'; the feed lists open events only.
+  it('aws serves resolved events only while its feed still lists them, and no maintenance feed', () => {
+    // A status-0 event maps to 'resolved' and stays listed for hours before dropping off.
     expect(backendHistory('aws')).toEqual({
       incidentCeiling: null,
-      resolved: 'none',
+      resolved: 'current',
       scheduledMaintenance: false,
+      historyPages: false,
     });
   });
 
@@ -219,6 +239,7 @@ describe('backendHistory', () => {
       incidentCeiling: null,
       resolved: 'current',
       scheduledMaintenance: true,
+      historyPages: false,
     });
   });
 
@@ -229,6 +250,17 @@ describe('backendHistory', () => {
       incidentCeiling: null,
       resolved: 'full',
       scheduledMaintenance: false,
+      historyPages: false,
+    });
+  });
+
+  it('azure has no resolution lifecycle and no maintenance feed', () => {
+    // mapAzureItem pins every item to 'investigating'; a resolved item leaves the feed.
+    expect(backendHistory('azure')).toEqual({
+      incidentCeiling: null,
+      resolved: 'none',
+      scheduledMaintenance: false,
+      historyPages: false,
     });
   });
 
@@ -237,6 +269,7 @@ describe('backendHistory', () => {
       incidentCeiling: null,
       resolved: 'full',
       scheduledMaintenance: true,
+      historyPages: false,
     });
   });
 
@@ -244,9 +277,17 @@ describe('backendHistory', () => {
     // The ceiling drives the upstream-cap disclosure; a wrong null silently
     // restores the "50 is the whole history" bug this replaced.
     const withCeiling = (
-      ['statuspage', 'slack', 'aws', 'gcp', 'statusio', 'firehydrant'] as const
+      ['statuspage', 'slack', 'aws', 'gcp', 'azure', 'statusio', 'firehydrant'] as const
     ).filter((t) => backendHistory(t).incidentCeiling !== null);
     expect(withCeiling).toEqual(['statuspage', 'slack']);
+  });
+
+  it('only statuspage offers a history archive past its ceiling', () => {
+    // Slack shares the 50-record ceiling but publishes no archive to read past it.
+    const withHistory = (
+      ['statuspage', 'slack', 'aws', 'gcp', 'azure', 'statusio', 'firehydrant'] as const
+    ).filter((t) => backendHistory(t).historyPages);
+    expect(withHistory).toEqual(['statuspage']);
   });
 
   it('every api_type in the registry has a capability row', () => {
@@ -257,6 +298,7 @@ describe('backendHistory', () => {
       expect(history, apiType).toBeDefined();
       expect(['full', 'current', 'none'], apiType).toContain(history.resolved);
       expect(typeof history.scheduledMaintenance, apiType).toBe('boolean');
+      expect(typeof history.historyPages, apiType).toBe('boolean');
     }
   });
 });

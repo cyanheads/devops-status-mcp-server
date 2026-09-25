@@ -18,6 +18,11 @@ import {
   fetchAwsSummary,
 } from './aws-adapter.js';
 import {
+  fetchAzureIncidents,
+  fetchAzureScheduledMaintenances,
+  fetchAzureSummary,
+} from './azure-adapter.js';
+import {
   fetchFirehydrantIncidents,
   fetchFirehydrantScheduledMaintenances,
   fetchFirehydrantSummary,
@@ -53,6 +58,8 @@ export function fetchVendorSummary(
       return fetchAwsSummary(vendor);
     case 'gcp':
       return fetchGcpSummary(vendor);
+    case 'azure':
+      return fetchAzureSummary(vendor);
     case 'firehydrant':
       return fetchFirehydrantSummary(vendor);
   }
@@ -73,6 +80,8 @@ export function fetchVendorIncidents(
       return fetchAwsIncidents(vendor);
     case 'gcp':
       return fetchGcpIncidents(vendor);
+    case 'azure':
+      return fetchAzureIncidents(vendor);
     case 'firehydrant':
       return fetchFirehydrantIncidents(vendor);
   }
@@ -93,6 +102,8 @@ export function fetchVendorScheduledMaintenances(
       return fetchAwsScheduledMaintenances(vendor);
     case 'gcp':
       return fetchGcpScheduledMaintenances(vendor);
+    case 'azure':
+      return fetchAzureScheduledMaintenances(vendor);
     case 'firehydrant':
       return fetchFirehydrantScheduledMaintenances(vendor);
   }
@@ -119,6 +130,12 @@ export type BackendHistory = {
   resolved: 'full' | 'current' | 'none';
   /** Whether the backend publishes scheduled-maintenance windows at all. */
   scheduledMaintenance: boolean;
+  /**
+   * Whether the backend family can publish a quarterly history archive that reaches
+   * past incidentCeiling. A capability of the family, not a promise for every host:
+   * some pages do not serve it, which a call discloses in its notice.
+   */
+  historyPages: boolean;
 };
 
 /**
@@ -131,17 +148,33 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
   switch (apiType) {
     case 'statuspage':
       // /api/v2/incidents.json returns at most 50 records and ignores ?page=
-      // (page 2 comes back with the same first record).
-      return { incidentCeiling: 50, resolved: 'full', scheduledMaintenance: true };
+      // (page 2 comes back with the same first record). The page's own
+      // {base_url}/history.json?page=N archive pages back by calendar quarter.
+      return {
+        incidentCeiling: 50,
+        resolved: 'full',
+        scheduledMaintenance: true,
+        historyPages: true,
+      };
     case 'slack':
       // /api/v2.0.0/history has the same 50-record ceiling and no working page
       // parameter; fetchSlackScheduledMaintenances is empty with no network call.
-      return { incidentCeiling: 50, resolved: 'full', scheduledMaintenance: false };
+      return {
+        incidentCeiling: 50,
+        resolved: 'full',
+        scheduledMaintenance: false,
+        historyPages: false,
+      };
     case 'aws':
-      // The public health feed lists currently-open events only — mapAwsEvent pins
-      // every one to 'investigating' because the feed carries no lifecycle field,
-      // and fetchAwsScheduledMaintenances is empty with no network call.
-      return { incidentCeiling: null, resolved: 'none', scheduledMaintenance: false };
+      // The public health feed lists current events: a resolved one (status "0")
+      // stays listed for hours and then drops off, so resolved history reaches back
+      // only that far. fetchAwsScheduledMaintenances is empty with no network call.
+      return {
+        incidentCeiling: null,
+        resolved: 'current',
+        scheduledMaintenance: false,
+        historyPages: false,
+      };
     case 'gcp':
       // incidents.json returns a bare array with no record cap and no paging
       // parameter — it is a rolling recent window, so history is bounded by age
@@ -149,14 +182,39 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
       // it (mapGcpIncident reads resolution from `end`), and Google Cloud
       // publishes no maintenance feed: fetchGcpScheduledMaintenances is empty
       // with no network call.
-      return { incidentCeiling: null, resolved: 'full', scheduledMaintenance: false };
+      return {
+        incidentCeiling: null,
+        resolved: 'full',
+        scheduledMaintenance: false,
+        historyPages: false,
+      };
+    case 'azure':
+      // The RSS feed lists posted items only — nothing marks one resolved, it just
+      // leaves the feed — so every item maps to 'investigating'. The feed carries no
+      // maintenance data: fetchAzureScheduledMaintenances is empty with no network call.
+      return {
+        incidentCeiling: null,
+        resolved: 'none',
+        scheduledMaintenance: false,
+        historyPages: false,
+      };
     case 'statusio':
       // The Public Status API serves the page's current incidents plus its active
       // and upcoming maintenance windows; resolved incidents drop off the feed.
-      return { incidentCeiling: null, resolved: 'current', scheduledMaintenance: true };
+      return {
+        incidentCeiling: null,
+        resolved: 'current',
+        scheduledMaintenance: true,
+        historyPages: false,
+      };
     case 'firehydrant':
       // /data/payload.json carries the complete incident history unwindowed —
       // devops_get_incidents pages it via limit + offset.
-      return { incidentCeiling: null, resolved: 'full', scheduledMaintenance: true };
+      return {
+        incidentCeiling: null,
+        resolved: 'full',
+        scheduledMaintenance: true,
+        historyPages: false,
+      };
   }
 }

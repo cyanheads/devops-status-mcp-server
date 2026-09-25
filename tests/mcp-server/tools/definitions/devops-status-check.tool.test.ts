@@ -3,8 +3,14 @@
  * @module tests/mcp-server/tools/definitions/devops-status-check.tool.test
  */
 
+import { readFileSync } from 'node:fs';
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
-import { createMockContext, getEnrichment, runToolContract } from '@cyanheads/mcp-ts-core/testing';
+import {
+  createFetchMock,
+  createMockContext,
+  getEnrichment,
+  runToolContract,
+} from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { devopsStatusCheck } from '@/mcp-server/tools/definitions/devops-status-check.tool.js';
 import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
@@ -24,9 +30,20 @@ vi.mock('@/services/statuspage/statuspage-service.js', () => {
   };
 });
 
+/**
+ * Adapter-backed vendors fetch through the shared response cache, keyed by a fixed
+ * feed URL; expiring entries at once lets each case serve its own feed body.
+ */
+vi.mock('@/config/server-config.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/config/server-config.js')>();
+  return { getServerConfig: () => ({ ...actual.getServerConfig(), cacheTtlMs: -1 }) };
+});
+
 // Mock the SSRF guard so tests that pass raw URLs don't make real DNS calls.
 // Default: passes (public URL). Individual tests override for block scenarios.
-vi.mock('@/utils/ssrf-guard.js', () => ({
+// Sentinel stripping stays real, since the blocked-vendor error text depends on it.
+vi.mock('@/utils/ssrf-guard.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/ssrf-guard.js')>()),
   assertSafeUrl: vi.fn().mockResolvedValue(undefined),
   assertSafeDomain: vi.fn().mockResolvedValue(undefined),
   assertSafeResolverIp: vi.fn(),
@@ -458,7 +475,10 @@ describe('devopsStatusCheck', () => {
     ]);
     expect(result.results[0]!.error).toBeUndefined();
     expect(result.results[1]!.error).toContain('is not a known vendor slug');
-    expect(result.results[2]!.error).toContain('link-local / cloud-metadata');
+    // The blocked row carries the guard's sentence whole, internal sentinel stripped.
+    expect(result.results[2]!.error).toBe(
+      'URL "http://169.254.169.254" resolves to 169.254.169.254 (link-local / cloud-metadata).',
+    );
     expect(result.results[3]!.error).toBeUndefined();
 
     expect(result.summary.total).toBe(4);
@@ -978,6 +998,8 @@ describe('devopsStatusCheck', () => {
       const input = devopsStatusCheck.input.parse({ vendors: ['http://169.254.169.254'] });
       await expect(devopsStatusCheck.handler(input, ctx)).rejects.toMatchObject({
         data: { reason: 'target_blocked' },
+        message:
+          'None of the 1 requested vendors could be checked. URL "http://169.254.169.254" resolves to 169.254.169.254 (link-local / cloud-metadata).',
       });
     });
 
@@ -1302,6 +1324,180 @@ describe('devopsStatusCheck', () => {
           affected_components: ['API'],
         },
       ]);
+    });
+
+    /**
+     * Native-adapter vendors, run through the real adapters down to a fetch fake and
+     * checked on both surfaces the contract runner produces.
+     */
+    describe('adapter-backed vendors', () => {
+      const http = createFetchMock();
+      const AZURE_FEED = 'https://rssfeed.azure.status.microsoft/en-us/status/feed/';
+      const AWS_FEED = 'https://health.aws.amazon.com/public/currentevents';
+      const azureCapture = (name: string) =>
+        readFileSync(
+          new URL(`../../../services/status-adapters/fixtures/${name}`, import.meta.url),
+          'utf-8',
+        );
+      const utf16 = (value: unknown) => Buffer.from(JSON.stringify(value), 'utf16le');
+
+      beforeEach(() => {
+        http.reset();
+        http.install();
+      });
+
+      afterEach(() => {
+        http.restore();
+      });
+
+      function rendered(call: Awaited<ReturnType<typeof runToolContract>>): string {
+        return call.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      }
+
+      it('azure: a listed item reads minor with one suggestion naming its title (#42)', async () => {
+        http.route({
+          match: AZURE_FEED,
+          respond: () => new Response(azureCapture('azure-feed-20260723.xml')),
+        });
+
+        const call = await runToolContract(devopsStatusCheck, { vendors: ['azure'] });
+
+        expect(call.isError).toBeFalsy();
+        const structured = call.structuredContent as {
+          results: Array<Record<string, unknown>>;
+          nextToolSuggestions: Suggestion[];
+        };
+        expect(structured.results[0]).toMatchObject({
+          vendor: 'azure',
+          name: 'Microsoft Azure',
+          indicator: 'minor',
+          description: '1 active incident on the Azure status page',
+          degraded_components: [],
+          active_incidents: [
+            {
+              name: 'Issues connecting to resources in West US',
+              impact: 'minor',
+              status: 'investigating',
+              started_at: '2026-07-23T16:29:09.000Z',
+            },
+          ],
+        });
+        expect(structured.nextToolSuggestions).toEqual([
+          {
+            toolName: 'devops_suggest_action',
+            reason: 'azure reports minor (degraded performance) overall.',
+            args: {
+              vendor: 'azure',
+              vendor_indicator: 'minor',
+              incident_summary: 'Issues connecting to resources in West US',
+            },
+          },
+        ]);
+        const args = structured.nextToolSuggestions[0]!.args;
+        expect(devopsSuggestAction.input.parse(args)).toMatchObject(args);
+
+        const text = rendered(call);
+        expect(text).toContain('### ⚠️ Microsoft Azure (azure)');
+        expect(text).toContain('**Indicator:** minor');
+        expect(text).toContain('Issues connecting to resources in West US [minor/investigating]');
+        expect(text).toContain(`**Args:** \`${JSON.stringify(args)}\``);
+      });
+
+      it('azure: an empty feed reads all clear with no suggestion (#42)', async () => {
+        http.route({
+          match: AZURE_FEED,
+          respond: () => new Response(azureCapture('azure-feed-empty.xml')),
+        });
+
+        const call = await runToolContract(devopsStatusCheck, { vendors: ['azure'] });
+
+        const structured = call.structuredContent as {
+          results: Array<{ indicator: string }>;
+          nextToolSuggestions: Suggestion[];
+          summary: { operational: number };
+        };
+        expect(structured.results[0]!.indicator).toBe('none');
+        expect(structured.summary.operational).toBe(1);
+        expect(structured.nextToolSuggestions).toEqual([]);
+        expect(rendered(call)).not.toContain('## Recommended Next Steps');
+      });
+
+      const RESOLVED_EVENT = {
+        arn: 'resolved-arn',
+        status: '0',
+        service_name: 'Amazon EC2',
+        region_name: 'N. Virginia',
+        date: '1772043269',
+        summary: '[RESOLVED] Increased Error Rates',
+        event_log: [
+          { status: 1, message: 'Investigating.', timestamp: 1772043269 },
+          { status: 0, message: 'Resolved.', timestamp: 1772052712 },
+        ],
+      };
+
+      it('aws: a listed resolved event stays out of health and out of the suggestion (#50)', async () => {
+        const open = {
+          arn: 'open-arn',
+          status: '3',
+          service_name: 'Amazon S3',
+          region_name: 'N. Virginia',
+          date: '1772050000',
+          summary: 'Increased Error Rates',
+          event_log: [{ status: 3, message: 'We are investigating.', timestamp: 1772050000 }],
+        };
+        http.route({ match: AWS_FEED, respond: () => new Response(utf16([RESOLVED_EVENT, open])) });
+
+        const call = await runToolContract(devopsStatusCheck, { vendors: ['aws'] });
+
+        const structured = call.structuredContent as {
+          results: Array<{
+            indicator: string;
+            description: string;
+            degraded_components: Array<{ name: string; status: string }>;
+            active_incidents: Array<{ id: string }>;
+          }>;
+          nextToolSuggestions: Suggestion[];
+        };
+        const [aws] = structured.results;
+        expect(aws!.indicator).toBe('major');
+        expect(aws!.description).toBe('1 open event on the AWS Health Dashboard');
+        expect(aws!.degraded_components).toEqual([
+          { name: 'Amazon S3 (N. Virginia)', status: 'partial_outage' },
+        ]);
+        expect(aws!.active_incidents.map((i) => i.id)).toEqual(['open-arn']);
+        expect(structured.nextToolSuggestions.map((s) => s.args)).toEqual([
+          {
+            vendor: 'aws',
+            vendor_indicator: 'major',
+            affected_components: ['Amazon S3 (N. Virginia)'],
+            incident_summary: 'Increased Error Rates — Amazon S3 (N. Virginia)',
+          },
+        ]);
+
+        const text = rendered(call);
+        expect(text).not.toContain('[RESOLVED]');
+        expect(text).not.toContain('Amazon EC2');
+        expect(text).toContain('- ⚠️ Amazon S3 (N. Virginia)');
+      });
+
+      it('aws: a feed listing only resolved events reads all clear (#50)', async () => {
+        http.route({ match: AWS_FEED, respond: () => new Response(utf16([RESOLVED_EVENT])) });
+
+        const call = await runToolContract(devopsStatusCheck, { vendors: ['aws'] });
+
+        const structured = call.structuredContent as {
+          results: Array<Record<string, unknown>>;
+          nextToolSuggestions: Suggestion[];
+        };
+        expect(structured.results[0]).toMatchObject({
+          indicator: 'none',
+          description: 'All Systems Operational',
+          degraded_components: [],
+          active_incidents: [],
+        });
+        expect(structured.nextToolSuggestions).toEqual([]);
+        expect(rendered(call)).toContain('### ✅ Amazon Web Services (aws)');
+      });
     });
   });
 });

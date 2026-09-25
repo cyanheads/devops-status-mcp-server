@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:a10="http://www.w3.org/2005/Atom"
+  version="2.0">
+  <channel xmlns:slash="http://purl.org/rss/1.0/modules/slash/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <title>Azure Status</title>
+    <link>https://status.azure.com/en-us/status/</link>
+    <description>Azure Status</description>
+    <language>en-us</language>
+    <lastBuildDate>Sun, 21 Jul 2024 18:11:00 Z</lastBuildDate>
+    <item>
+      <guid
+        isPermaLink="false">crowdstrike-falcon-agent-guidance</guid>
+      <link>https://status.azure.com/en-us/status/</link>
+      <title>CrowdStrike Falcon agent guidance</title>
+      <description>We are aware of an issue that started on 19 July 2024 at 04:09 UTC, which resulted in customers experiencing unresponsiveness and startup failures on Windows machines using the CrowdStrike Falcon agent, affecting both on-premises and various cloud platforms. For additional recovery options please review https://aka.ms/CSfalcon-VMRecoveryOptions</description>
+      <pubDate>Sat, 20 Jul 2024 12:59:45 Z</pubDate>
+    </item>
+  </channel>
+</rss>

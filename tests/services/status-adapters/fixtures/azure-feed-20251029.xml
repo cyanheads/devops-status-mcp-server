@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:a10="http://www.w3.org/2005/Atom"
+  version="2.0">
+  <channel xmlns:slash="http://purl.org/rss/1.0/modules/slash/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <title>Azure Status</title>
+    <link>https://status.azure.com/en-us/status/</link>
+    <description>Azure Status</description>
+    <language>en-us</language>
+    <lastBuildDate>Wed, 29 Oct 2025 17:51:42 Z</lastBuildDate>
+    <item>
+      <guid
+        isPermaLink="false">azure-front-door-connectivity-issues</guid>
+      <link>https://status.azure.com/en-us/status/</link>
+      <category>Network Infrastructure</category>
+      <category>Australia East</category>
+      <category>Central US</category>
+      <category>East US</category>
+      <category>East US 2</category>
+      <category>France Central</category>
+      <category>Public Non-Regional</category>
+      <category>Japan East</category>
+      <category>North Central US</category>
+      <category>North Europe</category>
+      <category>South Africa North</category>
+      <category>South Africa West</category>
+      <category>South Central US</category>
+      <category>Southeast Asia</category>
+      <category>West Europe</category>
+      <category>West US</category>
+      <category>Australia Central</category>
+      <category>Australia Central 2</category>
+      <category>Australia Southeast</category>
+      <category>Brazil South</category>
+      <category>Canada Central</category>
+      <category>Canada East</category>
+      <category>Central India</category>
+      <category>East Asia</category>
+      <category>France South</category>
+      <category>Germany North</category>
+      <category>Germany West Central</category>
+      <category>Japan West</category>
+      <category>Korea Central</category>
+      <category>Korea South</category>
+      <category>Norway East</category>
+      <category>Norway West</category>
+      <category>South India</category>
+      <category>Switzerland North</category>
+      <category>Switzerland West</category>
+      <category>UAE Central</category>
+      <category>UAE North</category>
+      <category>UK South</category>
+      <category>UK West</category>
+      <category>West Central US</category>
+      <category>West India</category>
+      <category>West US 2</category>
+      <title>Azure Front Door - Connectivity issues </title>
+      <description>&lt;p&gt;Starting at approximately 16:00 UTC, customers and Microsoft services that leverage Azure Front Door (AFD) may have experienced issues resulting in latencies, timeouts and errors. We have confirmed that an inadvertent configuration change as the trigger event for this issue.&lt;/p&gt;&lt;p&gt;We are taking several concurrent actions: Firstly where we are blocking all changes to the AFD services, this includes customer configuration changes as well. At the same time, we are rolling back our AFD configuration to our last known good state. As we rollback we want to ensure that the problematic configuration doesn't re-initiate upon recovery.&lt;/p&gt;&lt;p&gt;Customers may have experienced problems accessing the Azure management portal. We have failed the portal away from AFD to mitigate the portal access issues. Customers should be able to access the Azure management portal directly, while all portal extensions are working correctly there may be a small number of endpoints that might have a problem loading (i.e. Marketplace).&lt;/p&gt;&lt;p&gt;We do not have an ETA for when the rollback will be completed, but we will update this communication within 30 minutes or when we have an update.&lt;/p&gt;&lt;p&gt;While we dont have an ETA yet. customers can consider implementing failover strategies with Azure Traffic Manager, to fail over from Azure Front Door to your origins: &lt;a href="https://learn.microsoft.com/azure/architecture/guide/networking/global-web-applications/overview" target="_blank"&gt;https://learn.microsoft.com/azure/architecture/guide/networking/global-web-applications/overview&lt;/a&gt;&lt;/p&gt;</description>
+      <pubDate>Wed, 29 Oct 2025 16:00:00 Z</pubDate>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:a10="http://www.w3.org/2005/Atom"
+  version="2.0">
+  <channel xmlns:slash="http://purl.org/rss/1.0/modules/slash/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <title>Azure Status</title>
+    <link>https://status.azure.com/en-us/status/</link>
+    <description>Azure Status</description>
+    <language>en-us</language>
+    <lastBuildDate>Wed, 07 Sep 2022 19:16:17 Z</lastBuildDate>
+    <item>
+      <guid
+        isPermaLink="false">azure-front-door-connectivity-issues</guid>
+      <link>https://status.azure.com/en-us/status/</link>
+      <category>Content Delivery Network</category>
+      <category>Microsoft Azure portal</category>
+      <category>Australia Central</category>
+      <category>Australia Central 2</category>
+      <category>Australia East</category>
+      <category>Australia Southeast</category>
+      <category>Brazil South</category>
+      <category>Canada Central</category>
+      <category>Canada East</category>
+      <category>Central India</category>
+      <category>Central US</category>
+      <category>East Asia</category>
+      <category>East US</category>
+      <category>East US 2</category>
+      <category>France Central</category>
+      <category>France South</category>
+      <category>Public Non-Regional</category>
+      <category>Japan East</category>
+      <category>Japan West</category>
+      <category>Korea Central</category>
+      <category>Korea South</category>
+      <category>North Central US</category>
+      <category>North Europe</category>
+      <category>South Africa North</category>
+      <category>South Africa West</category>
+      <category>South Central US</category>
+      <category>South India</category>
+      <category>Southeast Asia</category>
+      <category>UK South</category>
+      <category>UK West</category>
+      <category>West Central US</category>
+      <category>West Europe</category>
+      <category>West India</category>
+      <category>West US</category>
+      <category>West US 2</category>
+      <title>Azure Front Door - Connectivity issues</title>
+      <description>&lt;p&gt;&lt;strong&gt;Impact statement: &lt;/strong&gt;Starting at 16:10 UTC on 07 Sep 2022, customers using Azure Front Door could be experiencing connectivity issues. This could also be impacting customers’ ability to access other Azure services that leverage Azure Front Door, this includes the Azure Management Portal and Azure CDN. We are investigating a spike in traffic as a potential cause. This traffic spike subsided at 16:45 UTC and we are currently working on remediating the residual impact.&lt;/p&gt;&lt;p&gt;&lt;strong&gt;Current status: &lt;/strong&gt;We are recovering a number of nodes that are showing intermittent connectivity issues.&amp;nbsp;These issues were caused as our system automatically balanced traffic in between 16:10 and 16:45 UTC. This traffic management ended up overloading a number of our nodes. We are dealing with by load shedding some of the traffic where we this overload, and then slowly bringing up nodes into a healthy state and then routing traffic accordingly.&lt;/p&gt;&lt;p&gt;For customers who are experiencing connectivity issues, retries are likely to be successful. Most customers should be seeing recovery at this stage.&amp;nbsp;&amp;nbsp;&lt;/p&gt;</description>
+      <pubDate>Wed, 07 Sep 2022 16:10:40 Z</pubDate>
+    </item>
+  </channel>
+</rss>

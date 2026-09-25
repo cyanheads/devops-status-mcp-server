@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:a10="http://www.w3.org/2005/Atom"
+  version="2.0">
+  <channel xmlns:slash="http://purl.org/rss/1.0/modules/slash/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <title>Azure Status</title>
+    <link>https://azurestatusprodncus.azurewebsites.net/en-us/status/</link>
+    <description>Azure Status</description>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 23 Jul 2026 16:38:47 Z</lastBuildDate>
+    <item>
+      <guid
+        isPermaLink="false">issues-connecting-to-resources-in-west-us</guid>
+      <link>https://azurestatusprodncus.azurewebsites.net/en-us/status/</link>
+      <category>API Management</category>
+      <category>Application Gateway</category>
+      <category>Azure Database for PostgreSQL</category>
+      <category>Azure Kubernetes Service (AKS)</category>
+      <category>ExpressRoute Circuits</category>
+      <category>ExpressRoute Gateways</category>
+      <category>Network Infrastructure</category>
+      <category>VPN Gateway</category>
+      <category>Virtual WAN</category>
+      <category>West US</category>
+      <title>Issues connecting to resources in West US </title>
+      <description>&lt;p&gt;We are investigating a networking issue affecting connectivity to Azure services in the West US region. Impacted customers may experience intermittent connectivity failures, increased latency, or difficulty accessing Azure services. Customers with traffic traversing the West US region may also experience downstream impact.&lt;/p&gt;&lt;p&gt;We are exploring mitigation options on affected network devices. Early indications suggest the issue is related to network traffic flow through the impacted infrastructure; however our analysis remains ongoing. We are closely monitoring traffic while continuing our investigation.&lt;/p&gt;&lt;p&gt;We will provide additional information as it becomes available.&lt;/p&gt;</description>
+      <pubDate>Thu, 23 Jul 2026 16:29:09 Z</pubDate>
+    </item>
+  </channel>
+</rss>

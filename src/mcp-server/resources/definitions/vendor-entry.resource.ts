@@ -10,8 +10,7 @@ import { getVendorRegistryService } from '@/services/vendor-registry/vendor-regi
 export const vendorEntryResource = resource('devops-status://vendors/{name}', {
   name: 'devops-status-vendor',
   description:
-    'Full registry entry for a vendor by slug — status page URL, category, and API type. ' +
-    'Read-only, stable. Use devops_list_vendors to discover available slugs.',
+    'Full registry entry for a vendor by slug — status page URL, category, and API type. Read-only, stable. Use devops_list_vendors to discover available slugs.',
   mimeType: 'application/json',
 
   /**
@@ -37,7 +36,7 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
     api_type: z
       .string()
       .describe(
-        'Status backend: "statuspage" (Atlassian Statuspage), "statusio" (Status.io), "slack" (Slack status API), "aws" (AWS Health Dashboard), "gcp" (Google Cloud Service Health), or "firehydrant" (Firehydrant-hosted status page).',
+        'Status backend: "statuspage" (Atlassian Statuspage), "statusio" (Status.io), "slack" (Slack status API), "aws" (AWS Health Dashboard), "gcp" (Google Cloud Service Health), "azure" (Azure status RSS feed), or "firehydrant" (Firehydrant-hosted status page).',
       ),
   }),
 

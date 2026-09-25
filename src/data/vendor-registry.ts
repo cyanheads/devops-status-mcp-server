@@ -14,7 +14,14 @@ export type VendorCategory =
   | 'ai';
 
 /** Status backend the vendor's page runs on — selects the adapter in src/services/status-adapters/. */
-export type VendorApiType = 'statuspage' | 'statusio' | 'slack' | 'aws' | 'gcp' | 'firehydrant';
+export type VendorApiType =
+  | 'statuspage'
+  | 'statusio'
+  | 'slack'
+  | 'aws'
+  | 'gcp'
+  | 'azure'
+  | 'firehydrant';
 
 interface VendorEntryBase {
   category: VendorCategory;
@@ -39,7 +46,7 @@ export type VendorEntry =
     });
 
 /**
- * 51-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
+ * 52-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
  * every other api_type is served through a native-API adapter
  * (src/services/status-adapters/) that normalizes into the Statuspage shapes.
  * Probe every entry for drift with `bun run verify:registry`.
@@ -76,6 +83,14 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     statuspage_url: 'https://status.cloud.google.com',
     api_type: 'gcp',
   },
+  {
+    slug: 'azure',
+    name: 'Microsoft Azure',
+    category: 'cloud',
+    // Azure status page — adapter fetches its RSS feed at rssfeed.azure.status.microsoft.
+    statuspage_url: 'https://azure.status.microsoft/en-us/status/',
+    api_type: 'azure',
+  },
   // cdn-edge
   {
     slug: 'cloudflare',
@@ -88,7 +103,8 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     slug: 'akamai',
     name: 'Akamai',
     category: 'cdn-edge',
-    statuspage_url: 'https://status.akamai.com',
+    // status.akamai.com 302s here and the redirect drops the query string.
+    statuspage_url: 'https://www.akamaistatus.com',
     api_type: 'statuspage',
   },
   // dev-platform

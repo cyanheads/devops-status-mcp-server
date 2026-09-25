@@ -41,6 +41,12 @@ describe('VendorRegistryService', () => {
     expect(service.resolve('aws')?.api_type).toBe('aws');
     expect(service.resolve('gcp')?.api_type).toBe('gcp');
     expect(service.resolve('redis-cloud')?.api_type).toBe('firehydrant');
+    expect(service.resolve('Azure')).toEqual({
+      url: 'https://azure.status.microsoft/en-us/status/',
+      name: 'Microsoft Azure',
+      slug: 'azure',
+      api_type: 'azure',
+    });
 
     const gitlab = service.resolve('gitlab');
     expect(gitlab?.api_type).toBe('statusio');
@@ -147,16 +153,15 @@ describe('VendorRegistryService', () => {
 });
 
 describe('VENDOR_REGISTRY integrity', () => {
-  it('has 51 entries with unique slugs', () => {
-    expect(VENDOR_REGISTRY).toHaveLength(51);
+  it('has 52 entries with unique slugs', () => {
+    expect(VENDOR_REGISTRY).toHaveLength(52);
     const slugs = VENDOR_REGISTRY.map((v) => v.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it('lists aws and gcp under the cloud category', () => {
+  it('lists aws, gcp and azure under the cloud category', () => {
     const cloud = VENDOR_REGISTRY.filter((v) => v.category === 'cloud').map((v) => v.slug);
-    expect(cloud).toContain('aws');
-    expect(cloud).toContain('gcp');
+    expect(cloud).toEqual(['digitalocean', 'linode', 'aws', 'gcp', 'azure']);
   });
 
   it('routes the Google Cloud entry to the gcp adapter, not a Statuspage URL', () => {
@@ -177,6 +182,16 @@ describe('VENDOR_REGISTRY integrity', () => {
     }
     expect(VENDOR_REGISTRY.find((v) => v.slug === 'auth0')?.statuspage_url).toBe(
       'https://auth0.statuspage.io',
+    );
+  });
+
+  /**
+   * status.akamai.com 302s to www.akamaistatus.com and the redirect drops the query
+   * string, so every history page requested through the old host came back as page 1.
+   */
+  it('points akamai at the canonical host rather than the one that redirects', () => {
+    expect(VENDOR_REGISTRY.find((v) => v.slug === 'akamai')?.statuspage_url).toBe(
+      'https://www.akamaistatus.com',
     );
   });
 

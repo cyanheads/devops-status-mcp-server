@@ -70,12 +70,12 @@ export const devopsCheckCerts = tool('devops_check_certs', {
             status: z
               .enum(['ok', 'warning', 'critical', 'error'])
               .describe(
-                'Overall status. "critical" — the certificate expires in < 7 days or has already expired, the hostname is not covered by the certificate, chain verification failed (self-signed or untrusted root), or an insecure TLS version was negotiated; every one of these is rejected by ordinary clients. "warning" — expires in < 30 days. "ok" — none of the above. "error" — the connection failed and no certificate was retrieved.',
+                'Overall status. "critical" — the certificate expires in < 7 days or has already expired, the hostname is not covered by the certificate, chain verification failed (self-signed or untrusted root), or an insecure TLS version was negotiated; every one of these is rejected by ordinary clients. "warning" — expires in < 30 days. "ok" — none of the above. "error" — no certificate was retrieved: the domain was rejected, the connection failed or timed out, or the server presented no certificate; the reason is in "error".',
               ),
             flags: z
               .array(z.string())
               .describe(
-                'Human-readable warnings and issues found: "Expires in 12 days (warning)", "Certificate expired 40 days ago", "Hostname mismatch — the certificate does not cover api.example.com; clients will reject it", "Certificate chain not trusted (SELF_SIGNED_CERT_IN_CHAIN); clients will reject it", "Self-signed certificate", "Insecure TLS version in use: TLSv1.1", "HSTS present" / "HSTS not configured".',
+                'Human-readable findings about the certificate and TLS session that were read: "Expires in 12 days (warning)", "Certificate expired 40 days ago", "Hostname mismatch — the certificate does not cover api.example.com; clients will reject it", "Certificate chain not trusted (SELF_SIGNED_CERT_IN_CHAIN); clients will reject it", "Self-signed certificate", "Insecure TLS version in use: TLSv1.1", "HSTS present" / "HSTS not configured". Empty when the connection never completed a handshake (rejected target, connection failure, or timeout) — the reason is in "error" only. A handshake that completed without a certificate keeps its TLS-session findings here alongside "error".',
               ),
             cert: z
               .object({
@@ -120,19 +120,23 @@ export const devopsCheckCerts = tool('devops_check_certs', {
                 serial: z.string().describe('Certificate serial number.'),
               })
               .nullable()
-              .describe('Certificate details, or null when connection failed (error status).'),
+              .describe(
+                'Certificate details, or null when no certificate was retrieved (status "error").',
+              ),
             tls: z
               .object({
                 protocol: z.string().describe('Negotiated TLS version, e.g., "TLSv1.3".'),
                 cipher: z.string().describe('Negotiated cipher suite name.'),
               })
               .nullable()
-              .describe('TLS session details, or null when connection failed.'),
+              .describe('TLS session details, or null when no TLS handshake completed.'),
             checked_at: z.string().describe('ISO 8601 UTC timestamp of this check.'),
             error: z
               .string()
               .nullable()
-              .describe('Connection error message when status is "error".'),
+              .describe(
+                'Why status is "error". Either no handshake completed — the domain was rejected as a private, loopback, or cloud-metadata target, a connection failure such as "getaddrinfo ENOTFOUND …", or "Timed out after 5000ms" — with cert and tls null and flags empty; or the handshake completed but the server presented no certificate, with cert null and the TLS session still reported in tls and flags. Null for every other status.',
+              ),
           })
           .describe('Certificate inspection result for one domain.'),
       )

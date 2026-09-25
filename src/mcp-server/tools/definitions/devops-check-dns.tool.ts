@@ -17,6 +17,14 @@ import {
 const PROTOCOL_RE = /^https?:\/\//i;
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS'] as const;
 
+/**
+ * Queried when the field is omitted or sent as an empty array. An empty list would query
+ * nothing and still render a clean result, so it is read as "no preference" — the handler
+ * applies these rather than a schema transform, which would change the advertised schema.
+ */
+const DEFAULT_RECORD_TYPES: RecordType[] = ['A', 'AAAA', 'MX', 'TXT'];
+const DEFAULT_RESOLVERS = ['8.8.8.8', '1.1.1.1', '9.9.9.9'];
+
 export const devopsCheckDns = tool('devops_check_dns', {
   description:
     'Resolve DNS records for one or more domains across multiple public resolvers and compare what each resolver returned. ' +
@@ -41,9 +49,9 @@ export const devopsCheckDns = tool('devops_check_dns', {
       .describe('Domain names to query. Up to 10 per call.'),
     record_types: z
       .array(z.enum(RECORD_TYPES))
-      .default(['A', 'AAAA', 'MX', 'TXT'])
+      .default(DEFAULT_RECORD_TYPES)
       .describe(
-        'DNS record types to resolve. Defaults to A, AAAA, MX, and TXT. Add NS to check nameserver delegation. Add CNAME when investigating redirect chains.',
+        'DNS record types to resolve. Defaults to A, AAAA, MX, and TXT. An empty array uses the same defaults. Add NS to check nameserver delegation. Add CNAME when investigating redirect chains.',
       ),
     resolvers: z
       .array(
@@ -54,9 +62,9 @@ export const devopsCheckDns = tool('devops_check_dns', {
             'A resolver IP literal — IPv4 ("8.8.8.8"), IPv6 ("2001:4860:4860::8888"), or either with a port ("1.1.1.1:53", "[2001:4860:4860::8888]:53"). A hostname is rejected.',
           ),
       )
-      .default(['8.8.8.8', '1.1.1.1', '9.9.9.9'])
+      .default(DEFAULT_RESOLVERS)
       .describe(
-        'Resolver IP addresses to query. Defaults to Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). Add custom resolvers to test resolver-specific behavior. Each must be an IP literal, not a hostname; resolvers in private, loopback, or cloud-metadata ranges are rejected unless DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
+        'Resolver IP addresses to query. Defaults to Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). An empty array uses the same defaults. Add custom resolvers to test resolver-specific behavior. Each must be an IP literal, not a hostname; resolvers in private, loopback, or cloud-metadata ranges are rejected unless DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
       ),
     timeout_ms: z
       .number()
@@ -164,13 +172,13 @@ export const devopsCheckDns = tool('devops_check_dns', {
             flags: z
               .array(z.string())
               .describe(
-                'Human-readable observations that need attention: "NXDOMAIN from 8.8.8.8, 1.1.1.1 on A, MX — the domain does not exist …", "Partial resolution on A records — 9.9.9.9 (nodata) returned nothing while 8.8.8.8 answered", "No MX records found", "CNAME detected — further records resolve via the CNAME target". A value_variation disagreement is not flagged here — it is reported in "propagation_discrepancies" because it is normal for geo-steered domains.',
+                'Human-readable observations that need attention: "NXDOMAIN from 8.8.8.8, 1.1.1.1 on A, MX — the domain does not exist …", "Partial resolution on A records — 9.9.9.9 (nodata) returned nothing while 8.8.8.8 answered", "No MX records found", "CNAME detected — further records resolve via the CNAME target". A value_variation disagreement is not flagged here — it is reported in "propagation_discrepancies" because it is normal for geo-steered domains. Empty for a domain rejected before any query, whose reason is in "error".',
               ),
             error: z
               .string()
               .nullable()
               .describe(
-                'Set only when the domain could not be queried at all — every resolver failed and none returned records. Each failing resolver is named with its own outcome ("8.8.8.8: SERVFAIL on A; 1.1.1.1: NXDOMAIN on A") so a split result stays visible. Null when at least one resolver answered; per-resolver failures are still in "resolver_results" and "flags".',
+                'Set only when the domain could not be queried at all. Either it was rejected before any query (for example a private, loopback, or cloud-metadata target) and "resolver_results" is empty, or every resolver failed and none returned records, in which case each failing resolver is named with its own outcome ("8.8.8.8: SERVFAIL on A; 1.1.1.1: NXDOMAIN on A") so a split result stays visible. Null when at least one resolver answered; per-resolver failures are still in "resolver_results" and "flags".',
               ),
           })
           .describe('DNS resolution result for one domain.'),
@@ -214,8 +222,8 @@ export const devopsCheckDns = tool('devops_check_dns', {
     try {
       results = await dnsService.checkDomains(
         input.domains,
-        input.record_types as RecordType[],
-        input.resolvers,
+        input.record_types.length > 0 ? input.record_types : DEFAULT_RECORD_TYPES,
+        input.resolvers.length > 0 ? input.resolvers : DEFAULT_RESOLVERS,
         input.timeout_ms,
       );
     } catch (err) {
@@ -266,7 +274,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
       }
 
       // Per-resolver breakdown (latency, outcome, records, errors)
-      lines.push('**Resolver results:**');
+      if (r.resolver_results.length > 0) lines.push('**Resolver results:**');
       for (const rr of r.resolver_results) {
         /**
          * Agreement is stated, never rendered as nothing — a bare status line would

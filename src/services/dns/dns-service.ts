@@ -330,6 +330,11 @@ export class DnsService {
         return this.checkOneDomain(domain, types, resolverIps, timeoutMs);
       }),
     );
+    /**
+     * A rejected domain was never queried, so there is nothing to observe about it: the
+     * failure goes in `error` alone and `flags` stays empty. The guard's internal
+     * `SSRF_BLOCKED: ` sentinel comes off, as it does on every other rejection path.
+     */
     return results.map((r, i) =>
       r.status === 'fulfilled'
         ? r.value
@@ -339,8 +344,8 @@ export class DnsService {
             records_source: null,
             resolver_results: [],
             propagation_discrepancies: [],
-            flags: [`${(r.reason as Error).message}`],
-            error: (r.reason as Error).message,
+            flags: [],
+            error: (r.reason as Error).message.replace(/^SSRF_BLOCKED: /, ''),
           },
     );
   }

@@ -3,8 +3,10 @@
  * @module tests/services/dns/dns-service.test
  */
 
+import { runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RecordType } from '@/services/dns/dns-service.js';
+import { devopsCheckDns } from '@/mcp-server/tools/definitions/devops-check-dns.tool.js';
+import type { DnsResult, RecordType } from '@/services/dns/dns-service.js';
 import { DnsService, getDnsService, initDnsService } from '@/services/dns/dns-service.js';
 
 // SSRF guard mock — unit tests for DNS propagation logic; guard behavior tested in ssrf-guard.test.ts
@@ -415,18 +417,113 @@ describe('DnsService', () => {
     });
   });
 
-  it('surfaces a per-domain rejection as an error result', async () => {
-    const { assertSafeDomain } = await import('@/utils/ssrf-guard.js');
-    vi.mocked(assertSafeDomain).mockRejectedValueOnce(new Error('SSRF_BLOCKED: private range'));
+  describe('a domain rejected before any query (#45)', () => {
+    const GUARD_SENTENCE =
+      'Domain "localhost" names a known internal host ("localhost"). Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.';
 
-    const results = await new DnsService().checkDomains(
-      ['internal.example.com'],
-      ['A'],
-      ['8.8.8.8'],
-      1000,
-    );
-    expect(results[0]!.error).toContain('SSRF_BLOCKED');
-    expect(results[0]!.records_source).toBeNull();
-    expect(results[0]!.resolver_results).toHaveLength(0);
+    async function rejectNext(message: string) {
+      const { assertSafeDomain } = await import('@/utils/ssrf-guard.js');
+      vi.mocked(assertSafeDomain).mockRejectedValueOnce(new Error(message));
+    }
+
+    it('reports the failure in error only, without the internal sentinel', async () => {
+      await rejectNext(`SSRF_BLOCKED: ${GUARD_SENTENCE}`);
+      const results = await new DnsService().checkDomains(['localhost'], ['A'], ['8.8.8.8'], 1000);
+
+      expect(results[0]).toEqual({
+        domain: 'localhost',
+        records: {},
+        records_source: null,
+        resolver_results: [],
+        propagation_discrepancies: [],
+        flags: [],
+        error: GUARD_SENTENCE,
+      });
+    });
+
+    it('keeps a non-guard rejection message as-is', async () => {
+      await rejectNext('Invalid IP address: resolver.example');
+      const results = await new DnsService().checkDomains(['a.example'], ['A'], ['8.8.8.8'], 1000);
+
+      expect(results[0]!.error).toBe('Invalid IP address: resolver.example');
+      expect(results[0]!.flags).toEqual([]);
+    });
+
+    it('leaves the other domains in the batch untouched', async () => {
+      await rejectNext(`SSRF_BLOCKED: ${GUARD_SENTENCE}`);
+      const results = await new DnsService().checkDomains(
+        ['localhost', 'ok.example.com'],
+        ['A'],
+        ['8.8.8.8'],
+        1000,
+      );
+
+      expect(results[0]!.flags).toEqual([]);
+      expect(results[1]!.error).toBeNull();
+      expect(results[1]!.records.A).toEqual(['1.2.3.4']);
+    });
+
+    it('renders the failure once through devops_check_dns', async () => {
+      await rejectNext(`SSRF_BLOCKED: ${GUARD_SENTENCE}`);
+      const result = await runToolContract(devopsCheckDns, {
+        domains: ['localhost'],
+        record_types: ['A'],
+        timeout_ms: 1000,
+      });
+
+      expect(result.isError).toBeFalsy();
+      const structured = result.structuredContent as { results: DnsResult[] };
+      expect(structured.results[0]!.flags).toEqual([]);
+      expect(structured.results[0]!.error).toBe(GUARD_SENTENCE);
+
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      expect(text.split(GUARD_SENTENCE)).toHaveLength(2);
+      expect(text).not.toContain('SSRF_BLOCKED');
+      expect(text).not.toContain('**Flags:**');
+      expect(text).not.toContain('**Resolver results:**');
+    });
+
+    it('queries the default resolvers and record types for empty arrays (#48)', async () => {
+      const result = await runToolContract(devopsCheckDns, {
+        domains: ['example.com'],
+        resolvers: [],
+        record_types: [],
+        timeout_ms: 1000,
+      });
+
+      const [r] = (result.structuredContent as { results: DnsResult[] }).results;
+      expect(r!.resolver_results.map((rr) => rr.resolver)).toEqual([
+        '8.8.8.8',
+        '1.1.1.1',
+        '9.9.9.9',
+      ]);
+      expect(Object.keys(r!.resolver_results[0]!.status_by_type).sort()).toEqual([
+        'A',
+        'AAAA',
+        'MX',
+        'TXT',
+      ]);
+      expect(r!.records.A).toEqual(['1.2.3.4']);
+    });
+
+    it('still pairs the all-resolvers-failed error with its explanatory flag (#31)', async () => {
+      const nxdomain = { code: 'ENOTFOUND' } as const;
+      dnsScript = { '8.8.8.8': { A: nxdomain }, '1.1.1.1': { A: nxdomain } };
+      const result = await runToolContract(devopsCheckDns, {
+        domains: ['gone.example.com'],
+        record_types: ['A'],
+        resolvers: ['8.8.8.8', '1.1.1.1'],
+        timeout_ms: 1000,
+      });
+
+      const structured = result.structuredContent as { results: DnsResult[] };
+      expect(structured.results[0]!.error).toBe('8.8.8.8: NXDOMAIN on A; 1.1.1.1: NXDOMAIN on A');
+      expect(structured.results[0]!.flags).toEqual([
+        'NXDOMAIN from 8.8.8.8, 1.1.1.1 on A — the domain does not exist — check for a typo, an expired registration, or a missing delegation',
+      ]);
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      expect(text).toContain('**Flags:** NXDOMAIN from 8.8.8.8, 1.1.1.1 on A');
+      expect(text).toContain('**Resolver results:**');
+    });
   });
 });

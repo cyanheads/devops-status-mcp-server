@@ -41,6 +41,9 @@ export interface CertResult {
 const CHAIN_DEPTH_UNAVAILABLE =
   'This runtime did not expose issuerCertificate on the peer certificate, so the number of certificates the server actually sent cannot be counted. Read authorization_error for chain-trust validity instead.';
 
+/** `error` for a handshake that completed without the server presenting a certificate. */
+const NO_PEER_CERTIFICATE = 'The TLS handshake completed but the server presented no certificate.';
+
 /**
  * `socket.authorizationError` is typed as `Error` but arrives as a bare OpenSSL code string on
  * some runtimes. Normalize both shapes to the code.
@@ -52,7 +55,14 @@ function authorizationErrorCode(value: unknown): string | null {
   return err.code ?? err.message ?? String(value);
 }
 
-/** Inspect a single domain's TLS certificate and HSTS header. */
+/**
+ * Inspect a single domain's TLS certificate and HSTS header.
+ *
+ * `flags` holds findings about a certificate and TLS session that were actually read. When
+ * the connection times out or errors before that, the failure is reported in `error` only.
+ * A handshake that completes without a certificate reports its session findings and the
+ * reason both.
+ */
 export function inspectCert(domain: string, port: number, timeoutMs: number): Promise<CertResult> {
   const checked_at = new Date().toISOString();
 
@@ -63,7 +73,7 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
         domain,
         port,
         status: 'error',
-        flags: ['Connection timed out'],
+        flags: [],
         cert: null,
         tls: null,
         checked_at,
@@ -239,6 +249,24 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
           return 'ok';
         }
 
+        /**
+         * The handshake completed, so the session's findings stay in `flags` and `tls` either
+         * way. With no certificate presented the status is `error`, and `error` says why — the
+         * one `error` row whose session was still read.
+         */
+        function settleCompleted() {
+          settle({
+            domain,
+            port,
+            status: resolveStatus(),
+            flags,
+            cert: certData,
+            tls: tlsData,
+            checked_at,
+            error: certData === null ? NO_PEER_CERTIFICATE : null,
+          });
+        }
+
         socket.on('data', (chunk) => {
           if (hstsChecked) return;
           responseBuffer += chunk.toString('utf8');
@@ -252,16 +280,7 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
               flags.push('HSTS not configured');
             }
             socket.destroy();
-            settle({
-              domain,
-              port,
-              status: resolveStatus(),
-              flags,
-              cert: certData,
-              tls: tlsData,
-              checked_at,
-              error: null,
-            });
+            settleCompleted();
           }
         });
 
@@ -269,16 +288,7 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
           if (!hstsChecked) {
             flags.push('HSTS not configured');
           }
-          settle({
-            domain,
-            port,
-            status: resolveStatus(),
-            flags,
-            cert: certData,
-            tls: tlsData,
-            checked_at,
-            error: null,
-          });
+          settleCompleted();
         });
       },
     );
@@ -288,7 +298,7 @@ export function inspectCert(domain: string, port: number, timeoutMs: number): Pr
         domain,
         port,
         status: 'error',
-        flags: [`Connection error: ${err.message}`],
+        flags: [],
         cert: null,
         tls: null,
         checked_at,
@@ -307,6 +317,10 @@ export class CertService {
         return inspectCert(domain, port, timeoutMs);
       }),
     );
+    /**
+     * A rejected domain was never connected to: the failure goes in `error` alone, with the
+     * guard's internal `SSRF_BLOCKED: ` sentinel stripped as on every other rejection path.
+     */
     return results.map((r, i) =>
       r.status === 'fulfilled'
         ? r.value
@@ -314,11 +328,11 @@ export class CertService {
             domain: domains[i] ?? 'unknown',
             port,
             status: 'error' as const,
-            flags: [`${(r.reason as Error).message}`],
+            flags: [],
             cert: null,
             tls: null,
             checked_at: new Date().toISOString(),
-            error: (r.reason as Error).message,
+            error: (r.reason as Error).message.replace(/^SSRF_BLOCKED: /, ''),
           },
     );
   }

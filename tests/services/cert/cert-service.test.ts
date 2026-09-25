@@ -16,6 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let mockSocketConfig: {
   /** If set, the 'connect' callback is never called; instead 'error' is emitted. */
   error?: Error;
+  /** If true, the socket never connects and never errors — the handshake hangs. */
+  hang?: boolean;
   /** Cert fields returned by getPeerCertificate(). */
   cert?: Record<string, unknown>;
   /** TLS protocol string. */
@@ -95,6 +97,7 @@ vi.mock('node:tls', () => ({
   ) => {
     const socket = new MockTlsSocket();
     setImmediate(() => {
+      if (mockSocketConfig.hang) return;
       if (mockSocketConfig.error) {
         socket.emit('error', mockSocketConfig.error);
         return;
@@ -121,6 +124,9 @@ vi.mock('@/utils/ssrf-guard.js', () => ({
 // Import AFTER the mock is registered
 // ──────────────────────────────────────────────
 
+import { runToolContract } from '@cyanheads/mcp-ts-core/testing';
+import { devopsCheckCerts } from '@/mcp-server/tools/definitions/devops-check-certs.tool.js';
+import type { CertResult } from '@/services/cert/cert-service.js';
 import { CertService, getCertService, initCertService } from '@/services/cert/cert-service.js';
 
 /** Milliseconds from now for a cert that expires in `days` days. */
@@ -216,14 +222,30 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
     expect(results[0]!.flags.some((f) => f.includes('Insecure TLS'))).toBe(true);
   });
 
-  it('connection error → status error, cert and tls null', async () => {
-    mockSocketConfig = { error: new Error('ECONNREFUSED') };
+  it('connection error → status error, cert and tls null, failure in error only', async () => {
+    mockSocketConfig = { error: new Error('getaddrinfo ENOTFOUND unreachable.com') };
     const service = getCertService();
     const results = await service.checkDomains(['unreachable.com'], 443, 5000);
     expect(results[0]!.status).toBe('error');
     expect(results[0]!.cert).toBeNull();
     expect(results[0]!.tls).toBeNull();
-    expect(results[0]!.error).toContain('ECONNREFUSED');
+    expect(results[0]!.error).toBe('getaddrinfo ENOTFOUND unreachable.com');
+    // `flags` holds findings about an inspected certificate; nothing was inspected (#45).
+    expect(results[0]!.flags).toEqual([]);
+  });
+
+  it('timeout → status error, cert and tls null, failure in error only', async () => {
+    mockSocketConfig = { hang: true };
+    const results = await getCertService().checkDomains(['slow.example.com'], 81, 30);
+    expect(results[0]).toMatchObject({
+      domain: 'slow.example.com',
+      port: 81,
+      status: 'error',
+      cert: null,
+      tls: null,
+      flags: [],
+      error: 'Timed out after 30ms',
+    });
   });
 
   it('batch: one success, one error — both results present', async () => {
@@ -258,6 +280,109 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
     } finally {
       Object.defineProperty(tlsMod, 'connect', { value: savedConnect, configurable: true });
     }
+  });
+});
+
+describe('CertService — a domain rejected before any connection (#45)', () => {
+  const GUARD_SENTENCE =
+    'Domain "localhost" names a known internal host ("localhost"). Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.';
+
+  beforeEach(async () => {
+    initCertService();
+    mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: true };
+    const { assertSafeDomain } = await import('@/utils/ssrf-guard.js');
+    vi.mocked(assertSafeDomain).mockRejectedValueOnce(new Error(`SSRF_BLOCKED: ${GUARD_SENTENCE}`));
+  });
+
+  afterEach(() => {
+    mockSocketConfig = {};
+  });
+
+  it('reports the failure in error only, without the internal sentinel', async () => {
+    const results = await getCertService().checkDomains(['localhost'], 443, 5000);
+    expect(results[0]).toMatchObject({
+      domain: 'localhost',
+      port: 443,
+      status: 'error',
+      cert: null,
+      tls: null,
+      flags: [],
+      error: GUARD_SENTENCE,
+    });
+  });
+
+  it('renders the failure once through devops_check_certs', async () => {
+    const result = await runToolContract(devopsCheckCerts, {
+      domains: ['localhost', 'example.com'],
+      timeout_ms: 5000,
+    });
+
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as { results: CertResult[] };
+    expect(structured.results[0]).toMatchObject({
+      status: 'error',
+      flags: [],
+      error: GUARD_SENTENCE,
+    });
+    // The healthy domain beside it keeps its findings.
+    expect(structured.results[1]).toMatchObject({ status: 'ok', flags: ['HSTS present'] });
+
+    const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+    expect(text.split(GUARD_SENTENCE)).toHaveLength(2);
+    expect(text).not.toContain('SSRF_BLOCKED');
+    const localhostBlock = text.split('### ')[1] ?? '';
+    expect(localhostBlock).toContain('❌ localhost:443 — error');
+    expect(localhostBlock).not.toContain('**Flags:**');
+  });
+});
+
+describe('CertService — a handshake that presents no certificate (#49)', () => {
+  beforeEach(() => {
+    initCertService();
+    // getPeerCertificate() returns an object with no subject: the handshake completed, no cert.
+    mockSocketConfig = { cert: {}, protocol: 'TLSv1.3', hsts: false };
+  });
+
+  afterEach(() => {
+    mockSocketConfig = {};
+  });
+
+  it('reports status error with a reason, keeping the TLS session and its findings', async () => {
+    const results = await getCertService().checkDomains(['no-cert.example.com'], 443, 5000);
+    expect(results[0]).toMatchObject({
+      domain: 'no-cert.example.com',
+      status: 'error',
+      cert: null,
+      tls: { protocol: 'TLSv1.3', cipher: 'TLS_AES_256_GCM_SHA384' },
+      flags: ['HSTS not configured'],
+      error: 'The TLS handshake completed but the server presented no certificate.',
+    });
+  });
+
+  it('keeps an insecure-TLS finding and names the cause when the connection ends early', async () => {
+    mockSocketConfig = { cert: {}, protocol: 'TLSv1.1', noHstsResponse: true };
+    const results = await getCertService().checkDomains(['no-cert.example.com'], 443, 5000);
+    expect(results[0]!.status).toBe('error');
+    expect(results[0]!.flags).toEqual([
+      'Insecure TLS version in use: TLSv1.1',
+      'HSTS not configured',
+    ]);
+    expect(results[0]!.error).toBe(
+      'The TLS handshake completed but the server presented no certificate.',
+    );
+  });
+
+  it('renders the reason once through devops_check_certs', async () => {
+    const result = await runToolContract(devopsCheckCerts, {
+      domains: ['no-cert.example.com'],
+      timeout_ms: 5000,
+    });
+
+    expect(result.isError).toBeFalsy();
+    const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+    expect(text.split('presented no certificate')).toHaveLength(2);
+    expect(text).toContain('❌ no-cert.example.com:443 — error');
+    expect(text).toContain('**TLS:** TLSv1.3 / TLS_AES_256_GCM_SHA384');
   });
 });
 

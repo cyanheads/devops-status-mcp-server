@@ -165,6 +165,17 @@ const NXDOMAIN_DNS_RESULT: DnsResult = {
   error: '8.8.8.8: NXDOMAIN on A',
 };
 
+/** A domain the SSRF guard rejected before any resolver was queried. */
+const REJECTED_DNS_RESULT: DnsResult = {
+  domain: 'localhost',
+  records: {},
+  records_source: null,
+  resolver_results: [],
+  propagation_discrepancies: [],
+  flags: [],
+  error: 'Domain "localhost" names a known internal host ("localhost").',
+};
+
 describe('devopsCheckDns', () => {
   it('returns clean results for a well-propagated domain', async () => {
     const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as unknown as {
@@ -304,5 +315,72 @@ describe('devopsCheckDns', () => {
     expect(text).toContain('nxdomain');
     expect(text).toContain('the domain does not exist');
     expect(text).toContain('8.8.8.8: NXDOMAIN on A');
+    // All resolvers failed: the error and the explanatory flag both carry information (#31).
+    expect(text).toContain('**Error:** 8.8.8.8: NXDOMAIN on A');
+    expect(text).toContain('**Flags:** NXDOMAIN from 8.8.8.8 on A');
+    expect(text).toContain('**Resolver results:**');
+  });
+
+  it('states a rejected domain once, with no empty resolver header (#45)', () => {
+    const message =
+      'Domain "localhost" names a known internal host ("localhost"). Requests to private, loopback, or cloud-metadata addresses are not permitted.';
+    const text = (
+      devopsCheckDns.format!({ results: [{ ...REJECTED_DNS_RESULT, error: message }] })[0] as {
+        text: string;
+      }
+    ).text;
+
+    expect(text).toContain('### ❌ localhost');
+    expect(text.split(message)).toHaveLength(2);
+    expect(text).not.toContain('**Flags:**');
+    expect(text).not.toContain('**Resolver results:**');
+  });
+
+  describe('empty resolvers / record_types (#48)', () => {
+    const DEFAULT_TYPES = ['A', 'AAAA', 'MX', 'TXT'];
+    const DEFAULT_RESOLVERS = ['8.8.8.8', '1.1.1.1', '9.9.9.9'];
+
+    async function callWith(args: Record<string, unknown>) {
+      const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as unknown as {
+        _mockCheckDomains: ReturnType<typeof vi.fn>;
+      };
+      _mockCheckDomains.mockResolvedValue([CLEAN_DNS_RESULT]);
+      const ctx = createMockContext({ errors: devopsCheckDns.errors });
+      await devopsCheckDns.handler(
+        devopsCheckDns.input.parse({ domains: ['github.com'], ...args }),
+        ctx,
+      );
+      return _mockCheckDomains;
+    }
+
+    it('passes non-empty arrays through unchanged', async () => {
+      const mock = await callWith({ resolvers: ['1.1.1.1:53'], record_types: ['NS', 'CNAME'] });
+      expect(mock).toHaveBeenLastCalledWith(['github.com'], ['NS', 'CNAME'], ['1.1.1.1:53'], 3000);
+    });
+
+    it('queries the defaults when both fields are omitted', async () => {
+      const mock = await callWith({});
+      expect(mock).toHaveBeenLastCalledWith(['github.com'], DEFAULT_TYPES, DEFAULT_RESOLVERS, 3000);
+    });
+
+    it('queries the default resolvers when resolvers is an empty array', async () => {
+      const mock = await callWith({ resolvers: [], record_types: ['A'] });
+      expect(mock).toHaveBeenLastCalledWith(['github.com'], ['A'], DEFAULT_RESOLVERS, 3000);
+    });
+
+    it('queries the default record types when record_types is an empty array', async () => {
+      const mock = await callWith({ record_types: [], resolvers: ['8.8.8.8'] });
+      expect(mock).toHaveBeenLastCalledWith(['github.com'], DEFAULT_TYPES, ['8.8.8.8'], 3000);
+    });
+
+    it('queries both defaults when both fields are empty arrays', async () => {
+      const mock = await callWith({ resolvers: [], record_types: [] });
+      expect(mock).toHaveBeenLastCalledWith(['github.com'], DEFAULT_TYPES, DEFAULT_RESOLVERS, 3000);
+    });
+
+    it('documents the empty-array default on both fields', () => {
+      expect(devopsCheckDns.input.shape.resolvers.description).toContain('An empty array');
+      expect(devopsCheckDns.input.shape.record_types.description).toContain('An empty array');
+    });
   });
 });

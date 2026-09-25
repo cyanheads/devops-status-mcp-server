@@ -77,11 +77,11 @@ const ERROR_CERT: CertResult = {
   domain: 'unreachable.example.com',
   port: 443,
   status: 'error',
-  flags: ['Connection error: ECONNREFUSED'],
+  flags: [],
   cert: null,
   tls: null,
   checked_at: '2025-06-01T00:00:00Z',
-  error: 'ECONNREFUSED',
+  error: 'connect ECONNREFUSED 93.184.216.34:443',
 };
 
 /** Chain trust is fine; the certificate simply does not cover the requested hostname. */
@@ -181,7 +181,7 @@ describe('devopsCheckCerts', () => {
     const result = await devopsCheckCerts.handler(input, ctx);
 
     expect(result.results[0]!.status).toBe('error');
-    expect(result.results[0]!.error).toBe('ECONNREFUSED');
+    expect(result.results[0]!.error).toBe('connect ECONNREFUSED 93.184.216.34:443');
     expect(result.results[0]!.cert).toBeNull();
   });
 
@@ -208,7 +208,6 @@ describe('devopsCheckCerts', () => {
     const MALFORMED_ERROR: CertResult = {
       ...ERROR_CERT,
       domain: 'example.com/path',
-      flags: ['Connection error: ENOTFOUND'],
       error: 'getaddrinfo ENOTFOUND example.com/path',
     };
     _mockCheckDomains.mockResolvedValue([MALFORMED_ERROR]);
@@ -310,11 +309,18 @@ describe('devopsCheckCerts', () => {
     expect(text).toContain('SELF_SIGNED_CERT_IN_CHAIN');
   });
 
-  it('formats error result gracefully (null cert)', () => {
+  it('formats error result gracefully (null cert), stating the failure once', () => {
     const result = { results: [ERROR_CERT] };
     const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
-    expect(text).toContain('error');
-    expect(text).toContain('ECONNREFUSED');
+    expect(text).toContain('### ❌ unreachable.example.com:443 — error');
+    expect(text.split('ECONNREFUSED')).toHaveLength(2);
+    expect(text).not.toContain('**Flags:**');
+  });
+
+  it('describes flags as empty when no handshake completed, kept when one did (#45, #49)', () => {
+    const flags = devopsCheckCerts.output.shape.results.element.shape.flags.description;
+    expect(flags).toContain('Empty when the connection never completed a handshake');
+    expect(flags).toContain('A handshake that completed without a certificate keeps');
   });
 });

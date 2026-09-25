@@ -5,7 +5,7 @@
  */
 
 import * as tls from 'node:tls';
-import { assertSafeDomain } from '@/utils/ssrf-guard.js';
+import { assertSafeDomain, ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
 
 export interface CertResult {
   cert: {
@@ -318,8 +318,8 @@ export class CertService {
       }),
     );
     /**
-     * A rejected domain was never connected to: the failure goes in `error` alone, with the
-     * guard's internal `SSRF_BLOCKED: ` sentinel stripped as on every other rejection path.
+     * A rejected domain was never connected to: the failure goes in `error` alone, a guard
+     * rejection as its caller-facing text like on every other rejection path.
      */
     return results.map((r, i) =>
       r.status === 'fulfilled'
@@ -332,7 +332,7 @@ export class CertService {
             cert: null,
             tls: null,
             checked_at: new Date().toISOString(),
-            error: (r.reason as Error).message.replace(/^SSRF_BLOCKED: /, ''),
+            error: ssrfRejectionMessage(r.reason) ?? (r.reason as Error).message,
           },
     );
   }

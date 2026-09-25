@@ -5,7 +5,12 @@
 
 import * as dnsPromises from 'node:dns/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { assertSafeDomain, assertSafeResolverIp, assertSafeUrl } from '@/utils/ssrf-guard.js';
+import {
+  assertSafeDomain,
+  assertSafeResolverIp,
+  assertSafeUrl,
+  ssrfRejectionMessage,
+} from '@/utils/ssrf-guard.js';
 
 /**
  * The guard reads `getServerConfig().allowPrivateTargets`, not `process.env`. Mock the config
@@ -479,5 +484,63 @@ describe('assertSafeDomain (async, mocked DNS)', () => {
     setAllowPrivateTargets(true);
     await expect(assertSafeDomain('localhost')).resolves.toBeUndefined();
     expect(mockLookup).not.toHaveBeenCalled();
+  });
+});
+
+describe('ssrfRejectionMessage', () => {
+  /** The error a real guard rejection throws, or a failure if the guard passed. */
+  async function rejectionOf(check: () => unknown): Promise<unknown> {
+    try {
+      await check();
+    } catch (err) {
+      return err;
+    }
+    throw new Error('the guard did not reject');
+  }
+
+  it('recognizes every guard rejection path and returns its sentence, with nothing before it', async () => {
+    mockAddresses([{ address: '10.0.0.5', family: 4 }]);
+    const cases: Array<[() => unknown, string]> = [
+      [() => assertSafeUrl('not a url'), 'Invalid URL "not a url".'],
+      [
+        () => assertSafeUrl('ftp://example.com/file'),
+        'Scheme "ftp:" is not permitted. Only http:// and https:// are allowed.',
+      ],
+      [
+        () => assertSafeUrl('https://intranet.example'),
+        'URL "https://intranet.example" resolves to 10.0.0.5 (private (RFC 1918)). Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.',
+      ],
+      [
+        () => assertSafeDomain('localhost'),
+        'Domain "localhost" names a known internal host ("localhost"). Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.',
+      ],
+      [
+        () => assertSafeResolverIp('dns.example'),
+        'Resolver "dns.example" is not a valid IP address. Pass a public DNS resolver as an IPv4 or IPv6 literal, optionally with a port (e.g. "8.8.8.8", "1.1.1.1:53", "[2001:4860:4860::8888]:53").',
+      ],
+      [
+        () => assertSafeResolverIp('127.0.0.1:53'),
+        'Resolver IP "127.0.0.1:53" is in a private range (loopback). Only public DNS resolvers are permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow private resolvers.',
+      ],
+    ];
+    for (const [check, sentence] of cases) {
+      const err = await rejectionOf(check);
+      expect((err as Error).message).toBe(`SSRF_BLOCKED: ${sentence}`);
+      expect(ssrfRejectionMessage(err)).toBe(sentence);
+    }
+  });
+
+  it('returns null for an error the guard did not raise', () => {
+    expect(ssrfRejectionMessage(new Error('getaddrinfo ENOTFOUND a.example'))).toBeNull();
+    expect(ssrfRejectionMessage(new Error(''))).toBeNull();
+    expect(ssrfRejectionMessage('SSRF_BLOCKED: not an Error')).toBeNull();
+    expect(ssrfRejectionMessage(undefined)).toBeNull();
+  });
+
+  it('recognizes the sentinel only at the start of the message, and strips it once', () => {
+    expect(ssrfRejectionMessage(new Error('upstream said: SSRF_BLOCKED: x'))).toBeNull();
+    expect(ssrfRejectionMessage(new Error('SSRF_BLOCKED: SSRF_BLOCKED: x'))).toBe(
+      'SSRF_BLOCKED: x',
+    );
   });
 });

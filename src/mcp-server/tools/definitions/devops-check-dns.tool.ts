@@ -13,6 +13,7 @@ import {
   DNS_QUERY_STATUSES,
   getDnsService,
 } from '@/services/dns/dns-service.js';
+import { ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
 
 const PROTOCOL_RE = /^https?:\/\//i;
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS'] as const;
@@ -27,13 +28,7 @@ const DEFAULT_RESOLVERS = ['8.8.8.8', '1.1.1.1', '9.9.9.9'];
 
 export const devopsCheckDns = tool('devops_check_dns', {
   description:
-    'Resolve DNS records for one or more domains across multiple public resolvers and compare what each resolver returned. ' +
-    'Works for any domain — no vendor registry required. ' +
-    'Reports records found (A/AAAA/CNAME/MX/TXT/NS), resolution latency per resolver, and a typed outcome per resolver and record type ' +
-    'so "the domain does not exist" (nxdomain), "the resolver could not answer" (servfail), and "no record of this type" (nodata) stay distinguishable. ' +
-    'Resolver disagreements are reported without asserting a cause: partial_resolution (some resolvers answered, others returned nothing) points at a real propagation or resolver problem, ' +
-    'while value_variation (every resolver answered with different values) is the normal steady state for anycast and geo-steered domains. ' +
-    'Pair with devops_check_certs when a domain resolves but TLS to it is failing.',
+    'Resolve DNS records for one or more domains across multiple public resolvers and compare what each resolver returned. Works for any domain — no vendor registry required. Reports records found (A/AAAA/CNAME/MX/TXT/NS), resolution latency per resolver, and a typed outcome per resolver and record type so "the domain does not exist" (nxdomain), "the resolver could not answer" (servfail), and "no record of this type" (nodata) stay distinguishable. Resolver disagreements are reported without asserting a cause: partial_resolution (some resolvers answered, others returned nothing) points at a real propagation or resolver problem, while value_variation (every resolver answered with different values) is the normal steady state for anycast and geo-steered domains. Pair with devops_check_certs when a domain resolves but TLS to it is failing.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -230,13 +225,9 @@ export const devopsCheckDns = tool('devops_check_dns', {
       // Resolver-IP SSRF blocks throw out of checkDomains (the pre-check runs before the
       // per-domain Promise.allSettled). Translate to the declared target_blocked contract,
       // mirroring devops_status_check's raw-URL guard handling.
-      const msg = (err as Error).message;
-      if (msg.startsWith('SSRF_BLOCKED')) {
-        throw ctx.fail('target_blocked', msg.replace('SSRF_BLOCKED: ', ''), {
-          ...ctx.recoveryFor('target_blocked'),
-        });
-      }
-      throw err;
+      const blocked = ssrfRejectionMessage(err);
+      if (blocked === null) throw err;
+      throw ctx.fail('target_blocked', blocked, { ...ctx.recoveryFor('target_blocked') });
     }
 
     ctx.log.info('DNS check completed', {

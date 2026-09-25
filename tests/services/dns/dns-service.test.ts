@@ -9,8 +9,10 @@ import { devopsCheckDns } from '@/mcp-server/tools/definitions/devops-check-dns.
 import type { DnsResult, RecordType } from '@/services/dns/dns-service.js';
 import { DnsService, getDnsService, initDnsService } from '@/services/dns/dns-service.js';
 
-// SSRF guard mock — unit tests for DNS propagation logic; guard behavior tested in ssrf-guard.test.ts
-vi.mock('@/utils/ssrf-guard.js', () => ({
+// SSRF guard mock — unit tests for DNS propagation logic; guard behavior tested in ssrf-guard.test.ts.
+// Sentinel stripping stays real, since the rejected-domain error text depends on it.
+vi.mock('@/utils/ssrf-guard.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/ssrf-guard.js')>()),
   assertSafeDomain: vi.fn().mockResolvedValue(undefined),
   assertSafeUrl: vi.fn().mockResolvedValue(undefined),
   assertSafeResolverIp: vi.fn(),

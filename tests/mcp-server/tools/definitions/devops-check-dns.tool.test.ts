@@ -225,6 +225,9 @@ describe('devopsCheckDns', () => {
     const input = devopsCheckDns.input.parse({ domains: ['github.com'], resolvers: ['127.0.0.1'] });
     await expect(devopsCheckDns.handler(input, ctx)).rejects.toMatchObject({
       data: { reason: 'target_blocked' },
+      // The guard's sentence reaches the caller whole, with the internal sentinel stripped.
+      message:
+        'Resolver IP "127.0.0.1" is in a private range (loopback). Only public DNS resolvers are permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow private resolvers.',
     });
   });
 

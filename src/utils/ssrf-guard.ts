@@ -267,6 +267,19 @@ async function resolveAndCheck(hostname: string, context: string): Promise<void>
   }
 }
 
+/** The internal prefix every guard rejection in this module opens its message with. */
+const SENTINEL = 'SSRF_BLOCKED: ';
+
+/**
+ * The caller-facing text of a guard rejection — its message with the internal sentinel
+ * removed from the start — or null when `err` is not one. Callers recognize and strip
+ * a rejection through this alone, so the sentinel never leaves this module.
+ */
+export function ssrfRejectionMessage(err: unknown): string | null {
+  if (!(err instanceof Error) || !err.message.startsWith(SENTINEL)) return null;
+  return err.message.slice(SENTINEL.length);
+}
+
 /** True when the operator has explicitly enabled private-target access. */
 function privateTargetsAllowed(): boolean {
   return getServerConfig().allowPrivateTargets;

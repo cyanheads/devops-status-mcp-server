@@ -5,7 +5,11 @@
 
 import { Resolver } from 'node:dns/promises';
 import { performance } from 'node:perf_hooks';
-import { assertSafeDomain, assertSafeResolverIp } from '@/utils/ssrf-guard.js';
+import {
+  assertSafeDomain,
+  assertSafeResolverIp,
+  ssrfRejectionMessage,
+} from '@/utils/ssrf-guard.js';
 
 export type RecordType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS';
 
@@ -332,8 +336,8 @@ export class DnsService {
     );
     /**
      * A rejected domain was never queried, so there is nothing to observe about it: the
-     * failure goes in `error` alone and `flags` stays empty. The guard's internal
-     * `SSRF_BLOCKED: ` sentinel comes off, as it does on every other rejection path.
+     * failure goes in `error` alone and `flags` stays empty. A guard rejection reads as
+     * its caller-facing text, as on every other rejection path.
      */
     return results.map((r, i) =>
       r.status === 'fulfilled'
@@ -345,7 +349,7 @@ export class DnsService {
             resolver_results: [],
             propagation_discrepancies: [],
             flags: [],
-            error: (r.reason as Error).message.replace(/^SSRF_BLOCKED: /, ''),
+            error: ssrfRejectionMessage(r.reason) ?? (r.reason as Error).message,
           },
     );
   }

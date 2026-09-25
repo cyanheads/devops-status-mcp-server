@@ -15,7 +15,7 @@
  */
 
 import { McpError, serviceUnavailable, validationError } from '@cyanheads/mcp-ts-core/errors';
-import { assertSafeUrl } from './ssrf-guard.js';
+import { assertSafeUrl, ssrfRejectionMessage } from './ssrf-guard.js';
 
 /** Redirect hops followed before the chain is treated as an upstream fault. */
 const MAX_REDIRECTS = 5;
@@ -39,6 +39,15 @@ function cacheGet<T>(key: string): T | null {
 
 function cacheSet<T>(key: string, value: T, ttlMs: number): void {
   CACHE.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+/**
+ * Drop every cached response. Entries expire by wall clock, so a test suite that
+ * moves the clock (fake timers) clears the cache between cases rather than relying
+ * on TTLs to keep one case's responses out of the next.
+ */
+export function clearFetchCache(): void {
+  CACHE.clear();
 }
 
 /**
@@ -78,12 +87,12 @@ async function fetchFollowingSafeRedirects(url: string, init: RequestInit): Prom
     try {
       await assertSafeUrl(next.href);
     } catch (err) {
-      const message = (err as Error).message;
-      if (!message.startsWith('SSRF_BLOCKED')) throw err;
-      throw validationError(
-        `Redirect from ${current} blocked: ${message.replace('SSRF_BLOCKED: ', '')}`,
-        { reason: 'target_blocked', url: next.href },
-      );
+      const blocked = ssrfRejectionMessage(err);
+      if (blocked === null) throw err;
+      throw validationError(`Redirect from ${current} blocked: ${blocked}`, {
+        reason: 'target_blocked',
+        url: next.href,
+      });
     }
 
     current = next.href;

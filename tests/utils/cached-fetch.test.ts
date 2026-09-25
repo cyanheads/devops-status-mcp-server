@@ -7,15 +7,17 @@
 
 import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchJsonCached } from '@/utils/cached-fetch.js';
+import { clearFetchCache, fetchJsonCached } from '@/utils/cached-fetch.js';
 import { assertSafeUrl } from '@/utils/ssrf-guard.js';
 
 /**
  * The guard itself is covered in ssrf-guard.test.ts. Mocking it here keeps these
  * tests offline and — more to the point — lets each case assert *which* URL the
- * hop check was handed, which is the whole behavior under test.
+ * hop check was handed, which is the whole behavior under test. The sentinel
+ * stripping stays real, since the redirect error text depends on it.
  */
-vi.mock('@/utils/ssrf-guard.js', () => ({
+vi.mock('@/utils/ssrf-guard.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/ssrf-guard.js')>()),
   assertSafeUrl: vi.fn(),
   assertSafeDomain: vi.fn(),
   assertSafeResolverIp: vi.fn(),
@@ -94,7 +96,11 @@ describe('fetchCached redirect handling', () => {
     expect(err).toBeInstanceOf(McpError);
     expect((err as McpError).code).toBe(JsonRpcErrorCode.ValidationError);
     expect((err as McpError).data).toMatchObject({ reason: 'target_blocked', url: target });
-    expect((err as McpError).message).toContain('127.0.0.1');
+    // The whole caller-visible message: the guard's sentence, internal sentinel stripped.
+    expect((err as McpError).message).toBe(
+      `Redirect from ${url} blocked: URL "${target}" resolves to 127.0.0.1 (loopback). ` +
+        'Requests to private, loopback, or cloud-metadata addresses are not permitted.',
+    );
     // The decisive assertion: the loopback hop was validated *before* being
     // requested, so exactly one upstream request left the process.
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -231,5 +237,18 @@ describe('fetchCached transport failures', () => {
     expect(first.cached).toBe(false);
     expect(second.cached).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests again after the cache is cleared, however long the entry had left', async () => {
+    const url = freshUrl();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ page: { name: 'Vendor' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchJsonCached(url, 60_000, 5_000);
+    clearFetchCache();
+    const again = await fetchJsonCached(url, 60_000, 5_000);
+
+    expect(again.cached).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

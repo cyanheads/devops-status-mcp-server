@@ -111,10 +111,12 @@ vi.mock('node:tls', () => ({
 }));
 
 // ──────────────────────────────────────────────
-// SSRF guard mock — unit tests for TLS logic; guard behavior is tested in ssrf-guard.test.ts
+// SSRF guard mock — unit tests for TLS logic; guard behavior is tested in ssrf-guard.test.ts.
+// Sentinel stripping stays real, since the rejected-domain error text depends on it.
 // ──────────────────────────────────────────────
 
-vi.mock('@/utils/ssrf-guard.js', () => ({
+vi.mock('@/utils/ssrf-guard.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/ssrf-guard.js')>()),
   assertSafeDomain: vi.fn().mockResolvedValue(undefined),
   assertSafeUrl: vi.fn().mockResolvedValue(undefined),
   assertSafeResolverIp: vi.fn(),
@@ -308,6 +310,21 @@ describe('CertService — a domain rejected before any connection (#45)', () => 
       tls: null,
       flags: [],
       error: GUARD_SENTENCE,
+    });
+  });
+
+  it('keeps a non-guard rejection message as-is', async () => {
+    const { assertSafeDomain } = await import('@/utils/ssrf-guard.js');
+    vi.mocked(assertSafeDomain).mockRejectedValueOnce(
+      new Error('getaddrinfo ENOTFOUND other.example'),
+    );
+    const results = await getCertService().checkDomains(['localhost', 'other.example'], 443, 5000);
+    expect(results[0]!.error).toBe(GUARD_SENTENCE);
+    expect(results[1]).toMatchObject({
+      domain: 'other.example',
+      status: 'error',
+      flags: [],
+      error: 'getaddrinfo ENOTFOUND other.example',
     });
   });
 

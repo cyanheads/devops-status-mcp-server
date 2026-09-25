@@ -12,7 +12,7 @@ import { fetchVendorSummary } from '@/services/status-adapters/status-dispatch.j
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
 import type { ResolvedVendor } from '@/services/vendor-registry/vendor-registry-service.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
-import { assertSafeUrl } from '@/utils/ssrf-guard.js';
+import { assertSafeUrl, ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
 
 /**
  * Render a settled-rejection as the per-vendor `error` string.
@@ -90,7 +90,7 @@ export const VendorResultSchema = z
               .string()
               .nullish()
               .describe(
-                'ISO 8601 UTC timestamp when the incident started, or null/absent if not set by the vendor.',
+                "ISO 8601 timestamp, with the vendor's UTC offset (Z, +00:00, or a local offset such as -07:00), when the incident started, or null/absent if not set by the vendor.",
               ),
             latest_update: z.string().describe('Most recent incident_update body text.'),
           })
@@ -102,8 +102,12 @@ export const VendorResultSchema = z
         z
           .object({
             name: z.string().describe('Maintenance window name.'),
-            scheduled_for: z.string().describe('ISO 8601 UTC start time.'),
-            scheduled_until: z.string().describe('ISO 8601 UTC end time.'),
+            scheduled_for: z
+              .string()
+              .describe("ISO 8601 start time, with the vendor's UTC offset."),
+            scheduled_until: z
+              .string()
+              .describe("ISO 8601 end time, with the vendor's UTC offset."),
             status: z.string().describe('Maintenance status (scheduled, in_progress, completed).'),
           })
           .describe('A scheduled maintenance entry.'),
@@ -513,15 +517,15 @@ export function prepareVendors(inputs: readonly string[]): Promise<PreparedVendo
         try {
           await assertSafeUrl(target.url);
         } catch (err) {
-          const msg = (err as Error).message;
-          if (!msg.startsWith('SSRF_BLOCKED')) throw err;
+          const blocked = ssrfRejectionMessage(err);
+          if (blocked === null) throw err;
           return {
             ok: false,
             input,
             reason: 'target_blocked',
             name: target.name,
             url: target.url,
-            message: msg.replace('SSRF_BLOCKED: ', ''),
+            message: blocked,
           };
         }
       }

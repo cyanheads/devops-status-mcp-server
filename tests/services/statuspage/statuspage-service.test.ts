@@ -3,6 +3,7 @@
  * @module tests/services/statuspage/statuspage-service.test
  */
 
+import { readFileSync } from 'node:fs';
 import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
 import { createFetchMock } from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -290,6 +291,77 @@ describe('StatuspageService', () => {
 
     expect(data.status.indicator).toBe('maintenance');
     expect(data.status.description).toBe('Under Maintenance');
+  });
+
+  /**
+   * The quarterly history archive is paged by `?page=N` and served beside the v2
+   * API, not under it. Its body is gated like every v2 payload.
+   */
+  describe('fetchHistory', () => {
+    function historyFixture(name: string): unknown {
+      return JSON.parse(readFileSync(new URL(`fixtures/${name}`, import.meta.url), 'utf-8'));
+    }
+
+    it('requests the given history page and returns the recorded body unchanged', async () => {
+      const base = freshUrl();
+      const body = historyFixture('github-history-p2.json');
+      http.route({ match: `${base}/history.json?page=2`, respond: () => Response.json(body) });
+
+      const { data, cached } = await new StatuspageService().fetchHistory(base, 2);
+
+      expect(http.calls.map((c) => c.request.url)).toEqual([`${base}/history.json?page=2`]);
+      expect(cached).toBe(false);
+      expect(data).toEqual(body);
+      expect(data.start_time).toBe('2026-04-01T00:00:00Z');
+      expect(data.months.map((m) => `${m.name} ${m.year}`)).toEqual([
+        'June 2026',
+        'May 2026',
+        'April 2026',
+      ]);
+    });
+
+    it('rejects a 200 whose body is not a history payload, naming the endpoint', async () => {
+      const base = freshUrl();
+      http.route({
+        match: `${base}/history.json?page=1`,
+        respond: () => Response.json({ page: { name: 'X' }, incidents: [] }),
+      });
+
+      const err = await new StatuspageService().fetchHistory(base, 1).catch((e: unknown) => e);
+
+      expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
+      expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
+      expect((err as McpError).message).toContain('history payload');
+    });
+
+    it('rejects a history record whose impact is off the known scale', async () => {
+      const base = freshUrl();
+      const body = historyFixture('github-history-p2.json') as {
+        months: { incidents: { impact: string }[] }[];
+      };
+      body.months[0]!.incidents[0]!.impact = 'catastrophic';
+      http.route({ match: `${base}/history.json?page=1`, respond: () => Response.json(body) });
+
+      await expect(new StatuspageService().fetchHistory(base, 1)).rejects.toMatchObject({
+        data: { reason: 'statuspage_unavailable' },
+      });
+    });
+
+    it('surfaces a 404 with its status, which callers read as "no archive"', async () => {
+      const base = freshUrl();
+      http.route({
+        match: `${base}/history.json?page=1`,
+        respond: () =>
+          Response.json(
+            { errors: [{ code: 1001, message: 'no matching operation was found' }] },
+            { status: 404 },
+          ),
+      });
+
+      const err = await new StatuspageService().fetchHistory(base, 1).catch((e: unknown) => e);
+
+      expect((err as McpError).data).toMatchObject({ status: 404 });
+    });
   });
 
   /**

@@ -1,0 +1,77 @@
+{
+  "page_status": {
+    "page": {
+      "name": "GitHub",
+      "time_zone": "UTC"
+    }
+  },
+  "months": [
+    {
+      "name": "September",
+      "year": 2026,
+      "starts_on": 2,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "1dk955gg3bvz",
+          "name": "Disruption with billing information updates",
+          "message": "This incident has been resolved. Thank you for your patience and understanding as we addressed this issue. A detailed root cause analysis will be shared as soon as it is available.",
+          "impact": "minor",
+          "timestamp": "Sep <var data-var='date'>24</var>, <var data-var='time'>16:51</var> - <var data-var='time'>20:41</var> UTC"
+        },
+        {
+          "code": "8zc63m64hy36",
+          "name": "Incident across several services",
+          "message": "This incident has been resolved. Thank you for your patience and understanding as we addressed this issue. A detailed root cause analysis will be shared as soon as it is available.",
+          "impact": "minor",
+          "timestamp": "Sep <var data-var='date'>23</var>, <var data-var='time'>10:11</var> - Sep <var data-var='date'>24</var>, <var data-var='time'>04:55</var> UTC"
+        },
+        {
+          "code": "f6yrxnz5f7bs",
+          "name": "Incident with Pull Requests",
+          "message": "On September 20, 2026, between 21:46 and 22:24 UTC the Pull Requests service was degraded and pull request merge and test-merge commits were created late, with delays reaching approximately four minutes at peak. Merge commits were delayed rather than lost. Because some Actions workflow runs start only after a pull request's merge commit is created, a subset of workflow runs for pull request events were also delayed. <br /><br />This was due to a routine repository maintenance job for an unusually large repository consuming nearly all of the memory on a single Git storage server, which left that server unable to serve the Git operations used to create merge commits. <br /><br />We mitigated the incident by removing the affected server from service at 22:18 UTC, after which the queued merge commits were created within six minutes. <br /><br />We have capped the memory a single repository maintenance job may consume so that one repository cannot exhaust a server, and we have improved monitoring and alerting on storage server health to reduce our time to detection and mitigation of issues like this one in the future.",
+          "impact": "minor",
+          "timestamp": "Sep <var data-var='date'>20</var>, <var data-var='time'>22:13</var> - <var data-var='time'>23:22</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "August",
+      "year": 2026,
+      "starts_on": 6,
+      "days": 31,
+      "incidents": []
+    },
+    {
+      "name": "July",
+      "year": 2026,
+      "starts_on": 3,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "zq3c1jst2vkq",
+          "name": "Latency issues across a number of services",
+          "message": "On July 23, 2026, between 07:08 and 09:39 UTC, several services experienced delays: 8% of actions workflow runs experienced an average run start delay of 10 minutes, 5% of webhook deliveries exceeded SLO, and code scanning, repos, notifications, issues and pull requests experienced increased latency over the life of the incident.    <br /><br />The root cause of the incident was a node of our background job processing system which did not recover after entering scheduled host maintenance.  The incident was mitigated by identifying the problematic shard and restoring its correct state, after which queue backlogs drained and services recovered.  <br /><br />To speed mitigation, we have added monitors for nodes in this unhealthy state after maintenance operations.  To prevent future recurrence, we are adapting our lifecycle automation to verify host rejoin after a scheduled reboot.",
+          "impact": "major",
+          "timestamp": "Jul <var data-var='date'>23</var>, <var data-var='time'>07:53</var> - <var data-var='time'>09:39</var> UTC"
+        },
+        {
+          "code": "20frdtvv3yg6",
+          "name": "Disruption with actions hosted runners",
+          "message": "On July 22, 2026, between 19:36 UTC and 22:04 UTC, GitHub Actions experienced delayed and failed job starts on GitHub-hosted runners. The incident was caused by an unhealthy state in a backend data service responsible for provisioning hosted runners, preventing runner acquisition for a subset of workloads. During most of the incident, approximately 15% of workflow runs on hosted runners were delayed by more than 5 minutes, while roughly 1% failed to start.<br /><br />At 21:49 UTC, we restored the health of the backend data replication system, allowing provisioning to recover and the accumulated workflow backlog to drain. Service performance then returned to expected levels. We are improving provisioning-service resiliency, workload distribution, and capacity balancing to reduce the likelihood and impact of similar incidents.",
+          "impact": "minor",
+          "timestamp": "Jul <var data-var='date'>22</var>, <var data-var='time'>20:43</var> - <var data-var='time'>22:09</var> UTC"
+        },
+        {
+          "code": "g40zcbvchny4",
+          "name": "Some SSH connections using deploy keys are failing",
+          "message": "On July 21, 2026, between 07:41 UTC and 11:57 UTC, the SSH Authentication service was degraded and some SSH connections failed to authenticate. On average, 12.2% of SSH authentication requests failed, peaking at 15.7%. Both user RSA keys and deploy keys were impacted. This was due to a change in how our SSH service handled one public-key authentication method that caused the affected authentication attempts to be rejected as invalid. <br /><br />We mitigated the incident by reverting the change, after which SSH authentication returned to normal. <br /><br />We are working to expand our automated test coverage for our SSH public-key authentication flows to catch more edge cases and to improve observability and alerting on SSH authentication failures, to reduce our time to detection and mitigation of issues like this one in the future.",
+          "impact": "critical",
+          "timestamp": "Jul <var data-var='date'>21</var>, <var data-var='time'>10:31</var> - <var data-var='time'>11:57</var> UTC"
+        }
+      ]
+    }
+  ],
+  "start_time": "2026-07-01T00:00:00Z",
+  "end_time": "2026-09-30T23:59:59Z"
+}

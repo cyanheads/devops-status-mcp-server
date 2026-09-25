@@ -1,0 +1,78 @@
+{
+  "page_status": {
+    "page": {
+      "name": "GitHub",
+      "time_zone": "UTC"
+    }
+  },
+  "months": [
+    {
+      "name": "December",
+      "year": 2025,
+      "starts_on": 1,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "ccrzb3ms9j2d",
+          "name": "Incident with Issues and Pull Requests",
+          "message": "On December 23, 2025, between 09:15 UTC and 10:32 UTC the Issues and Pull Requests search indexing service was degraded and caused search results to contain stale data up to 3 minutes old for roughly 1.3 million issues and pull requests. This was due to search indexing queues backing up from resource contention caused by a running transition.<br /><br />We mitigated the incident by cancelling the running transition.<br /><br />We are working to implement closer monitoring of search infrastructure resource utilization during transitions to reduce our time to detection and mitigation of issues like this one in the future.",
+          "impact": "minor",
+          "timestamp": "Dec <var data-var='date'>23</var>, <var data-var='time'>09:56</var> - <var data-var='time'>10:32</var> UTC"
+        },
+        {
+          "code": "y2wxzcfbgbn2",
+          "name": "Disruption with some GitHub services",
+          "message": "On December 22, 2025, between 22:01 UTC and 22:32 UTC, unauthenticated requests to github.com were degraded, resulting in slow or timed out page loads and API requests. Unauthenticated requests from Actions jobs, such as release downloads, were also impacted. Authenticated traffic was not impacted. This was due to a severe spike in traffic, primarily to search endpoints.<br /><br />Our immediate response focused on identifying and mitigating the source of the traffic increase, which along with automated traffic management restored full service for our users.<br /><br />We improved limiters for load to relevant endpoints and are continuing work to more proactively identify these large changes in traffic volume, improve resilience in critical request flows, and improve our time to mitigation.",
+          "impact": "major",
+          "timestamp": "Dec <var data-var='date'>22</var>, <var data-var='time'>22:31</var> - Dec <var data-var='date'>23</var>, <var data-var='time'>00:17</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "November",
+      "year": 2025,
+      "starts_on": 6,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "d4775b3j5mwm",
+          "name": "Incident with Copilot",
+          "message": "On November 28th, 2025, between approximately 05:51 and 08:04 UTC, Copilot experienced an outage affecting the Claude Sonnet 4.5 model. Users attempting to use this model received an HTTP 400 error, resulting in 4.6% of total chat requests during this timeframe failing. Other models were not impacted.<br /><br />The issue was caused by a misconfiguration deployed to an internal service which made Claude Sonnet 4.5 unavailable. The problem was identified and mitigated by reverting the change. GitHub is working to improve cross-service deploy safeguards and monitoring to prevent similar incidents in the future.",
+          "impact": "major",
+          "timestamp": "Nov <var data-var='date'>28</var>, <var data-var='time'>06:59</var> - <var data-var='time'>08:23</var> UTC"
+        },
+        {
+          "code": "v6sx0dv6rv2x",
+          "name": "Disruption with some GitHub services",
+          "message": "On November 24, 2025, between 12:15 and 15:04 UTC, Codespaces users encountered connection issues when attempting to create a codespace after choosing the recently released VS Code Codespaces extension, version 1.18.1. Users were able to downgrade to the 1.18.0 version of the extension during this period to work around this issue. At peak, the error rate was 19% of connection requests. This was caused by mismatching version dependencies for the released VS Code Codespaces extension.<br /><br />The connection issues were mitigated by releasing the VS Code Codespaces extension version 1.18.2 that addressed the issue. Users utilizing version 1.18.1 of the VS Code Codespaces extension are advised to upgrade to version >=1.18.2.<br /><br />We are improving our validation and release process for this extension to ensure functional issues like this are caught before release to customers and to reduce detection and mitigation times for extension issues like this in the future.",
+          "impact": "minor",
+          "timestamp": "Nov <var data-var='date'>24</var>, <var data-var='time'>13:10</var> - <var data-var='time'>15:04</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "October",
+      "year": 2025,
+      "starts_on": 3,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "6hygvwpw2vr3",
+          "name": "Disruption with some GitHub services",
+          "message": "On October 30th we shipped a change that broke 3 links in the \"Solutions\" dropdown of the marketing navigation seen on https://github.com/home. We noticed internally the broken links and declared an incident so our users would know no other functionality was impacted. We were able to revert a change and are evaluating our testing and rollout processes to prevent future incidents like these.",
+          "impact": "minor",
+          "timestamp": "Oct <var data-var='date'>30</var>, <var data-var='time'>22:47</var> - <var data-var='time'>23:00</var> UTC"
+        },
+        {
+          "code": "4jxdz4m769gy",
+          "name": "Experiencing connection issues across Actions, Codespaces, and possibly other services",
+          "message": "On October 29th, 2025 between 14:07 UTC and 23:15 UTC, multiple GitHub services were degraded due to a broad outage in one of our service providers:<br /><br />- Users of Codespaces experienced failures connecting to new and existing Codespaces through VSCode Desktop or Web. On average the Codespace connection error rate was 90% and peaked at 100% across all regions throughout the incident period.<br />- GitHub Actions larger hosted runners experienced degraded performance, with 0.5% of overall workflow runs and 9.8% of larger hosted runner jobs failing or not starting within 5 minutes.  These recovered by 20:40 UTC.<br />- The GitHub Enterprise Importer service was degraded, with some users experiencing migration failures during git push operations and most users experiencing delayed migration processing.<br />- Initiation of new trials for GitHub Enterprise Cloud with Data Residency were also delayed during this time.<br />- Copilot Metrics via the API could not access the downloadable link during this time. There were approximately 100 requests during the incident that would have failed the download. Recovery began around 20:25 UTC.<br /><br />We were able to apply a number of mitigations to reduce impact over the course of the incident, but we did not achieve 100% recovery until our service provider’s incident was resolved.<br /><br />We are working to reduce critical path dependencies on the service provider and gracefully degrade experiences where possible so that we are more resilient to future dependency outages.",
+          "impact": "major",
+          "timestamp": "Oct <var data-var='date'>29</var>, <var data-var='time'>16:17</var> - <var data-var='time'>23:15</var> UTC"
+        }
+      ]
+    }
+  ],
+  "start_time": "2025-10-01T00:00:00Z",
+  "end_time": "2025-12-31T23:59:59Z"
+}

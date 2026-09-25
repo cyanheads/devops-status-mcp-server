@@ -1,0 +1,64 @@
+{
+  "page_status": {
+    "page": {
+      "name": "Twilio",
+      "time_zone": "Pacific Time (US & Canada)"
+    }
+  },
+  "months": [
+    {
+      "name": "December",
+      "year": 2025,
+      "starts_on": 1,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "xcdk5zq41ztc",
+          "name": "Our Engineers are Investigating an Issue with Voice Insights",
+          "message": "The customer impact of a retroactive issue with Voice Insights for Call Summaries in the US region has been resolved and is operating normally at this time.",
+          "impact": "none",
+          "timestamp": "Dec <var data-var='date'>30</var>, <var data-var='time'>17:55</var> - <var data-var='time'>19:46</var> PST"
+        },
+        {
+          "code": "l389xq3k5gqw",
+          "name": "SMS Delivery Delays to Roshan/TDCA Network in Afghanistan",
+          "message": "We are no longer experiencing SMS delivery delays when sending messages to Roshan/TDCA Network in Afghanistan. This incident has been resolved.",
+          "impact": "minor",
+          "timestamp": "Dec <var data-var='date'>28</var>, <var data-var='time'>18:01</var> - <var data-var='time'>21:01</var> PST"
+        }
+      ]
+    },
+    {
+      "name": "November",
+      "year": 2025,
+      "starts_on": 6,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "jd1ldm4c680v",
+          "name": "SMS Delivery Delays to Asia Cell Networks in Iraq",
+          "message": "We are no longer experiencing SMS delivery delays when sending messages to Asia Cell Networks in Iraq. This incident has been resolved.",
+          "impact": "minor",
+          "timestamp": "Nov <var data-var='date'>30</var>, <var data-var='time'>06:38</var> - <var data-var='time'>13:08</var> PST"
+        }
+      ]
+    },
+    {
+      "name": "October",
+      "year": 2025,
+      "starts_on": 3,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "h7ngyb37q2pb",
+          "name": "SMS Delivery Delays to MobiFone Network in Vietnam via a Subset of Long Code Numbers & Alphanumeric Senders",
+          "message": "We are no longer experiencing SMS delivery delays to MobiFone network in Vietnam via a subset of long code numbers & alphanumeric senders. This incident has been resolved.",
+          "impact": "minor",
+          "timestamp": "Oct <var data-var='date'>31</var>, <var data-var='time'>07:58</var> - <var data-var='time'>18:23</var> PDT"
+        }
+      ]
+    }
+  ],
+  "start_time": "2025-10-01T00:00:00-07:00",
+  "end_time": "2025-12-31T23:59:59-08:00"
+}

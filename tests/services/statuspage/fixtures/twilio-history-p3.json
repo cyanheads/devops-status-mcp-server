@@ -1,0 +1,78 @@
+{
+  "page_status": {
+    "page": {
+      "name": "Twilio",
+      "time_zone": "Pacific Time (US & Canada)"
+    }
+  },
+  "months": [
+    {
+      "name": "March",
+      "year": 2026,
+      "starts_on": 0,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "rkvy1mv3c47t",
+          "name": "SMS Delivery Failures To Telefonica Network In Mexico Via A Subset Of Longcodes",
+          "message": "The incident has been resolved and SMS delivery from a subset of Twilio Long Codes to Telefonica network subscribers in Mexico is operating normally.",
+          "impact": "minor",
+          "timestamp": "Mar <var data-var='date'>7</var>, <var data-var='time'>07:50</var> - Mar <var data-var='date'>10</var>, <var data-var='time'>04:12</var> PDT"
+        },
+        {
+          "code": "4lmk03nn0ptx",
+          "name": "SMS Delivery Delays from Twilio to Claro Chile",
+          "message": "The incident has been resolved and SMS delivery from Twilio to Claro network subscribers in Chile is operating normally",
+          "impact": "minor",
+          "timestamp": "Mar <var data-var='date'>9</var>, <var data-var='time'>09:22</var> - <var data-var='time'>14:30</var> PDT"
+        },
+        {
+          "code": "q5vcf66029py",
+          "name": "SMS Delivery Delays from Twilio to MTN Ghana",
+          "message": "The incident has been resolved and SMS delivery from Twilio to MTN network subscribers in Ghana is operating normally.",
+          "impact": "minor",
+          "timestamp": "Mar <var data-var='date'>7</var>, <var data-var='time'>10:45</var> - <var data-var='time'>15:36</var> PST"
+        }
+      ]
+    },
+    {
+      "name": "February",
+      "year": 2026,
+      "starts_on": 0,
+      "days": 28,
+      "incidents": [
+        {
+          "code": "q3w5nvnvhmgd",
+          "name": "[Scheduled] United Kingdom Account Security Carrier Partner Maintenance - Vodafone",
+          "message": "The scheduled maintenance has been completed.",
+          "impact": "maintenance",
+          "timestamp": "Feb <var data-var='date'>28</var>, <var data-var='time'>12:45</var> - <var data-var='time'>18:00</var> PST"
+        }
+      ]
+    },
+    {
+      "name": "January",
+      "year": 2026,
+      "starts_on": 4,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "lc1txpxrvm2r",
+          "name": "Call Quality Issue To and From a Subset of Twilio Phone Numbers in Taiwan",
+          "message": "The call quality issues to and from a subset of Twilio's Phone Numbers in Taiwan has been resolved and the service is operating normally at this time.",
+          "impact": "minor",
+          "timestamp": "Dec <var data-var='date'>29</var>, <var data-var='time'>00:32</var> - Jan <var data-var='date'>6</var>, <var data-var='time'>13:43</var> PST"
+        },
+        {
+          "code": "bchpvm9st7h2",
+          "name": "SMS Delivery Failures From Subset of Twilio Numbers in Brazil",
+          "message": "We are no longer experiencing SMS delivery failures from a subset of Twilio numbers in Brazil. This incident has been resolved.",
+          "impact": "minor",
+          "timestamp": "Dec <var data-var='date'>31</var>, <var data-var='time'>22:28</var> - Jan <var data-var='date'>1</var>, <var data-var='time'>08:17</var> PST"
+        }
+      ]
+    }
+  ],
+  "start_time": "2026-01-01T00:00:00-08:00",
+  "end_time": "2026-03-31T23:59:59-07:00"
+}

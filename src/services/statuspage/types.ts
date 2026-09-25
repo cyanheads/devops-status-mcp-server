@@ -9,7 +9,11 @@ import { z } from '@cyanheads/mcp-ts-core';
 export interface StatuspagePage {
   id: string;
   name: string;
-  time_zone: string;
+  /**
+   * IANA zone the page displays times in. Absent on some v2-compatible pages that
+   * are not hosted by Atlassian (verified on cohere, planetscale, openai).
+   */
+  time_zone?: string;
   updated_at: string;
   url: string;
 }
@@ -115,6 +119,42 @@ export interface StatuspageScheduledMaintenancesResponse {
   scheduled_maintenances: StatuspageIncident[];
 }
 
+/**
+ * One record of the page's quarterly history archive (`{base_url}/history.json`).
+ * `code` is the same identifier as the v2 incident `id`.
+ */
+export interface StatuspageHistoryIncident {
+  code: string;
+  impact: 'none' | 'minor' | 'major' | 'critical' | 'maintenance';
+  /** The latest update body, with the same markup v2 update bodies carry. */
+  message: string;
+  name: string;
+  /**
+   * Rendered display text with no year and a local zone abbreviation, e.g.
+   * `Dec <var data-var='date'>31</var>, <var data-var='time'>22:28</var> - Jan
+   * <var data-var='date'>1</var>, <var data-var='time'>08:17</var> PST`. A span is
+   * filed under the month it ends in.
+   */
+  timestamp: string;
+}
+
+export interface StatuspageHistoryMonth {
+  incidents: StatuspageHistoryIncident[];
+  /** Full English month name, e.g. `January`. */
+  name: string;
+  year: number;
+}
+
+/**
+ * One page of the history archive. Page 1 is the current calendar quarter and
+ * each later page one quarter earlier; a page past the end still returns 200.
+ */
+export interface StatuspageHistoryResponse {
+  months: StatuspageHistoryMonth[];
+  /** Window start as a local ISO timestamp with offset, e.g. `2026-07-01T00:00:00-07:00`. */
+  start_time: string;
+}
+
 export interface StatuspageSummaryResponse {
   components: StatuspageComponent[];
   /** Omitted entirely by some pages when there is nothing to report — not always `[]`. */
@@ -200,4 +240,24 @@ export const StatuspageIncidentsResponseSchema = z.object({
 export const StatuspageScheduledMaintenancesResponseSchema = z.object({
   page: PageSchema,
   scheduled_maintenances: z.array(IncidentSchema),
+});
+
+export const StatuspageHistoryResponseSchema = z.object({
+  start_time: z.string(),
+  months: z.array(
+    z.object({
+      name: z.string(),
+      // A calendar year: outside this range Date.UTC reads it as 19xx or cannot place it.
+      year: z.number().int().min(1970).max(9999),
+      incidents: z.array(
+        z.object({
+          code: z.string(),
+          name: z.string(),
+          message: z.string(),
+          impact: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']),
+          timestamp: z.string(),
+        }),
+      ),
+    }),
+  ),
 });

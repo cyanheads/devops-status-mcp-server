@@ -1,0 +1,2134 @@
+{
+  "page": {
+    "id": "yh6f0r4529hb",
+    "name": "Cloudflare Status",
+    "url": "https://www.cloudflarestatus.com",
+    "time_zone": "Etc/UTC",
+    "updated_at": "2026-08-27T00:00:00.000Z"
+  },
+  "incidents": [
+    {
+      "id": "gv29fd076q2t",
+      "name": "Issues with Durable Objects",
+      "status": "investigating",
+      "created_at": "2026-09-25T00:03:24.000Z",
+      "updated_at": "2026-09-25T02:32:19.000Z",
+      "monitoring_at": "2026-09-25T01:31:54.000Z",
+      "resolved_at": null,
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/gv29fd076q2t",
+      "started_at": "2026-09-25T00:03:24.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "nt42nbx4ld5p",
+          "status": "investigating",
+          "body": "Cloudflare is investigating issues causing an increase of errors for Durable Objects .We are working to analyse and mitigate this problem. More updates to follow shortly.",
+          "created_at": "2026-09-25T02:32:19.163Z",
+          "display_at": "2026-09-25T02:32:19.163Z",
+          "affected_components": [
+            {
+              "code": "bty1yz6dhh0v",
+              "name": "Cloudflare Sites and Services - Durable Objects",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        },
+        {
+          "id": "cvc5363dwqgg",
+          "status": "investigating",
+          "body": "Cloudflare is aware of and investigating an issue impacting some customers where new Workflows instances may be stuck in a Queued state. More updates to follow shortly.",
+          "created_at": "2026-09-25T00:03:24.600Z",
+          "display_at": "2026-09-25T00:03:24.600Z",
+          "affected_components": [
+            {
+              "code": "5df6y9z3fsky",
+              "name": "Cloudflare Sites and Services - Workflows",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "mltthh0jxxpz",
+      "name": "Browser isolation session data sync issues",
+      "status": "resolved",
+      "created_at": "2026-09-24T17:26:03.000Z",
+      "updated_at": "2026-09-24T22:37:14.001Z",
+      "monitoring_at": "2026-09-24T17:28:20.141Z",
+      "resolved_at": "2026-09-24T22:37:13.982Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/mltthh0jxxpz",
+      "started_at": "2026-09-24T17:26:03.503Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "0k95q6f2z2qj",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-24T22:37:13.982Z",
+          "display_at": "2026-09-24T22:37:13.982Z",
+          "affected_components": [
+            {
+              "code": "q0dfbn0p6hyt",
+              "name": "Cloudflare Sites and Services - Browser Isolation",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "2w7c0jsmx6sf",
+          "status": "identified",
+          "body": "Cloudflare is investigating issues with Browser Isolation's session data sync. Customers that use Browser Isolation may observe errors on acquiring a browser stating that browser storage is unavailable, and they will need to sign into web apps again. They will continue to be able to use browsers during this time.",
+          "created_at": "2026-09-24T17:26:03.603Z",
+          "display_at": "2026-09-24T17:26:03.603Z",
+          "affected_components": [
+            {
+              "code": "q0dfbn0p6hyt",
+              "name": "Cloudflare Sites and Services - Browser Isolation",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "2x4qt2q2ds9x",
+      "name": "Intermittent 500 errors for backend services on Replicate",
+      "status": "resolved",
+      "created_at": "2026-09-24T20:40:47.000Z",
+      "updated_at": "2026-09-24T22:34:56.087Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-24T22:34:56.071Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/2x4qt2q2ds9x",
+      "started_at": "2026-09-24T20:40:47.789Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "4wszd6fggvm3",
+          "status": "resolved",
+          "body": "The impacted backend has been redeployed, and all related services should now be back up and running. There may be some increased latency as they continue to come online.",
+          "created_at": "2026-09-24T22:34:56.071Z",
+          "display_at": "2026-09-24T22:34:56.071Z",
+          "affected_components": [
+            {
+              "code": "fvgfcmy66tdr",
+              "name": "Cloudflare Sites and Services - Replicate",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "rdtnks7t6r68",
+          "status": "investigating",
+          "body": "We have a backend component that entered an unexpected reboot, causing issues for services downstream.",
+          "created_at": "2026-09-24T20:40:47.880Z",
+          "display_at": "2026-09-24T20:40:47.880Z",
+          "affected_components": [
+            {
+              "code": "fvgfcmy66tdr",
+              "name": "Cloudflare Sites and Services - Replicate",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "dwfzz0bwhmsq",
+      "name": "Delays Starting Cloudflare Workers Builds",
+      "status": "resolved",
+      "created_at": "2026-09-24T17:33:57.000Z",
+      "updated_at": "2026-09-24T20:52:46.377Z",
+      "monitoring_at": "2026-09-24T17:33:57.000Z",
+      "resolved_at": "2026-09-24T20:52:46.358Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/dwfzz0bwhmsq",
+      "started_at": "2026-09-24T17:33:57.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "907dd9bz2d52",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-24T20:52:46.358Z",
+          "display_at": "2026-09-24T20:52:46.358Z",
+          "affected_components": [
+            {
+              "code": "vcpsk0w6g86k",
+              "name": "Cloudflare Sites and Services - Workers Builds",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "z3f5rww7zytt",
+          "status": "monitoring",
+          "body": "Customers may experience delays starting Cloudflare Workers builds.",
+          "created_at": "2026-09-24T17:33:57.620Z",
+          "display_at": "2026-09-24T17:33:57.000Z",
+          "affected_components": [
+            {
+              "code": "vcpsk0w6g86k",
+              "name": "Cloudflare Sites and Services - Workers Builds",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "xbgbb80yw0jh",
+      "name": "Cloudflare Access updates delayed",
+      "status": "resolved",
+      "created_at": "2026-09-24T15:20:39.000Z",
+      "updated_at": "2026-09-24T18:25:30.421Z",
+      "monitoring_at": "2026-09-24T15:31:57.390Z",
+      "resolved_at": "2026-09-24T18:25:30.401Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/xbgbb80yw0jh",
+      "started_at": "2026-09-24T15:20:39.714Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "s1w13hb3k9sb",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-24T18:25:30.401Z",
+          "display_at": "2026-09-24T18:25:30.401Z",
+          "affected_components": [
+            {
+              "code": "w4k8yvhfb3vp",
+              "name": "Cloudflare Sites and Services - Access",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "cn4nw9xr7m8d",
+          "status": "investigating",
+          "body": "Cloudflare engineering is investigating an issue causing a delay in configuration updates. This includes applications and policy updates. Authentication and policy enforcement are not impacted.",
+          "created_at": "2026-09-24T15:20:39.852Z",
+          "display_at": "2026-09-24T15:20:39.852Z",
+          "affected_components": [
+            {
+              "code": "w4k8yvhfb3vp",
+              "name": "Cloudflare Sites and Services - Access",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "gwrzznc9f642",
+      "name": "Customers using BYOIP can have issues updating their BGP prefixes, including advertising or withdrawing prefixes.",
+      "status": "resolved",
+      "created_at": "2026-09-24T10:22:34.000Z",
+      "updated_at": "2026-09-24T10:25:52.127Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-24T10:25:52.106Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/gwrzznc9f642",
+      "started_at": "2026-09-24T10:22:34.763Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "krlcnf01fw30",
+          "status": "resolved",
+          "body": "This incident has now been resolved - Customers with BYOIP addresses were unable to update their BGP prefixes, including advertising or withdrawing prefixes. Customers making changes to their address maps may also have experienced delays.",
+          "created_at": "2026-09-24T10:25:52.106Z",
+          "display_at": "2026-09-24T10:25:52.106Z",
+          "affected_components": [
+            {
+              "code": "4msl4k5wdcbv",
+              "name": "Cloudflare Sites and Services - Bring Your Own IP (BYOIP)",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "p3hr9blzwy76",
+          "status": "investigating",
+          "body": "We are currently investigating an issue where customers with BYOIP addresses will be unable to update their BGP prefixes, including advertising or withdrawing prefixes.",
+          "created_at": "2026-09-24T10:22:34.862Z",
+          "display_at": "2026-09-24T10:22:34.862Z",
+          "affected_components": [
+            {
+              "code": "4msl4k5wdcbv",
+              "name": "Cloudflare Sites and Services - Bring Your Own IP (BYOIP)",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "jg6ys8sbd6ny",
+      "name": "Intermittent authentication errors for API and R2",
+      "status": "resolved",
+      "created_at": "2026-09-23T09:08:53.000Z",
+      "updated_at": "2026-09-23T20:59:35.598Z",
+      "monitoring_at": "2026-09-23T20:09:18.550Z",
+      "resolved_at": "2026-09-23T20:59:35.579Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/jg6ys8sbd6ny",
+      "started_at": "2026-09-23T09:08:53.712Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "tf3c2990d8mg",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-23T20:59:35.579Z",
+          "display_at": "2026-09-23T20:59:35.579Z",
+          "affected_components": [
+            {
+              "code": "hb7g5sq2zz0h",
+              "name": "Cloudflare Sites and Services - R2",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "qh0cv7b0b7gl",
+          "status": "identified",
+          "body": "A known issue affected authentication for a small percentage of requests to the API and R2.\nThe issue was identified on Sep 22 at 13:30 UTC, and major impact was mitigated at 19:00 UTC.\nOur team is actively working to resolve the residual impact.",
+          "created_at": "2026-09-23T09:08:53.816Z",
+          "display_at": "2026-09-23T09:08:53.816Z",
+          "affected_components": [
+            {
+              "code": "hb7g5sq2zz0h",
+              "name": "Cloudflare Sites and Services - R2",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "8wmvkv5jkf15",
+      "name": "Network Performance Degradation — Asia-Pacific",
+      "status": "identified",
+      "created_at": "2026-09-23T18:42:39.000Z",
+      "updated_at": "2026-09-23T18:44:55.000Z",
+      "monitoring_at": null,
+      "resolved_at": null,
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/8wmvkv5jkf15",
+      "started_at": "2026-09-23T18:42:39.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "nrzdl0br8zl1",
+          "status": "identified",
+          "body": "The issue has been identified and a fix is being implemented.",
+          "created_at": "2026-09-23T18:44:55.594Z",
+          "display_at": "2026-09-23T18:44:55.594Z",
+          "affected_components": [
+            {
+              "code": "4n0gb0kh02gf",
+              "name": "Cloudflare Sites and Services - Network",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            }
+          ]
+        },
+        {
+          "id": "vj9wj4n2yfct",
+          "status": "investigating",
+          "body": "Since September 21, 2026 at 02:20 UTC, multiple subsea cable outages have caused congestion between Tokyo and Singapore datacenters. We have rerouted traffic to reduce impact and are working with third-party vendors to restore capacity.",
+          "created_at": "2026-09-23T18:42:39.661Z",
+          "display_at": "2026-09-23T18:42:39.661Z",
+          "affected_components": [
+            {
+              "code": "4n0gb0kh02gf",
+              "name": "Cloudflare Sites and Services - Network",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "f8wg5htd3zz4",
+      "name": "Elevated Errors with any / all in http_response_cache_settings",
+      "status": "resolved",
+      "created_at": "2026-09-23T15:54:28.863Z",
+      "updated_at": "2026-09-23T18:08:18.030Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-23T18:08:18.013Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/f8wg5htd3zz4",
+      "started_at": "2026-09-23T15:54:28.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "35d3hmzwvb1d",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-23T18:08:18.013Z",
+          "display_at": "2026-09-23T18:08:18.013Z",
+          "affected_components": [
+            {
+              "code": "ch3mwx0hr4k6",
+              "name": "Cloudflare Sites and Services - Rules",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "t941qhlvjdxb",
+          "status": "identified",
+          "body": "We have identified an issue causing unexpected errors when creating or updating configurations using any or all expressions in the http_response_cache_settings. \nThis issue strictly affects API operations; existing active configurations and live traffic are not impacted. A fix is currently being deployed, and we will provide an update once the rollout is complete.",
+          "created_at": "2026-09-23T15:54:28.980Z",
+          "display_at": "2026-09-23T15:54:28.000Z",
+          "affected_components": [
+            {
+              "code": "ch3mwx0hr4k6",
+              "name": "Cloudflare Sites and Services - Rules",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "tl0vrgjy99r0",
+      "name": "Cloudflare One Clients are incorrectly challenged on some sites",
+      "status": "identified",
+      "created_at": "2026-09-22T19:23:17.000Z",
+      "updated_at": "2026-09-23T11:02:41.000Z",
+      "monitoring_at": null,
+      "resolved_at": null,
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/tl0vrgjy99r0",
+      "started_at": "2026-09-22T19:23:17.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "73x1h0xgpbvv",
+          "status": "identified",
+          "body": "The issue has been identified and a fix is being implemented.",
+          "created_at": "2026-09-23T11:02:41.670Z",
+          "display_at": "2026-09-23T11:02:41.670Z",
+          "affected_components": [
+            {
+              "code": "k04jkcpzxn94",
+              "name": "Cloudflare Sites and Services - Cloudflare One Client",
+              "old_status": "degraded_performance",
+              "new_status": "degraded_performance"
+            }
+          ]
+        },
+        {
+          "id": "qn17glmckh2h",
+          "status": "investigating",
+          "body": "Cloudflare is investigating an issue where Cloudflare One Client customers are incorrectly challenged while visiting some websites.",
+          "created_at": "2026-09-22T19:23:17.370Z",
+          "display_at": "2026-09-22T19:23:17.370Z",
+          "affected_components": [
+            {
+              "code": "k04jkcpzxn94",
+              "name": "Cloudflare Sites and Services - Cloudflare One Client",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "78c19w4xw4z2",
+      "name": "Increased Errors for Durable Objects",
+      "status": "resolved",
+      "created_at": "2026-09-23T08:09:23.000Z",
+      "updated_at": "2026-09-23T10:00:09.500Z",
+      "monitoring_at": "2026-09-23T09:20:17.988Z",
+      "resolved_at": "2026-09-23T10:00:09.478Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/78c19w4xw4z2",
+      "started_at": "2026-09-23T08:09:23.171Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "jw27rqfc00bc",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-23T10:00:09.478Z",
+          "display_at": "2026-09-23T10:00:09.478Z",
+          "affected_components": [
+            {
+              "code": "bty1yz6dhh0v",
+              "name": "Cloudflare Sites and Services - Durable Objects",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "db99jsf3bfh1",
+          "status": "investigating",
+          "body": "Cloudflare is aware of, and investigating an issue with Durable Objects which potentially impacts a subset of customers. Durable Objects are experiencing an elevated level of errors. We are currently investigating this issue.",
+          "created_at": "2026-09-23T08:09:23.289Z",
+          "display_at": "2026-09-23T08:09:23.289Z",
+          "affected_components": [
+            {
+              "code": "bty1yz6dhh0v",
+              "name": "Cloudflare Sites and Services - Durable Objects",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "x86v1qk8yp5v",
+      "name": "Elevated number of R2 503 errors in Australian Eastern Coast region",
+      "status": "resolved",
+      "created_at": "2026-09-23T04:08:46.000Z",
+      "updated_at": "2026-09-23T04:25:51.889Z",
+      "monitoring_at": "2026-09-23T04:22:07.533Z",
+      "resolved_at": "2026-09-23T04:25:51.870Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/x86v1qk8yp5v",
+      "started_at": "2026-09-23T04:08:46.156Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "gf2qc674csqj",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-23T04:25:51.870Z",
+          "display_at": "2026-09-23T04:25:51.870Z",
+          "affected_components": [
+            {
+              "code": "hb7g5sq2zz0h",
+              "name": "Cloudflare Sites and Services - R2",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "fvqfrchfl8yc",
+              "name": "Oceania - Sydney, NSW, Australia - (SYD)",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "p8s184545mkx",
+          "status": "investigating",
+          "body": "Cloudflare is investigating issues with R2 buckets in the Australian Eastern Coast region.",
+          "created_at": "2026-09-23T04:08:46.230Z",
+          "display_at": "2026-09-23T04:08:46.230Z",
+          "affected_components": [
+            {
+              "code": "hb7g5sq2zz0h",
+              "name": "Cloudflare Sites and Services - R2",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "fvqfrchfl8yc",
+              "name": "Oceania - Sydney, NSW, Australia - (SYD)",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "rcjbfb0lyn65",
+      "name": "Issues with 1.1.1.1 for Families",
+      "status": "resolved",
+      "created_at": "2026-09-23T00:42:50.000Z",
+      "updated_at": "2026-09-23T01:26:28.643Z",
+      "monitoring_at": "2026-09-23T01:21:02.010Z",
+      "resolved_at": "2026-09-23T01:26:28.629Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/rcjbfb0lyn65",
+      "started_at": "2026-09-23T00:42:50.558Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "tfrhxjs6k0fj",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-23T01:26:28.629Z",
+          "display_at": "2026-09-23T01:26:28.629Z",
+          "affected_components": null
+        },
+        {
+          "id": "nxlhckcl8nvb",
+          "status": "investigating",
+          "body": "Cloudflare is aware of, and investigating, an issue which impacts DNS over HTTPS requests to 1.1.1.1 for Families (1.1.1.2 and 1.1.1.3)\nAuthoritative DNS provided by Cloudflare is unaffected.\n\nFurther detail will be provided as more information becomes available.",
+          "created_at": "2026-09-23T00:42:50.623Z",
+          "display_at": "2026-09-23T00:42:50.623Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "zpkwd9fxsby5",
+      "name": "Network Performance Issues in Taipei",
+      "status": "resolved",
+      "created_at": "2026-09-22T21:41:05.822Z",
+      "updated_at": "2026-09-22T21:41:05.893Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-22T21:41:05.884Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/zpkwd9fxsby5",
+      "started_at": "2026-09-22T21:41:05.822Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "9bv66m80d2nc",
+          "status": "resolved",
+          "body": "Customer may have observed network performance issues for traffic handled by our Taipei (TPE) facility between approximately 19:30 and 19:35 UTC today, 2026-09-22.",
+          "created_at": "2026-09-22T21:41:05.884Z",
+          "display_at": "2026-09-22T21:41:05.884Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "c2f7zj7fs8l8",
+      "name": "Bot Management Configuration Propagation Issues",
+      "status": "resolved",
+      "created_at": "2026-09-22T15:31:38.000Z",
+      "updated_at": "2026-09-22T16:35:19.694Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-22T16:35:19.676Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/c2f7zj7fs8l8",
+      "started_at": "2026-09-22T15:31:38.917Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "3qrv10kxq2dr",
+          "status": "resolved",
+          "body": "We have identified and applied an effective fix for this issue. This incident is now resolved.",
+          "created_at": "2026-09-22T16:35:19.676Z",
+          "display_at": "2026-09-22T16:35:19.676Z",
+          "affected_components": [
+            {
+              "code": "s0991jwsqllx",
+              "name": "Cloudflare Sites and Services - Bot Management",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "mvk1c65dns78",
+          "status": "investigating",
+          "body": "We are currently investigating an issue where Bot Management configuration updates are not propagating to the edge. Our engineering team is aware of the issue and is actively working on a resolution. The running Bot Configuration at the Edge is not impacted. We will provide further updates as soon as we have more information.",
+          "created_at": "2026-09-22T15:31:39.032Z",
+          "display_at": "2026-09-22T15:31:39.032Z",
+          "affected_components": [
+            {
+              "code": "s0991jwsqllx",
+              "name": "Cloudflare Sites and Services - Bot Management",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "pvvq3811tpyq",
+      "name": "Elevated error rates for Stream Live LL-HLS",
+      "status": "resolved",
+      "created_at": "2026-09-22T14:37:45.000Z",
+      "updated_at": "2026-09-22T15:38:50.559Z",
+      "monitoring_at": "2026-09-22T14:44:18.239Z",
+      "resolved_at": "2026-09-22T15:38:50.535Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/pvvq3811tpyq",
+      "started_at": "2026-09-22T14:37:45.822Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "qx27xrqk7369",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-22T15:38:50.535Z",
+          "display_at": "2026-09-22T15:38:50.535Z",
+          "affected_components": [
+            {
+              "code": "47xg28c02lnk",
+              "name": "Cloudflare Sites and Services - Stream",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "yhh45gd1rnlb",
+          "status": "investigating",
+          "body": "We are investigating an issue where some Stream Live customers are receiving errors when playing back live broadcasts with LL-HLS enabled.",
+          "created_at": "2026-09-22T14:37:45.928Z",
+          "display_at": "2026-09-22T14:37:45.928Z",
+          "affected_components": [
+            {
+              "code": "47xg28c02lnk",
+              "name": "Cloudflare Sites and Services - Stream",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "z84lp04f9sht",
+      "name": "Connectivity issues in Los Angeles (LAX)",
+      "status": "resolved",
+      "created_at": "2026-09-22T14:49:00.000Z",
+      "updated_at": "2026-09-22T15:23:40.411Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-22T14:49:00.000Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/z84lp04f9sht",
+      "started_at": "2026-09-22T14:49:00.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "jk2bcpbt2pv4",
+          "status": "resolved",
+          "body": "We investigated and resolved reports of connectivity issues in Los Angeles. Traffic congestion between in our Los Angeles (LAX) colo, which resulted in intermittent packet drops between 13:37 UTC and 14:49 UTC today. The capacity constraint has been addressed and traffic flow has returned to normal.",
+          "created_at": "2026-09-22T15:22:24.443Z",
+          "display_at": "2026-09-22T14:49:00.000Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "dcmwvjwfyhjg",
+      "name": "Partial visibility of Workers and Durable Objects analytics for Fedramp High customers",
+      "status": "resolved",
+      "created_at": "2026-09-22T09:36:11.000Z",
+      "updated_at": "2026-09-22T12:51:46.738Z",
+      "monitoring_at": "2026-09-22T10:08:10.832Z",
+      "resolved_at": "2026-09-22T12:51:46.718Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/dcmwvjwfyhjg",
+      "started_at": "2026-09-22T09:36:11.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "72b1c6yhfllb",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-22T12:51:46.718Z",
+          "display_at": "2026-09-22T12:51:46.718Z",
+          "affected_components": [
+            {
+              "code": "4c231tkdlpcl",
+              "name": "Cloudflare Sites and Services - Analytics",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "y3z3bzckwj5w",
+          "status": "identified",
+          "body": "Cloudflare is monitoring the restoration of Workers and Durable Objects analytics visibility for all Fedramp High customers. While the underlying data remains intact, affected datasets were not being correctly returned by our analytics dashboard and GraphQL API since June 11th. Services are currently recovering as we propagate the fix.",
+          "created_at": "2026-09-22T09:36:11.477Z",
+          "display_at": "2026-09-22T09:36:11.000Z",
+          "affected_components": [
+            {
+              "code": "4c231tkdlpcl",
+              "name": "Cloudflare Sites and Services - Analytics",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "g4vvd0xrc2m8",
+      "name": "Network Performance Issues in San Jose (SJC-A)",
+      "status": "resolved",
+      "created_at": "2026-09-22T07:20:00.000Z",
+      "updated_at": "2026-09-22T08:35:28.832Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-22T08:20:00.000Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/g4vvd0xrc2m8",
+      "started_at": "2026-09-22T07:20:00.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "7jxhz2kgccbf",
+          "status": "resolved",
+          "body": "Cloudflare verified and resolved performance issues in our San Jose (SJC-A) data center. Users in the region may have experienced increased latency or connectivity issues between 07:20 and 08:20 UTC today.",
+          "created_at": "2026-09-22T08:34:47.988Z",
+          "display_at": "2026-09-22T08:20:00.000Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "nhf2kr8q3nfw",
+      "name": "Network connectivity issues in LHR, London",
+      "status": "resolved",
+      "created_at": "2026-09-22T02:25:45.000Z",
+      "updated_at": "2026-09-22T03:36:56.647Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-22T03:36:56.633Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/nhf2kr8q3nfw",
+      "started_at": "2026-09-22T02:25:45.694Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "j3rnbvcbl200",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-22T03:36:56.633Z",
+          "display_at": "2026-09-22T03:36:56.633Z",
+          "affected_components": [
+            {
+              "code": "shcqh0p22750",
+              "name": "Europe - London, United Kingdom - (LHR)",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "x34g908dd37d",
+          "status": "investigating",
+          "body": "Cloudflare is observing network connectivity issues in LHR, London. We are working to analyse and mitigate this problem. More updates to follow shortly",
+          "created_at": "2026-09-22T02:25:45.801Z",
+          "display_at": "2026-09-22T02:25:45.801Z",
+          "affected_components": [
+            {
+              "code": "shcqh0p22750",
+              "name": "Europe - London, United Kingdom - (LHR)",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "mrqb4d6q0y26",
+      "name": "Increased Cache Failures",
+      "status": "resolved",
+      "created_at": "2026-09-21T18:15:16.560Z",
+      "updated_at": "2026-09-21T18:15:16.628Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-21T18:15:16.618Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/mrqb4d6q0y26",
+      "started_at": "2026-09-21T18:15:16.560Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "q4vsvllxgjpl",
+          "status": "resolved",
+          "body": "Cloudflare investigated an elevated rate of PUT request failures to R2 within the WNAM and ENAM regions. As a result, storing assets in Cache Reserve failed for some requests. This impact was from 15:25 - 18:00 UTC.",
+          "created_at": "2026-09-21T18:15:16.618Z",
+          "display_at": "2026-09-21T18:15:16.618Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "rxmmx07ys7qg",
+      "name": "Unable to start containers in Asia-Pacific",
+      "status": "resolved",
+      "created_at": "2026-09-21T12:42:26.180Z",
+      "updated_at": "2026-09-21T13:23:38.036Z",
+      "monitoring_at": "2026-09-21T13:21:57.397Z",
+      "resolved_at": "2026-09-21T13:23:38.015Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/rxmmx07ys7qg",
+      "started_at": "2026-09-21T12:42:26.180Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "5c94hsznll1z",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-21T13:23:38.015Z",
+          "display_at": "2026-09-21T13:23:38.015Z",
+          "affected_components": [
+            {
+              "code": "nd77krz8224v",
+              "name": "Cloudflare Sites and Services - Containers",
+              "old_status": "partial_outage",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "d9x20nqh4rsp",
+          "status": "investigating",
+          "body": "Cloudflare is aware of problems launching containers in the Asia-Pacific Region",
+          "created_at": "2026-09-21T12:42:26.266Z",
+          "display_at": "2026-09-21T12:42:26.266Z",
+          "affected_components": [
+            {
+              "code": "nd77krz8224v",
+              "name": "Cloudflare Sites and Services - Containers",
+              "old_status": "operational",
+              "new_status": "partial_outage"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "lb5514cvngd7",
+      "name": "Unable to register certain domains",
+      "status": "resolved",
+      "created_at": "2026-09-21T09:37:55.000Z",
+      "updated_at": "2026-09-21T09:49:13.607Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-21T09:49:13.586Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/lb5514cvngd7",
+      "started_at": "2026-09-21T09:37:55.940Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "7q7txr106xdd",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-21T09:49:13.586Z",
+          "display_at": "2026-09-21T09:49:13.586Z",
+          "affected_components": [
+            {
+              "code": "kn2xkt469vyh",
+              "name": "Cloudflare Sites and Services - Registrar",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "nq9glbs1rs2d",
+          "status": "identified",
+          "body": "Cloudflare is aware of an issue affecting the registration of the following top-level domains (TLDs):\n\n\"audio\", \"baby\", \"build\", \"cam\", \"ceo\", \"christmas\", \"college\", \"dealer\", \"diet\", \"fans\", \"flowers\", \"fm\", \"game\", \"guitars\", \"help\", \"hosting\", \"icu\", \"inc\", \"lol\", \"mom\", \"monster\", \"pics\", \"protection\", \"rent\", \"security\", \"storage\", \"theatre\", \"xyz\"",
+          "created_at": "2026-09-21T09:37:56.051Z",
+          "display_at": "2026-09-21T09:37:56.051Z",
+          "affected_components": [
+            {
+              "code": "kn2xkt469vyh",
+              "name": "Cloudflare Sites and Services - Registrar",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "3rjsfq4q663b",
+      "name": "Elevated errors in Ashburn, VA (IAD)",
+      "status": "resolved",
+      "created_at": "2026-09-19T01:36:49.180Z",
+      "updated_at": "2026-09-19T01:36:49.252Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-19T01:36:49.241Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/3rjsfq4q663b",
+      "started_at": "2026-09-19T01:36:49.180Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "r5dp0393y1dr",
+          "status": "resolved",
+          "body": "Between 22:00 and 01:00 UTC on September 18, 2026, customers reaching Cloudflare's Ashburn, VA (IAD) data center may have experienced an elevated number of errors, including 499 and 522 responses, due to a network hardware issue. The issue has been resolved.",
+          "created_at": "2026-09-19T01:36:49.241Z",
+          "display_at": "2026-09-19T01:36:49.241Z",
+          "affected_components": [
+            {
+              "code": "4n0gb0kh02gf",
+              "name": "Cloudflare Sites and Services - Network",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "3czg2lc9y1t8",
+      "name": "Network Performance Issues in Ashburn",
+      "status": "resolved",
+      "created_at": "2026-09-18T18:36:12.000Z",
+      "updated_at": "2026-09-18T18:37:27.520Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-18T17:15:12.000Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/3czg2lc9y1t8",
+      "started_at": "2026-09-18T17:15:12.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "6kkm879mc7mg",
+          "status": "resolved",
+          "body": "Between 17:13-17:28UTC on 2026-09-18, Cloudflare experienced an elevated rate of 5xx HTTP errors affecting traffic passing through Ashburn (IAD). The issue has been resolved, and impact to the IAD location is mitigated.",
+          "created_at": "2026-09-18T18:36:47.345Z",
+          "display_at": "2026-09-18T17:15:12.000Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "jds6b1j6dj8q",
+      "name": "Cloudflare Dashboard Workers KV Issue",
+      "status": "resolved",
+      "created_at": "2026-09-18T06:42:21.000Z",
+      "updated_at": "2026-09-18T08:15:41.672Z",
+      "monitoring_at": "2026-09-18T08:04:48.027Z",
+      "resolved_at": "2026-09-18T08:15:41.658Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/jds6b1j6dj8q",
+      "started_at": "2026-09-18T06:42:21.807Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "dtgr908qvlfw",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-18T08:15:41.658Z",
+          "display_at": "2026-09-18T08:15:41.658Z",
+          "affected_components": [
+            {
+              "code": "3sq3s4d20ywk",
+              "name": "Cloudflare Sites and Services - Dashboard",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "tmh50tx2nprs",
+              "name": "Cloudflare Sites and Services - Workers KV",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "7kdj0626t4rr",
+          "status": "investigating",
+          "body": "When searching for a Workers KV in the dashboard, the page hangs, typically upon the second attempt, causing the entire dashboard to freeze. This issue only impacts searching in the dashboard. Workers and Workers KV themselves are not affected.\n\nWe are working to analyse and mitigate this problem. More updates to follow shortly.",
+          "created_at": "2026-09-18T06:42:21.863Z",
+          "display_at": "2026-09-18T06:42:21.863Z",
+          "affected_components": [
+            {
+              "code": "3sq3s4d20ywk",
+              "name": "Cloudflare Sites and Services - Dashboard",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "tmh50tx2nprs",
+              "name": "Cloudflare Sites and Services - Workers KV",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "n3n98pb4x9f4",
+      "name": "Increased Errors for Durable Objects and Downstream Services in Asia Pacific (APAC) Region",
+      "status": "resolved",
+      "created_at": "2026-09-17T23:37:18.342Z",
+      "updated_at": "2026-09-18T00:54:03.795Z",
+      "monitoring_at": "2026-09-18T00:45:48.115Z",
+      "resolved_at": "2026-09-18T00:54:03.781Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/n3n98pb4x9f4",
+      "started_at": "2026-09-17T23:37:18.342Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "wpsw5nmsy1dz",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-18T00:54:03.781Z",
+          "display_at": "2026-09-18T00:54:03.781Z",
+          "affected_components": [
+            {
+              "code": "c9mqrzw6nzvg",
+              "name": "Cloudflare Sites and Services - AI Search",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "2cwyccg7b7xb",
+              "name": "Cloudflare Sites and Services - Artifacts",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "nd77krz8224v",
+              "name": "Cloudflare Sites and Services - Containers",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "z0yd3sxqjqdm",
+              "name": "Cloudflare Sites and Services - D1",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "bty1yz6dhh0v",
+              "name": "Cloudflare Sites and Services - Durable Objects",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "pg21w9xb991r",
+              "name": "Cloudflare Sites and Services - Workers Assets",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "5df6y9z3fsky",
+              "name": "Cloudflare Sites and Services - Workflows",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "j9jw7gym5b05",
+          "status": "investigating",
+          "body": "Cloudflare is investigating an issue causing elevated error rates for Durable Objects and downstream services in the Asia Pacific region. We are working to mitigate this issue and will provide additional updates shortly.",
+          "created_at": "2026-09-17T23:37:18.571Z",
+          "display_at": "2026-09-17T23:37:18.571Z",
+          "affected_components": [
+            {
+              "code": "c9mqrzw6nzvg",
+              "name": "Cloudflare Sites and Services - AI Search",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "2cwyccg7b7xb",
+              "name": "Cloudflare Sites and Services - Artifacts",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "nd77krz8224v",
+              "name": "Cloudflare Sites and Services - Containers",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "z0yd3sxqjqdm",
+              "name": "Cloudflare Sites and Services - D1",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "bty1yz6dhh0v",
+              "name": "Cloudflare Sites and Services - Durable Objects",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "pg21w9xb991r",
+              "name": "Cloudflare Sites and Services - Workers Assets",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "5df6y9z3fsky",
+              "name": "Cloudflare Sites and Services - Workflows",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "823rbdm2k25x",
+      "name": "Replicate Pruna issue",
+      "status": "resolved",
+      "created_at": "2026-09-17T01:09:40.000Z",
+      "updated_at": "2026-09-17T21:51:43.729Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-17T21:51:43.704Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/823rbdm2k25x",
+      "started_at": "2026-09-17T01:09:40.610Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "v8sn7g7zx1s5",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-17T21:51:43.704Z",
+          "display_at": "2026-09-17T21:51:43.704Z",
+          "affected_components": null
+        },
+        {
+          "id": "2pg3kny9n310",
+          "status": "identified",
+          "body": "Some Pruna models may not be able to scale up and are therefore either experiencing long queue times or entirely unavailable. We are working with Pruna to resolve the issue.",
+          "created_at": "2026-09-17T01:09:40.676Z",
+          "display_at": "2026-09-17T01:09:40.676Z",
+          "affected_components": [
+            {
+              "code": "fvgfcmy66tdr",
+              "name": "Cloudflare Sites and Services - Replicate",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "l3t86mb1xdxc",
+      "name": "Network Performance Issues in Vancouver, Canada",
+      "status": "resolved",
+      "created_at": "2026-09-17T20:42:03.347Z",
+      "updated_at": "2026-09-17T20:42:03.431Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-17T20:42:03.416Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/l3t86mb1xdxc",
+      "started_at": "2026-09-17T20:42:03.347Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "kwxkbml1r13x",
+          "status": "resolved",
+          "body": "Cloudflare experienced network performance issues in Vancouver, Canada, between 20:12 and 20:24 UTC. This incident has been resolved.",
+          "created_at": "2026-09-17T20:42:03.416Z",
+          "display_at": "2026-09-17T20:42:03.416Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "rhmpng7klcqw",
+      "name": "Network Performance Issues in Ashburn, VA, United States",
+      "status": "resolved",
+      "created_at": "2026-09-17T18:29:43.000Z",
+      "updated_at": "2026-09-17T19:58:13.260Z",
+      "monitoring_at": "2026-09-17T18:32:36.327Z",
+      "resolved_at": "2026-09-17T19:58:13.245Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/rhmpng7klcqw",
+      "started_at": "2026-09-17T18:29:43.590Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "4vslm8mpsy3p",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-17T19:58:13.245Z",
+          "display_at": "2026-09-17T19:58:13.245Z",
+          "affected_components": [
+            {
+              "code": "3t0npclljyyg",
+              "name": "North America - Ashburn, VA, United States - (IAD)",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "rsf67z17932p",
+          "status": "investigating",
+          "body": "Cloudflare identified an issue affecting network performance in Ashburn, VA, United States. A fix has been implemented, and we are monitoring the results.",
+          "created_at": "2026-09-17T18:29:43.691Z",
+          "display_at": "2026-09-17T18:29:43.691Z",
+          "affected_components": [
+            {
+              "code": "3t0npclljyyg",
+              "name": "North America - Ashburn, VA, United States - (IAD)",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "83kl8stzw5zn",
+      "name": "Increased HTTP Errors in GIG (Rio de Janeiro)",
+      "status": "resolved",
+      "created_at": "2026-09-17T14:00:00.000Z",
+      "updated_at": "2026-09-17T14:41:09.961Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-17T14:00:00.000Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/83kl8stzw5zn",
+      "started_at": "2026-09-17T14:00:00.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "2z2tq0rvq6bk",
+          "status": "resolved",
+          "body": "Cloudflare is aware that there was an increased level of HTTP errors in the GIG (Rio de Janeiro) datacenter, between 14:00 and 14:30 UTC. This has since recovered and normal operations have resumed.",
+          "created_at": "2026-09-17T14:41:09.953Z",
+          "display_at": "2026-09-17T14:00:00.000Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "k4crxsx8xk36",
+      "name": "Hyperdrive Elevated Origin Connection Failure Rates",
+      "status": "resolved",
+      "created_at": "2026-09-16T22:30:00.000Z",
+      "updated_at": "2026-09-17T20:06:00.164Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-16T22:30:00.000Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/k4crxsx8xk36",
+      "started_at": "2026-09-16T22:30:00.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "qktpqc0z5ccd",
+          "status": "resolved",
+          "body": "Some Hyperdrives experienced elevated failure rates when connecting to origin databases between 2026-09-16 22:45 UTC and 2026-09-17 00:45 UTC due to a misconfigured release. Hyperdrives connecting through Workers VPC or Cloudflare Access tunnels were not affected. \n\nThis incident has been resolved.",
+          "created_at": "2026-09-17T20:06:00.154Z",
+          "display_at": "2026-09-16T22:30:00.000Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "wq8py6ffq6y7",
+      "name": "Increased HTTP 522 Errors in St. Louis",
+      "status": "resolved",
+      "created_at": "2026-09-16T18:35:46.068Z",
+      "updated_at": "2026-09-16T18:35:46.134Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-16T18:35:46.124Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/wq8py6ffq6y7",
+      "started_at": "2026-09-16T18:35:46.068Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "nmkb7mgcr6hm",
+          "status": "resolved",
+          "body": "Customers may have observed elevated rates of HTTP 522 error responses from our St. Louis (STL) facility between approximately 16:35 and 16:55 UTC today, 2026-09-16.",
+          "created_at": "2026-09-16T18:35:46.124Z",
+          "display_at": "2026-09-16T18:35:46.124Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "9tgkg3ww89kf",
+      "name": "Issues with 1.1.1.1 public resolver on .tn queries",
+      "status": "resolved",
+      "created_at": "2026-09-16T15:08:18.000Z",
+      "updated_at": "2026-09-16T18:19:43.417Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-16T18:19:43.399Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/9tgkg3ww89kf",
+      "started_at": "2026-09-16T15:08:18.716Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "c8q12g2m8n1r",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-16T18:19:43.399Z",
+          "display_at": "2026-09-16T18:19:43.399Z",
+          "affected_components": [
+            {
+              "code": "8w536gxk7dvq",
+              "name": "Cloudflare Sites and Services - Recursive DNS",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "qdylmf71q6q6",
+          "status": "investigating",
+          "body": "Cloudflare is investigating an issue that potentially impacts users resolving queries for .tn TLD domains via the 1.1.1.1 public resolver.\nFurther detail will be provided as more information becomes available.",
+          "created_at": "2026-09-16T15:08:18.818Z",
+          "display_at": "2026-09-16T15:08:18.818Z",
+          "affected_components": [
+            {
+              "code": "8w536gxk7dvq",
+              "name": "Cloudflare Sites and Services - Recursive DNS",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "qc2v4gxy3gfw",
+      "name": "Network Performance Issues in Los Angeles",
+      "status": "resolved",
+      "created_at": "2026-09-16T02:03:10.000Z",
+      "updated_at": "2026-09-16T16:23:30.980Z",
+      "monitoring_at": "2026-09-16T03:44:46.731Z",
+      "resolved_at": "2026-09-16T16:23:30.963Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/qc2v4gxy3gfw",
+      "started_at": "2026-09-16T02:03:10.004Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "r0m7rp9kjbnb",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-16T16:23:30.963Z",
+          "display_at": "2026-09-16T16:23:30.963Z",
+          "affected_components": [
+            {
+              "code": "38w4zp21dlkc",
+              "name": "North America - Los Angeles, CA, United States - (LAX)",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "l2my8wvp2lhg",
+          "status": "investigating",
+          "body": "Cloudflare is investigating an increased level of HTTP 5XX errors. We are working to analyse and mitigate this problem. More updates to follow shortly.",
+          "created_at": "2026-09-16T02:03:10.101Z",
+          "display_at": "2026-09-16T02:03:10.101Z",
+          "affected_components": [
+            {
+              "code": "38w4zp21dlkc",
+              "name": "North America - Los Angeles, CA, United States - (LAX)",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "zlyf7lvpp05s",
+      "name": "Support Helpdesk Availability Issues",
+      "status": "resolved",
+      "created_at": "2026-09-16T08:31:12.000Z",
+      "updated_at": "2026-09-16T14:58:00.081Z",
+      "monitoring_at": "2026-09-16T13:34:05.074Z",
+      "resolved_at": "2026-09-16T14:58:00.065Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/zlyf7lvpp05s",
+      "started_at": "2026-09-16T08:31:12.302Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "4nxy8pr8dgt0",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-16T14:58:00.065Z",
+          "display_at": "2026-09-16T14:58:00.065Z",
+          "affected_components": [
+            {
+              "code": "jzcwkvrc4w4q",
+              "name": "Cloudflare Sites and Services - Support Site",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "kmpzc1r4w3y0",
+          "status": "investigating",
+          "body": "Our helpdesk provider is currently experiencing issues, and as such customers might encounter errors while submitting or viewing tickets. Responses on customer inquiries may be delayed during this time.",
+          "created_at": "2026-09-16T08:31:12.349Z",
+          "display_at": "2026-09-16T08:31:12.349Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "d4kgs6xmq9tl",
+      "name": "Email Notifications Delayed",
+      "status": "resolved",
+      "created_at": "2026-09-16T08:33:30.000Z",
+      "updated_at": "2026-09-16T08:50:45.365Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-16T08:50:45.349Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/d4kgs6xmq9tl",
+      "started_at": "2026-09-16T08:33:30.364Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "bpkz2m8xqr4b",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-16T08:50:45.349Z",
+          "display_at": "2026-09-16T08:50:45.349Z",
+          "affected_components": [
+            {
+              "code": "5xvn0m7tthlf",
+              "name": "Cloudflare Sites and Services - Notifications",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "p7tfds6x3cfn",
+          "status": "investigating",
+          "body": "Cloudflare is investigating delays with dispatching of notification emails for some customers. Webhooks and PagerDuty notifications are not affected.",
+          "created_at": "2026-09-16T08:33:30.476Z",
+          "display_at": "2026-09-16T08:33:30.476Z",
+          "affected_components": [
+            {
+              "code": "5xvn0m7tthlf",
+              "name": "Cloudflare Sites and Services - Notifications",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "s4x7n3nfqnyy",
+      "name": "Cloudflare Queues issues",
+      "status": "resolved",
+      "created_at": "2026-09-14T20:22:30.000Z",
+      "updated_at": "2026-09-15T22:31:10.087Z",
+      "monitoring_at": "2026-09-15T15:14:25.707Z",
+      "resolved_at": "2026-09-15T22:31:10.070Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/s4x7n3nfqnyy",
+      "started_at": "2026-09-14T20:22:30.070Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "3s7d75sxw7l6",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-15T22:31:10.070Z",
+          "display_at": "2026-09-15T22:31:10.070Z",
+          "affected_components": [
+            {
+              "code": "3z7cmdfch5kb",
+              "name": "Cloudflare Sites and Services - Queues",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "lg5w78vj3xp0",
+          "status": "investigating",
+          "body": "Cloudflare is aware of investigating issues with our Cloudflare Queues product.",
+          "created_at": "2026-09-14T20:22:30.141Z",
+          "display_at": "2026-09-14T20:22:30.141Z",
+          "affected_components": [
+            {
+              "code": "3z7cmdfch5kb",
+              "name": "Cloudflare Sites and Services - Queues",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "1k5ckxlq77kp",
+      "name": "Network Performance Issues in Ashburn",
+      "status": "resolved",
+      "created_at": "2026-09-14T20:30:00.000Z",
+      "updated_at": "2026-09-17T18:06:54.349Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-15T22:00:00.000Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/1k5ckxlq77kp",
+      "started_at": "2026-09-15T22:00:00.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "vr74fx2y7yfc",
+          "status": "resolved",
+          "body": "Between 20:55-21:52 UTC on 2026-09-15, Cloudflare experienced an elevated rate of 5xx HTTP errors affecting traffic passing through Ashburn (IAD). The issue has been  resolved, and impact to the IAD location is mitigated.",
+          "created_at": "2026-09-16T01:09:29.049Z",
+          "display_at": "2026-09-15T22:00:00.000Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "19g1m7tsvncw",
+      "name": "Some Replicate models are failing to start",
+      "status": "resolved",
+      "created_at": "2026-09-14T22:25:50.000Z",
+      "updated_at": "2026-09-15T14:06:32.911Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-15T14:06:32.892Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/19g1m7tsvncw",
+      "started_at": "2026-09-14T22:25:50.253Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "r2t39cdmvnnf",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-15T14:06:32.892Z",
+          "display_at": "2026-09-15T14:06:32.892Z",
+          "affected_components": [
+            {
+              "code": "fvgfcmy66tdr",
+              "name": "Cloudflare Sites and Services - Replicate",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "j9l5d3151msw",
+          "status": "investigating",
+          "body": "We are investigating an issue which is preventing Replicate models from failing to start new replicas.",
+          "created_at": "2026-09-14T22:25:50.350Z",
+          "display_at": "2026-09-14T22:25:50.350Z",
+          "affected_components": [
+            {
+              "code": "fvgfcmy66tdr",
+              "name": "Cloudflare Sites and Services - Replicate",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "pj1qcy7lhm11",
+      "name": "Network latency affecting Singapore",
+      "status": "resolved",
+      "created_at": "2026-09-15T07:15:57.000Z",
+      "updated_at": "2026-09-15T07:35:44.752Z",
+      "monitoring_at": "2026-09-15T07:16:37.976Z",
+      "resolved_at": "2026-09-15T07:35:44.727Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/pj1qcy7lhm11",
+      "started_at": "2026-09-15T07:15:57.009Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "vldhlx1hsln6",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-15T07:35:44.727Z",
+          "display_at": "2026-09-15T07:35:44.727Z",
+          "affected_components": [
+            {
+              "code": "4n0gb0kh02gf",
+              "name": "Cloudflare Sites and Services - Network",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            },
+            {
+              "code": "18p6r93swmbl",
+              "name": "Asia - Singapore, Singapore - (SIN)",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "kzdpgyndq7t2",
+          "status": "investigating",
+          "body": "Cloudflare is investigating issues with network performance in Singapore. We are working to analyse and mitigate this problem. More updates to follow shortly.",
+          "created_at": "2026-09-15T07:15:57.134Z",
+          "display_at": "2026-09-15T07:15:57.134Z",
+          "affected_components": [
+            {
+              "code": "4n0gb0kh02gf",
+              "name": "Cloudflare Sites and Services - Network",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            },
+            {
+              "code": "18p6r93swmbl",
+              "name": "Asia - Singapore, Singapore - (SIN)",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "rnmq02lhv5w1",
+      "name": "Load Balancing Analytics and Notification Delays",
+      "status": "resolved",
+      "created_at": "2026-09-14T23:03:54.000Z",
+      "updated_at": "2026-09-15T02:27:03.778Z",
+      "monitoring_at": "2026-09-15T00:37:08.501Z",
+      "resolved_at": "2026-09-15T02:27:03.755Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/rnmq02lhv5w1",
+      "started_at": "2026-09-14T23:03:54.607Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "pb3b0ccs6y9k",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-15T02:27:03.755Z",
+          "display_at": "2026-09-15T02:27:03.755Z",
+          "affected_components": null
+        },
+        {
+          "id": "3zx2xb57ht54",
+          "status": "investigating",
+          "body": "Cloudflare is investigating delays affecting analytics and notifications for Load Balancing health monitoring events. Load Balancing steering remains fully operational and is not impacted. We are working to resolve the issue.",
+          "created_at": "2026-09-14T23:03:54.699Z",
+          "display_at": "2026-09-14T23:03:54.699Z",
+          "affected_components": [
+            {
+              "code": "8sn2w5kyxfnp",
+              "name": "Cloudflare Sites and Services - Load Balancing and Monitoring",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "95c8hvlcvxmj",
+      "name": "Increased 5xx errors and latency for Los Angeles (LAX) Sept 14 22:15 - Sept 14 23:10 UTC",
+      "status": "resolved",
+      "created_at": "2026-09-14T22:00:00.000Z",
+      "updated_at": "2026-09-15T00:54:22.647Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-14T22:00:00.000Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/95c8hvlcvxmj",
+      "started_at": "2026-09-14T22:00:00.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "b03xs5kvxnhw",
+          "status": "resolved",
+          "body": "We’re receiving reports of network related issues/congestion in Los Angeles between Sept 14 22:15 - Sept 14 23:10 UTC. This issue is now resolved.",
+          "created_at": "2026-09-15T00:52:14.612Z",
+          "display_at": "2026-09-14T22:00:00.000Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "t4gby3dqzbg1",
+      "name": "Issues creating and updating Cloud Connector Rules",
+      "status": "resolved",
+      "created_at": "2026-09-12T08:06:38.000Z",
+      "updated_at": "2026-09-12T10:42:51.163Z",
+      "monitoring_at": "2026-09-12T10:10:31.890Z",
+      "resolved_at": "2026-09-12T10:42:51.140Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/t4gby3dqzbg1",
+      "started_at": "2026-09-12T08:06:38.742Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "j1dz2vvvyp2j",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-12T10:42:51.140Z",
+          "display_at": "2026-09-12T10:42:51.140Z",
+          "affected_components": null
+        },
+        {
+          "id": "nbhyqzt4q03m",
+          "status": "investigating",
+          "body": "Cloudflare is investigating failures in updating and creating Cloud Connector Rules.  We are working to mitigate this problem. More updates to follow shortly.",
+          "created_at": "2026-09-12T08:06:38.831Z",
+          "display_at": "2026-09-12T08:06:38.831Z",
+          "affected_components": [
+            {
+              "code": "99thfnz1q9kr",
+              "name": "Cloudflare Sites and Services - Cloud Connector",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "k7l4hzmthl3k",
+      "name": "Cloudflare Tunnel Availability Issues",
+      "status": "resolved",
+      "created_at": "2026-09-11T21:55:52.000Z",
+      "updated_at": "2026-09-12T08:57:03.078Z",
+      "monitoring_at": "2026-09-12T08:42:33.174Z",
+      "resolved_at": "2026-09-12T08:57:03.058Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/k7l4hzmthl3k",
+      "started_at": "2026-09-11T21:55:52.037Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "2dlzs7ctxbks",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-12T08:57:03.058Z",
+          "display_at": "2026-09-12T08:57:03.058Z",
+          "affected_components": null
+        },
+        {
+          "id": "x2plm7r8s81z",
+          "status": "investigating",
+          "body": "Cloudflare is investigating issues with Cloudflare Tunnel. More updates to follow shortly.",
+          "created_at": "2026-09-11T21:55:52.123Z",
+          "display_at": "2026-09-11T21:55:52.123Z",
+          "affected_components": [
+            {
+              "code": "y98zlwj1d7zh",
+              "name": "Cloudflare Sites and Services - Tunnel",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "sjs8s0q2x4hw",
+      "name": "Workers Cron Triggers degraded",
+      "status": "resolved",
+      "created_at": "2026-09-09T19:17:26.000Z",
+      "updated_at": "2026-09-12T03:34:16.782Z",
+      "monitoring_at": "2026-09-12T02:25:01.567Z",
+      "resolved_at": "2026-09-12T03:34:16.759Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/sjs8s0q2x4hw",
+      "started_at": "2026-09-09T19:17:26.263Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "wrwjjkg4r7q6",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-12T03:34:16.759Z",
+          "display_at": "2026-09-12T03:34:16.759Z",
+          "affected_components": null
+        },
+        {
+          "id": "7m1g2tv0g2xp",
+          "status": "investigating",
+          "body": "Workers Cron Triggers may not execute or may be delayed in executing. Updates to Workers Cron Triggers may take some time to take effect.",
+          "created_at": "2026-09-09T19:17:26.352Z",
+          "display_at": "2026-09-09T19:17:26.352Z",
+          "affected_components": [
+            {
+              "code": "57srcl8zcn7c",
+              "name": "Cloudflare Sites and Services - Workers",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "2njywrxj8qjf",
+      "name": "Network Performance Issues with Taiwan datacenter (TPE)",
+      "status": "resolved",
+      "created_at": "2026-09-11T19:35:42.000Z",
+      "updated_at": "2026-09-11T22:03:52.019Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-11T22:03:51.999Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/2njywrxj8qjf",
+      "started_at": "2026-09-11T19:35:42.873Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "fkwdhwq9wfjg",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-11T22:03:51.999Z",
+          "display_at": "2026-09-11T22:03:51.999Z",
+          "affected_components": [
+            {
+              "code": "4n0gb0kh02gf",
+              "name": "Cloudflare Sites and Services - Network",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "2gw290zvwzs1",
+          "status": "investigating",
+          "body": "Cloudflare is investigating issues with Network Performance in Taiwan datacenter (TPE)\n\nWe are working to analyze and mitigate this problem. More updates to follow shortly.",
+          "created_at": "2026-09-11T19:35:42.967Z",
+          "display_at": "2026-09-11T19:35:42.967Z",
+          "affected_components": [
+            {
+              "code": "4n0gb0kh02gf",
+              "name": "Cloudflare Sites and Services - Network",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "9mcdtk1lphgl",
+      "name": "Issues with Workers VPC hostname route resolution on 2026-09-11",
+      "status": "resolved",
+      "created_at": "2026-09-11T06:22:00.000Z",
+      "updated_at": "2026-09-11T10:24:35.982Z",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-11T06:22:00.000Z",
+      "impact": "none",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/9mcdtk1lphgl",
+      "started_at": "2026-09-11T06:22:00.000Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "3k7v5bptdrsp",
+          "status": "resolved",
+          "body": "An issue prevented Workers VPC from correctly resolving hostname routes for a small subset of accounts between 06:22 and 09:38 UTC on Friday, September 11th, 2026. This problem has been fully resolved, and all services are operating normally.\n\nDuring this timeframe, affected accounts may have experienced connection failures, timeouts, or routing errors when Workers VPC attempted to fetch requests via hostname routes.\n\nThe issue was strictly limited to hostname route resolution within Workers VPC for the impacted accounts; direct IP-based and public routing, standard Workers executions, and all other services were not affected.\n\nOur engineering team identified and deployed a fix for the root cause, and we are continuing to monitor service metrics to ensure stability. We sincerely apologize for any disruption this may have caused.",
+          "created_at": "2026-09-11T10:24:35.973Z",
+          "display_at": "2026-09-11T06:22:00.000Z",
+          "affected_components": null
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "3r3qcgbb0714",
+      "name": "SSL Certificate Provisioning Delays for Let's Encrypt",
+      "status": "resolved",
+      "created_at": "2026-09-11T02:20:44.000Z",
+      "updated_at": "2026-09-11T04:05:00.278Z",
+      "monitoring_at": "2026-09-11T03:54:39.420Z",
+      "resolved_at": "2026-09-11T04:05:00.264Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/3r3qcgbb0714",
+      "started_at": "2026-09-11T02:20:44.477Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "563vl3zbpgfp",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-11T04:05:00.264Z",
+          "display_at": "2026-09-11T04:05:00.264Z",
+          "affected_components": [
+            {
+              "code": "cghykwlwsmn5",
+              "name": "Cloudflare Sites and Services - SSL Certificate Provisioning",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "fhby0ltt8hsp",
+          "status": "identified",
+          "body": "Let's Encrypt are seeing SSL certificates provisioning delays. You can read their public status page here:\nhttps://letsencrypt.status.io/pages/incident/55957a99e800baa4470002da/6aa35c1d892d7304f2747e01\n\nSSL certificates already in production and other CAs certificate provisioning remains unaffected and are operating normally.",
+          "created_at": "2026-09-11T02:20:44.592Z",
+          "display_at": "2026-09-11T02:20:44.592Z",
+          "affected_components": [
+            {
+              "code": "cghykwlwsmn5",
+              "name": "Cloudflare Sites and Services - SSL Certificate Provisioning",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    },
+    {
+      "id": "nhfcmzd1pv4p",
+      "name": "DNS Update Delays",
+      "status": "resolved",
+      "created_at": "2026-09-10T13:58:42.000Z",
+      "updated_at": "2026-09-10T22:22:48.240Z",
+      "monitoring_at": "2026-09-10T22:16:08.819Z",
+      "resolved_at": "2026-09-10T22:22:48.225Z",
+      "impact": "minor",
+      "shortlink": "https://www.cloudflarestatus.com/incidents/nhfcmzd1pv4p",
+      "started_at": "2026-09-10T13:58:42.909Z",
+      "page_id": "yh6f0r4529hb",
+      "incident_updates": [
+        {
+          "id": "2k2z9jpfmmyw",
+          "status": "resolved",
+          "body": "This incident has been resolved.",
+          "created_at": "2026-09-10T22:22:48.225Z",
+          "display_at": "2026-09-10T22:22:48.225Z",
+          "affected_components": [
+            {
+              "code": "7j656z7tqk7f",
+              "name": "Cloudflare Sites and Services - DNS Updates",
+              "old_status": "degraded_performance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "lyq29f9rgy2l",
+          "status": "investigating",
+          "body": "Cloudflare is investigating delays in propagation of updates to DNS records. More updates to follow shortly.",
+          "created_at": "2026-09-10T13:58:42.994Z",
+          "display_at": "2026-09-10T13:58:42.994Z",
+          "affected_components": [
+            {
+              "code": "7j656z7tqk7f",
+              "name": "Cloudflare Sites and Services - DNS Updates",
+              "old_status": "operational",
+              "new_status": "degraded_performance"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "reminder_intervals": null
+    }
+  ]
+}

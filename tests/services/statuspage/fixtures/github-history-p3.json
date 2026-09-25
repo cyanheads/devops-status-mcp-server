@@ -1,0 +1,78 @@
+{
+  "page_status": {
+    "page": {
+      "name": "GitHub",
+      "time_zone": "UTC"
+    }
+  },
+  "months": [
+    {
+      "name": "March",
+      "year": 2026,
+      "starts_on": 0,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "ml7wplmxbt5l",
+          "name": "Incident with Pull Requests: High percentage of 500s",
+          "message": "On Monday March 31st, 2026, between 13:53 UTC and 21:23 UTC the Pull Requests service experienced elevated latency and failures. On average, the error rate was 0.15% and peaked at 0.28% of requests to the service. This was due to a change in garbage collection (GC) settings for a Go-based internal service that provides access to Git repository data. The changes caused more frequent GC activity and elevated CPU consumption on a subset of storage nodes, increasing latency and failure rates for some internal API operations.<br /><br />We mitigated the incident by reverting the GC changes. To prevent future incidents and improve time to detection and mitigation, we are instrumenting additional metrics and alerting for GC-related behavior, improving our visibility into other signals that could cause degraded impact of this type, and updating our best practices and standards for garbage collection in Go-based services.<br />",
+          "impact": "minor",
+          "timestamp": "Mar <var data-var='date'>31</var>, <var data-var='time'>15:05</var> - <var data-var='time'>21:23</var> UTC"
+        },
+        {
+          "code": "2yb2tvwny50l",
+          "name": "Issues with metered billing report generation",
+          "message": "On March 31, 2026, between 06:15 UTC and 15:30 UTC, the GitHub billing usage reports feature was degraded due to reduced server capacity.  Customers requesting billing usage reports and loading the top usage by organization and repository on the billing overview and usage pages were impacted. The average error rate for usage report requests was 15%, peaking at 98% over an eight-minute window. For the billing pages, an average of 56% of requests failed to load the top usage cards. The root cause was an increase in billing usage report requests with large datasets, which exhausted the capacity of the nodes responsible for reporting data. There was no impact on billing charges. <br /><br />We mitigated the incident by adjusting our auto-scaling thresholds to better meet our capacity needs. We are working to improve our metrics to reduce time to detection and mitigation for similar issues in the future.",
+          "impact": "minor",
+          "timestamp": "Mar <var data-var='date'>31</var>, <var data-var='time'>13:47</var> - <var data-var='time'>15:10</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "February",
+      "year": 2026,
+      "starts_on": 0,
+      "days": 28,
+      "incidents": [
+        {
+          "code": "kw5jh58jh24k",
+          "name": "Incident with Copilot agent sessions",
+          "message": "On February 27, 2026, between 22:53 UTC and 23:46 UTC, the Copilot coding agent service experienced elevated errors and degraded functionality for agent sessions. Approximately 87% of attempts to start or interact with agent sessions encountered errors during this period.<br /><br />This was due to an expired authentication credential for an internal service component, which prevented Copilot agent session operations from completing successfully.<br /><br />We mitigated the incident by rotating the expired credential and deploying the updated configuration to production. Services began recovering within minutes of the fix being deployed.<br /><br />We are working to improve automated credential rotation coverage across all Copilot service components, add proactive alerting for credentials approaching expiration, and validate configuration consistency to reduce our time to detection and mitigation of issues like this one in the future.",
+          "impact": "minor",
+          "timestamp": "Feb <var data-var='date'>27</var>, <var data-var='time'>23:18</var> - <var data-var='time'>23:49</var> UTC"
+        },
+        {
+          "code": "kv1lzpgzr9yp",
+          "name": "Code view fails to load when content contains some non-ASCII characters",
+          "message": "Starting February 26, 2026 at 22:10 UTC through February 27, 05:50 UTC, the repository browsing UI was degraded and users were unable to load pages for files and directories with non-ASCII characters (including Japanese, Chinese, and other non-Latin scripts). On average, the error rate was 0.014% and peaked at 0.06% of requests to the service. Affected users saw 404 errors when navigating to repository directories and files with non-ASCII names. This was due to a code change that altered how file and directory names were processed, which caused incorrectly formatted data to be stored in an application cache.<br /><br />We mitigated the incident by deploying a fix that invalidated the affected cache entries and progressively rolling it out across all production environments.<br /><br />We are working to improve our pre-production testing to cover non-ASCII character handling, establish better cache invalidation mechanisms, and enhance our monitoring to detect this type of failure mode earlier, to reduce our time to detection and mitigation of issues like this one in the future.",
+          "impact": "minor",
+          "timestamp": "Feb <var data-var='date'>27</var>, <var data-var='time'>03:08</var> - <var data-var='time'>06:04</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "January",
+      "year": 2026,
+      "starts_on": 4,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "szwg1z6zjsvx",
+          "name": "Degraded Experience - Failing to finalize some CCA Jobs",
+          "message": "Between 2026-01-30 19:06 UTC and 2026-01-30 20:04 UTC, Copilot Coding Agent experienced sessions getting stuck, with a mismatch between the UI-reported session status and the underlying Actions and job execution state. Impacted users could observe Actions finish successfully but the session UI continuing to show in-progress state, or sessions remaining in queued state.<br /><br />The issue was caused by a feature flag that resulted in events being published to a new Kafka topic. Publishing failures led to buffer/queue overflows in the shared event publishing client, preventing other critical events from being emitted. We mitigated the incident by disabling the feature flag and redeploying production pods, which resumed normal event delivery. We are working to improve safeguards and detection around event publishing failures to reduce time to mitigation for similar issues in the future.",
+          "impact": "minor",
+          "timestamp": "Jan <var data-var='date'>30</var>, <var data-var='time'>20:59</var> - <var data-var='time'>21:22</var> UTC"
+        },
+        {
+          "code": "22zx8fw9qt4t",
+          "name": "Actions Workflows Run Start Delays",
+          "message": "On Jan 28, 2026, between 14:56 UTC and 15:44 UTC, GitHub Actions experienced degraded performance. During this time, workflows experienced an average delay of 49 seconds, and 4.7% of workflow runs failed to start within 5 minutes. The root cause was an atypical load pattern that overwhelmed system capacity and caused resource contention.<br /><br />Recovery began once additional resources came online at 15:25 UTC, with full recovery at 15:44 UTC. We are implementing safeguards to prevent this failure mode and enhancing our monitoring to detect and address similar patterns more quickly in the future.",
+          "impact": "minor",
+          "timestamp": "Jan <var data-var='date'>28</var>, <var data-var='time'>15:12</var> - <var data-var='time'>15:54</var> UTC"
+        }
+      ]
+    }
+  ],
+  "start_time": "2026-01-01T00:00:00Z",
+  "end_time": "2026-03-31T23:59:59Z"
+}

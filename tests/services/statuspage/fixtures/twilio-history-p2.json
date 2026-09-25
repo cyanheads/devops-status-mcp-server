@@ -1,0 +1,57 @@
+{
+  "page_status": {
+    "page": {
+      "name": "Twilio",
+      "time_zone": "Pacific Time (US & Canada)"
+    }
+  },
+  "months": [
+    {
+      "name": "June",
+      "year": 2026,
+      "starts_on": 1,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "yhgqk5n7qwg0",
+          "name": "SMS Delivery Delays From Mobile Subscribers to Twilio United States, Canada, and Puerto Rico Phone Numbers",
+          "message": "The incident has been resolved and SMS delivery from mobile subscribers to Twilio United States Phone Numbers, Twilio Canada Phone Numbers, and Twilio Puerto Rico Phone Numbers is operating normally.",
+          "impact": "minor",
+          "timestamp": "Jun <var data-var='date'>30</var>, <var data-var='time'>20:01</var> - <var data-var='time'>22:55</var> PDT"
+        }
+      ]
+    },
+    {
+      "name": "May",
+      "year": 2026,
+      "starts_on": 5,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "y2gfvyvyncvg",
+          "name": "[Scheduled] Australia Voice Carrier Partner Maintenance",
+          "message": "This planned maintenance has been cancelled, and a rescheduled date has been posted on our Statuspage. Thank you for your understanding.",
+          "impact": "maintenance",
+          "timestamp": "May <var data-var='date'>31</var>, <var data-var='time'>23:53</var> PDT"
+        }
+      ]
+    },
+    {
+      "name": "April",
+      "year": 2026,
+      "starts_on": 3,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "r6v9s7mm82rd",
+          "name": "[Scheduled] US SMS Carrier Maintenance - Small US Carriers",
+          "message": "The scheduled maintenance has been completed.",
+          "impact": "maintenance",
+          "timestamp": "Apr <var data-var='date'>30</var>, <var data-var='time'>20:00</var> - <var data-var='time'>22:00</var> PDT"
+        }
+      ]
+    }
+  ],
+  "start_time": "2026-04-01T00:00:00-07:00",
+  "end_time": "2026-06-30T23:59:59-07:00"
+}

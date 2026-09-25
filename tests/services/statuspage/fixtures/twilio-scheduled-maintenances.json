@@ -1,0 +1,136 @@
+{
+  "page": {
+    "id": "gpkpyklzq55q",
+    "name": "Twilio",
+    "url": "https://status.twilio.com",
+    "time_zone": "America/Los_Angeles",
+    "updated_at": "2026-09-24T21:20:35.068-07:00"
+  },
+  "scheduled_maintenances": [
+    {
+      "id": "yll2y7hhb3hd",
+      "name": "Canada Account Security Service Partner Maintenance",
+      "status": "in_progress",
+      "created_at": "2026-09-18T10:43:02.314-07:00",
+      "updated_at": "2026-09-24T21:00:11.059-07:00",
+      "monitoring_at": null,
+      "resolved_at": null,
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/k0tp9m0tz6r5",
+      "started_at": "2026-09-18T10:43:02.303-07:00",
+      "page_id": "gpkpyklzq55q",
+      "incident_updates": [
+        {
+          "id": "375qhn293j7h",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "created_at": "2026-09-24T21:00:11.042-07:00",
+          "display_at": "2026-09-24T21:00:11.042-07:00",
+          "affected_components": [
+            {
+              "code": "trrz5ztt7pl8",
+              "name": "CARRIER NETWORK - Verify Silent Network Auth",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            },
+            {
+              "code": "fsxs9n9yf4m7",
+              "name": "CARRIER NETWORK - Lookup Identity Match",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            },
+            {
+              "code": "cfy5cxrly95b",
+              "name": "CARRIER NETWORK - Lookup Line Type Intelligence [Twilio API]",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            },
+            {
+              "code": "q0hp6vfr4vvh",
+              "name": "CARRIER NETWORK - Lookup SIM Swap",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ]
+        },
+        {
+          "id": "h5sxrsgg8bmm",
+          "status": "scheduled",
+          "body": "<p>Our service partner is conducting a planned maintenance from 24 September 2026 at 21:00 PDT until 25 September 2026 at 01:00 PDT. During the maintenance window, there could be intermittent API request failures for the following carriers and country: Rogers Canada, Telus Canada, Bell Canada.</p>\n\n<p>Impacted Products: Verify Silent Network Auth, Lookup Identity Match, Lookup SIM Swap,  Legacy Identity MatchAndAttributes, Lookup Line Type Intelligence [Twilio API]</p>",
+          "created_at": "2026-09-18T10:43:02.369-07:00",
+          "display_at": "2026-09-18T10:43:02.369-07:00",
+          "affected_components": [
+            {
+              "code": "trrz5ztt7pl8",
+              "name": "CARRIER NETWORK - Verify Silent Network Auth",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "fsxs9n9yf4m7",
+              "name": "CARRIER NETWORK - Lookup Identity Match",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "cfy5cxrly95b",
+              "name": "CARRIER NETWORK - Lookup Line Type Intelligence [Twilio API]",
+              "old_status": "operational",
+              "new_status": "operational"
+            },
+            {
+              "code": "q0hp6vfr4vvh",
+              "name": "CARRIER NETWORK - Lookup SIM Swap",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2026-09-24T21:00:00.000-07:00",
+      "scheduled_until": "2026-09-25T01:00:00.000-07:00"
+    },
+    {
+      "id": "bn6yyz65wk75",
+      "name": "United States MMS Carrier Partner Maintenance",
+      "status": "completed",
+      "created_at": "2026-09-17T17:59:22.583-07:00",
+      "updated_at": "2026-09-24T18:00:08.822-07:00",
+      "monitoring_at": null,
+      "resolved_at": "2026-09-24T18:00:08.655-07:00",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/z6cqvfn5fh04",
+      "started_at": "2026-09-17T17:59:22.573-07:00",
+      "page_id": "gpkpyklzq55q",
+      "incident_updates": [
+        {
+          "id": "4h2vjjh68s67",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "created_at": "2026-09-24T18:00:08.655-07:00",
+          "display_at": "2026-09-24T18:00:08.655-07:00",
+          "affected_components": null
+        },
+        {
+          "id": "dd4d35p9ml6f",
+          "status": "scheduled",
+          "body": "<p>Our MMS carrier partner in the United States is conducting an emergency maintenance from 17 September 2026 at 18:00 PDT until 24 September 2026 at 18:00 PDT. During the maintenance window, there could be intermittent delays delivering MMS from AT&T United States handsets via subset of United States long codes.</p>\n\n<p>We are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.</p>",
+          "created_at": "2026-09-17T17:59:22.646-07:00",
+          "display_at": "2026-09-17T17:59:22.646-07:00",
+          "affected_components": [
+            {
+              "code": "8vdlvw3dsq8h",
+              "name": "CARRIER NETWORK - MMS Long Code, North America",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2026-09-17T18:00:00.000-07:00",
+      "scheduled_until": "2026-09-24T18:00:00.000-07:00"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "page_status": {
+    "page": {
+      "name": "GitHub",
+      "time_zone": "UTC"
+    }
+  },
+  "months": [
+    {
+      "name": "June",
+      "year": 2026,
+      "starts_on": 1,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "mc4yx9f8x1hk",
+          "name": "Disruption with some GitHub services - Signup Flow",
+          "message": "Between 15:19 UTC and 15:49 UTC on June 30, 2026, users were unable to complete the signup flow for GitHub.com/signup. Approximately 62% of new user signups failed for about 30 minutes during this window.<br /><br />This was caused by a configuration change to the signup flow that unintentionally blocked users from completing signup.<br /><br />We mitigated the incident by reverting the change, which restored successful signups. To reduce the likelihood and impact of similar issues, we are adopting staged, incremental rollouts for changes on the signup path, improving our ability to test these changes before they reach production, and adding checks to verify signup health before and during any change that affects this flow.",
+          "impact": "minor",
+          "timestamp": "Jun <var data-var='date'>30</var>, <var data-var='time'>15:38</var> - <var data-var='time'>15:49</var> UTC"
+        },
+        {
+          "code": "0rkjjs2ssp7z",
+          "name": "Disruption with some GitHub services",
+          "message": "From June 26, 2026 at 23:40 UTC through June 28, 2026 at 20:55 UTC, Copilot Cloud Agent was degraded. The agent could fail when reporting progress, replying to pull request comments, or opening pull requests. For affected built-in tool calls, the average error rate was approximately 8%, with hourly error rates peaking around 26%.<br /><br />This was due to a regression introduced during a Copilot Cloud Agent runtime deployment that caused several built-in agent tools to become unavailable. In many cases, the affected tool calls failed silently so agent jobs appeared to succeed. This monitoring gap meant it took longer than expected to identify the failure. We mitigated the incident by reverting the runtime deployment to the previously stable version.<br /><br />We've added monitoring and alerting for this class of tool-availability error to reduce time-to-detection. We're also adding regression tests for these built-in agent tools, and improving the shipping safety for future runtime rollouts to avoid similar issues.",
+          "impact": "minor",
+          "timestamp": "Jun <var data-var='date'>28</var>, <var data-var='time'>17:50</var> - <var data-var='time'>20:55</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "May",
+      "year": 2026,
+      "starts_on": 5,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "rhqcgg8lg6mm",
+          "name": "Disruption with OpenAI Models",
+          "message": "On May 28th, 2026, between approximately 18:27 and 20:41 UTC, the GitHub Copilot service was degraded due to an issue with the Responses API of an upstream provider affecting the GPT-5.2, GPT-5.3-Codex, GPT-5.4, and GPT-5.5 models. Requests routed to these models via the Responses API returned elevated error rates, which also affected Copilot coding agent and Copilot code review. No other models were impacted. <br /><br />We mitigated the incident by shifting traffic away from the affected models while the upstream provider deployed a fix. <br /><br />GitHub is working to improve automated failover for the affected models and strengthen monitoring to prevent similar incidents in the future.",
+          "impact": "critical",
+          "timestamp": "May <var data-var='date'>28</var>, <var data-var='time'>19:01</var> - <var data-var='time'>20:41</var> UTC"
+        },
+        {
+          "code": "11n51rf8tf27",
+          "name": "Elevated error rates across multiple services",
+          "message": "On May 28, 2026, between 19:07 UTC and 19:16 UTC, multiple GitHub services experienced elevated error rates. This was due to a change that was partially deployed to an authentication service, causing errors for dependent services including the web experience, REST API, Git operations, and GitHub Actions. At peak impact, 10% of GitHub Actions runs failed to queue or encountered errors while downloading actions. We mitigated the incident by rolling back the change. \n\nWe are expanding test coverage and improving our deployment validation process to prevent recurrence of this issue in the future.",
+          "impact": "none",
+          "timestamp": "May <var data-var='date'>28</var>, <var data-var='time'>19:07</var> - <var data-var='time'>19:07</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "April",
+      "year": 2026,
+      "starts_on": 3,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "dbypmw7h77l5",
+          "name": "Disruption with some GitHub services",
+          "message": "On April 28, 2026, from approximately 12:41 UTC to 17:09 UTC, GitHub Actions jobs using Standard Ubuntu 22 and Ubuntu 24 hosted runners experienced run start delays. Approximately 8% of hosted runner jobs using Ubuntu 22 and Ubuntu 24 experienced delays greater than 5 minutes or failures. Larger and self-hosted runners were not impacted.<br /><br />This was caused by a performance regression introduced in the VM reimage process. That reimage delay lowered the overall capacity of runners available to pick up new jobs. This was mitigated with a rollback to a known good image version.<br /><br />We are addressing the core issue with reimage performance and improving the granularity of reimage telemetry across our services and our compute provider to more quickly diagnose similar issues in the future. Finally, we are evaluating other rollout changes to automatically detect similar regressions.",
+          "impact": "minor",
+          "timestamp": "Apr <var data-var='date'>28</var>, <var data-var='time'>13:59</var> - <var data-var='time'>17:09</var> UTC"
+        },
+        {
+          "code": "ql942tw29yl6",
+          "name": "GitHub search is degraded",
+          "message": "On April 27, 2026 between 16:15 UTC and 22:46 UTC, GitHub search services experienced degraded connectivity due to saturation of the load balancing tier deployed in front of our search infrastructure. This resulted in intermittent failures for services relying on our search data including Issues, Pull Requests, Projects, Repositories, Actions, Package Registry and Dependabot Alerts. The impact was varied by search target, with services seeing up to 65% of searches timing out or returning an error between 16:15 UTC and 18:00 UTC.  <br /><br />We detected the drop in search results through our ongoing monitoring and declared an incident at 16:21 UTC when we determined the issues would not self-heal. We tracked the incident as mitigated as of 21:33 UTC and monitored the systems until 22:46 UTC when we declared the incident resolved. Our existing monitoring did not classify the increased scraping as a risk and this dimension of the incident was only discovered while working to mitigate. <br /><br />The saturation was caused by a large influx of anonymous distributed scraping traffic that was crafted to avoid our public API rate limits. This scraping traffic made up 30% of the day’s total search traffic, but it was concentrated within a four-hour period.  The traffic originated from over 600,000 Unique IP addresses, with matching actor information across the board.  <br /><br />To mitigate, we immediately focused on relieving pressure from the load balancers while simultaneously working on scaling the load balancing tier, blocking the anomalous traffic and applying tuning to the balancers to fully resolve the incident.  <br /><br />Looking ahead, we’ve not only scaled the load balancer tier, but applied optimizations to improve our connection handling and re-use to reduce the possibility that a saturation event like this can re-occur. We’ve also added new monitors and controls within the platform to allow us to restrict anonymous traffic to mitigate the impact to our registered users. <br /><br />",
+          "impact": "critical",
+          "timestamp": "Apr <var data-var='date'>27</var>, <var data-var='time'>16:31</var> - <var data-var='time'>22:46</var> UTC"
+        }
+      ]
+    }
+  ],
+  "start_time": "2026-04-01T00:00:00Z",
+  "end_time": "2026-06-30T23:59:59Z"
+}

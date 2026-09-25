@@ -1,5 +1,6 @@
 /**
- * @fileoverview Statuspage service — fetches Atlassian Statuspage v2 endpoints with an in-memory cache.
+ * @fileoverview Statuspage service — fetches Atlassian Statuspage v2 endpoints and the
+ * page's history archive, with an in-memory cache.
  * @module services/statuspage/statuspage-service
  */
 
@@ -8,18 +9,20 @@ import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
 import type {
+  StatuspageHistoryResponse,
   StatuspageIncidentsResponse,
   StatuspageScheduledMaintenancesResponse,
   StatuspageSummaryResponse,
 } from './types.js';
 import {
+  StatuspageHistoryResponseSchema,
   StatuspageIncidentsResponseSchema,
   StatuspageScheduledMaintenancesResponseSchema,
   StatuspageSummaryResponseSchema,
 } from './types.js';
 
 /**
- * Fetch one Statuspage v2 endpoint, gating the decoded body against `schema`
+ * Fetch one Statuspage endpoint, gating the decoded body against `schema`
  * before it is cached or returned. The gate runs inside the fetch's parse step so
  * a non-conforming payload is never cached, and it returns the original body so
  * unknown vendor fields survive. `kind` names the endpoint in the rejection.
@@ -72,6 +75,23 @@ export class StatuspageService {
       '/api/v2/scheduled-maintenances.json',
       StatuspageScheduledMaintenancesResponseSchema,
       'scheduled maintenances',
+    );
+  }
+
+  /**
+   * One page of the quarterly history archive the status page renders its
+   * "Incident History" view from. Undocumented and served per host: some pages
+   * answer 404, and a redirecting host may drop `?page=`.
+   */
+  fetchHistory(
+    baseUrl: string,
+    page: number,
+  ): Promise<{ data: StatuspageHistoryResponse; cached: boolean }> {
+    return fetchEndpoint<StatuspageHistoryResponse>(
+      baseUrl,
+      `/history.json?page=${page}`,
+      StatuspageHistoryResponseSchema,
+      'history',
     );
   }
 }

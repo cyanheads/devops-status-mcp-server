@@ -1,0 +1,155 @@
+{
+  "page": {
+    "id": "kctbh9vrtdwd",
+    "name": "GitHub",
+    "url": "https://www.githubstatus.com",
+    "time_zone": "Etc/UTC",
+    "updated_at": "2026-09-25T02:53:55.605Z"
+  },
+  "scheduled_maintenances": [
+    {
+      "id": "nwjwwhj118sf",
+      "name": "Codespaces Scheduled Maintenance",
+      "status": "completed",
+      "created_at": "2025-05-29T21:01:34.877Z",
+      "updated_at": "2025-05-31T04:30:21.150Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-05-31T04:30:21.135Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/p98lyhp53nzj",
+      "started_at": "2025-05-29T21:01:34.872Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "g9klg93swk1p",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "created_at": "2025-05-31T04:30:21.135Z",
+          "display_at": "2025-05-31T04:30:21.135Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "b0xtrdw7gy7x",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing global maintenance from May 29, 2025 21:30 UTC to May 31, 2025 4:30 UTC. Maintenance will begin in our Europe, Asia, and Australia regions. Once it is complete, maintenance will start in our US regions. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience intermittent connectivity issues when creating new Codespaces or accessing existing ones.\n\nTo avoid disruptions, ensure that any uncommitted changes are committed and pushed before the maintenance starts. Codespaces with uncommitted changes will remain accessible as usual after the maintenance is complete.",
+          "created_at": "2025-05-29T21:01:34.929Z",
+          "display_at": "2025-05-29T21:01:34.929Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2025-05-29T21:30:00.000Z",
+      "scheduled_until": "2025-05-31T04:30:00.000Z"
+    },
+    {
+      "id": "67vdd3b7d1zq",
+      "name": "Codespaces Scheduled Maintenance",
+      "status": "completed",
+      "created_at": "2025-05-22T15:26:23.906Z",
+      "updated_at": "2025-05-29T16:30:21.560Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-05-29T16:30:21.191Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/w4zyvrpjpfxj",
+      "started_at": "2025-05-22T15:26:23.900Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "zzsrh4y24zzy",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "created_at": "2025-05-29T16:30:21.191Z",
+          "display_at": "2025-05-29T16:30:21.191Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "pfzr3jgm2yhz",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing global maintenance from 16:30 UTC on Wednesday, May 28 to 16:30 UTC on Thursday, May 29. Maintenance will begin in our Europe, Asia, and Australia regions. Once it is complete, maintenance will start in our US regions. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience intermittent connectivity issues when creating new Codespaces or accessing existing ones.\n\nTo avoid disruptions, ensure that any uncommitted changes are committed and pushed before the maintenance starts. Codespaces with uncommitted changes will remain accessible as usual after the maintenance is complete.",
+          "created_at": "2025-05-22T15:26:23.961Z",
+          "display_at": "2025-05-22T15:26:23.961Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2025-05-28T16:30:00.000Z",
+      "scheduled_until": "2025-05-29T16:30:00.000Z"
+    },
+    {
+      "id": "bs901hhxgw33",
+      "name": "Codespaces Scheduled Maintenance",
+      "status": "completed",
+      "created_at": "2025-05-13T19:52:44.238Z",
+      "updated_at": "2025-05-15T16:30:21.592Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-05-15T16:30:21.155Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/767vljf9dpqh",
+      "started_at": "2025-05-13T19:52:44.233Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "2nzb7p3xhgjy",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "created_at": "2025-05-15T16:30:21.155Z",
+          "display_at": "2025-05-15T16:30:21.155Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ]
+        },
+        {
+          "id": "d9mqzwlzw348",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing global maintenance from 16:30 UTC on Wednesday, May 14 to 16:30 UTC on Thursday, May 15. Maintenance will begin in our Europe, Asia, and Australia regions. Once it is complete, maintenance will start in our US regions. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience intermittent connectivity issues when creating new Codespaces or accessing existing ones.\n\nTo avoid disruptions, ensure that any uncommitted changes are committed and pushed before the maintenance starts. Codespaces with uncommitted changes will remain accessible as usual after the maintenance is complete.",
+          "created_at": "2025-05-13T19:52:44.288Z",
+          "display_at": "2025-05-13T19:52:44.288Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ]
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2025-05-14T16:30:00.000Z",
+      "scheduled_until": "2025-05-15T16:30:00.000Z"
+    }
+  ]
+}

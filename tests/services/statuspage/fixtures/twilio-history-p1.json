@@ -1,0 +1,90 @@
+{
+  "page_status": {
+    "page": {
+      "name": "Twilio",
+      "time_zone": "Pacific Time (US & Canada)"
+    }
+  },
+  "months": [
+    {
+      "name": "September",
+      "year": 2026,
+      "starts_on": 2,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "yll2y7hhb3hd",
+          "name": "[Scheduled] Canada Account Security Service Partner Maintenance",
+          "message": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "impact": "maintenance",
+          "timestamp": "Sep <var data-var='date'>24</var>, <var data-var='time'>21:00</var> PDT"
+        },
+        {
+          "code": "st6rn5kjs488",
+          "name": "SMS Delivery Delays from Twilio to Claro Brazil",
+          "message": "Twilio customers may be experiencing SMS delivery delays from Twilio to Claro network subscribers in Brazil. Our team has identified the cause, and is working to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.",
+          "impact": "minor",
+          "timestamp": "Sep <var data-var='date'>24</var>, <var data-var='time'>20:49</var> PDT"
+        },
+        {
+          "code": "408d7njdzzlw",
+          "name": "[Scheduled] United States SMS and MMS Carrier Maintenance - T-Mobile",
+          "message": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "impact": "maintenance",
+          "timestamp": "Sep <var data-var='date'>24</var>, <var data-var='time'>20:00</var> PDT"
+        },
+        {
+          "code": "hpwx3sl7kbz0",
+          "name": "Event Streams Service Disruption",
+          "message": "Our engineers have monitored the fix and confirmed the issue with event streams has been resolved. All services are now operating normally at this time.",
+          "impact": "minor",
+          "timestamp": "Sep <var data-var='date'>24</var>, <var data-var='time'>13:40</var> - <var data-var='time'>19:24</var> PDT"
+        },
+        {
+          "code": "bn6yyz65wk75",
+          "name": "[Scheduled] United States MMS Carrier Partner Maintenance",
+          "message": "The scheduled maintenance has been completed.",
+          "impact": "maintenance",
+          "timestamp": "Sep <var data-var='date'>17</var>, <var data-var='time'>18:00</var> - Sep <var data-var='date'>24</var>, <var data-var='time'>18:00</var> PDT"
+        },
+        {
+          "code": "q09lht36qrgt",
+          "name": "[Scheduled] Mexico SMS Carrier Partner Maintenance",
+          "message": "The scheduled maintenance has been completed.",
+          "impact": "maintenance",
+          "timestamp": "Sep <var data-var='date'>22</var>, <var data-var='time'>23:00</var> - Sep <var data-var='date'>23</var>, <var data-var='time'>01:00</var> PDT"
+        },
+        {
+          "code": "qt0w7q2m8ygn",
+          "name": "[Scheduled] United States SMS Carrier Maintenance - AT&T",
+          "message": "The scheduled maintenance has been completed.",
+          "impact": "maintenance",
+          "timestamp": "Sep <var data-var='date'>22</var>, <var data-var='time'>20:00</var> - Sep <var data-var='date'>23</var>, <var data-var='time'>00:00</var> PDT"
+        },
+        {
+          "code": "mk93l4l6tlk6",
+          "name": "[Scheduled] Czech Republic Voice Carrier Partner Maintenance",
+          "message": "The scheduled maintenance has been completed.",
+          "impact": "maintenance",
+          "timestamp": "Sep <var data-var='date'>22</var>, <var data-var='time'>15:00</var> - <var data-var='time'>21:00</var> PDT"
+        }
+      ]
+    },
+    {
+      "name": "August",
+      "year": 2026,
+      "starts_on": 6,
+      "days": 31,
+      "incidents": []
+    },
+    {
+      "name": "July",
+      "year": 2026,
+      "starts_on": 3,
+      "days": 31,
+      "incidents": []
+    }
+  ],
+  "start_time": "2026-07-01T00:00:00-07:00",
+  "end_time": "2026-09-30T23:59:59-07:00"
+}

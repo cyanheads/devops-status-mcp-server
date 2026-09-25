@@ -1,0 +1,78 @@
+{
+  "page_status": {
+    "page": {
+      "name": "GitHub",
+      "time_zone": "UTC"
+    }
+  },
+  "months": [
+    {
+      "name": "September",
+      "year": 2025,
+      "starts_on": 1,
+      "days": 30,
+      "incidents": [
+        {
+          "code": "0s5rb1l03m76",
+          "name": "Disruption with Gemini 2.5 Pro and Gemini 2.0 Flash in Copilot",
+          "message": "On September 29, 2025, between 17:53 and 18:42 UTC, the Copilot service experienced a degradation of the Gemini 2.5 model due to an issue with our upstream provider. Approximately 24% of requests failed, affecting 56% of users during this period. No other models were impacted.<br /><br />GitHub notified the upstream provider of the problem as soon as it was detected. The issue was resolved after the upstream provider rolled back a recent change that caused the disruption. GitHub will continue to enhance our monitoring and alerting systems to reduce the time it takes to detect and mitigate similar issues in the future.",
+          "impact": "minor",
+          "timestamp": "Sep <var data-var='date'>29</var>, <var data-var='time'>18:39</var> - <var data-var='time'>19:12</var> UTC"
+        },
+        {
+          "code": "t291vx7m731z",
+          "name": "Disruption with some GitHub services",
+          "message": "On September 29, 2025 between 16:26 UTC and 17:33 UTC the Copilot API experienced a partial degradation causing intermittent erroneous 404 responses for an average of 0.2% of GitHub MCP server requests, peaking at times around 2% of requests. The issue stemmed from an upgrade of an internal dependency which exposed a misconfiguration in the service.<br /><br />We resolved the incident by rolling back the upgrade to address the misconfiguration. We fixed the configuration issue and will improve documentation and rollout process to prevent similar issues.",
+          "impact": "major",
+          "timestamp": "Sep <var data-var='date'>29</var>, <var data-var='time'>16:45</var> - <var data-var='time'>17:33</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "August",
+      "year": 2025,
+      "starts_on": 5,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "x7gtw6r3x2s1",
+          "name": "Disruption with some GitHub services",
+          "message": "On August 27, 2025 between 20:35 and 21:17 UTC, Copilot, Web and REST API traffic experienced degraded performance. Copilot saw an average of 36% of requests fail with a peak failure rate of 77%. Approximately 2% of all non-Copilot Web and REST API traffic requests failed.\n\nThis incident occurred after we initiated a production database migration to drop a column from a table backing copilot functionality. While the column was no longer in direct use, our ORM continued to reference the dropped column. This led to a large number of 5xx responses and was similar to the incident on August 5th. At 21:15 UTC, we applied a fix to the production schema and by 21:17 UTC, all services had fully recovered.\n\nWhile repairs were in progress to avoid this situation, they were not completed quickly enough to prevent a second incident. We have now implemented a temporary block for all drop column operations as an immediate solution while we add more safeguards to prevent similar issues from occurring in the future. We are also implementing graceful degradation so that Copilot issues will not impact other features of our product.",
+          "impact": "major",
+          "timestamp": "Aug <var data-var='date'>27</var>, <var data-var='time'>20:41</var> - <var data-var='time'>21:27</var> UTC"
+        },
+        {
+          "code": "c7kq3ctclddp",
+          "name": "Incident with Actions",
+          "message": "On August 21, 2025, from approximately 15:37 UTC to 18:10 UTC, customers experienced increased delays and failures when starting jobs on GitHub Actions using standard hosted runners. This was caused by connectivity issues in our East US region, which prevented runners from retrieving jobs and sending progress updates. As a result, capacity was significantly reduced, especially for busier configurations, leading to queuing and service interruptions. Approximately 8.05% of jobs on public standard Ubuntu24 runners and 3.4% of jobs on private standard Ubuntu24 runners did not start as expected.<br /><br />By 18:10 UTC, we had mitigated the issue by provisioning additional resources in the affected region and burning down the backlog of queued runner assignments. By the end of that day, we deployed changes to improve runner connectivity resilience and graceful degradation in similar situations.  We are also taking further steps to improve system resiliency by enhancing observability of network connection health with runners and improving load distribution and failover handling to help prevent similar issues in the future.",
+          "impact": "minor",
+          "timestamp": "Aug <var data-var='date'>21</var>, <var data-var='time'>15:54</var> - <var data-var='time'>18:13</var> UTC"
+        }
+      ]
+    },
+    {
+      "name": "July",
+      "year": 2025,
+      "starts_on": 2,
+      "days": 31,
+      "incidents": [
+        {
+          "code": "spbr5ff8hyt2",
+          "name": "Increase in 429s for Git Operations",
+          "message": "Public Summary Draft<br />Between July 28, 2025 16:31 UTC to July 29, 2025 12:05 UTC users saw degraded Git Operations for raw file downloads. On average, the error rate was .005%, with a peak error rate of 3.89%. This was due to a sustained increase in unauthenticated repository traffic.<br /><br />We mitigated the incident by applying regional rate limiting, rolling back a service that was unable to scale with the additional traffic, and addressed a bug that impacted the caching of raw requests. Additionally, we horizontally scaled several dependencies of the service to appropriately handle the increase in traffic.<br /><br />We are working on improving our time to detection and have implemented controls to prevent similar incidents in future.",
+          "impact": "minor",
+          "timestamp": "Jul <var data-var='date'>29</var>, <var data-var='time'>10:41</var> - <var data-var='time'>12:05</var> UTC"
+        },
+        {
+          "code": "qjbc2h6dfyvc",
+          "name": "GitHub Enterprise Importer migrations are stalled",
+          "message": "Between approximately 21:41 UTC July 28th and 03:15 UTC July 29th, GitHub Enterprise Importer (GEI) operated in a degraded state where migrations could not be processed. <br /><br />Our investigation found that a component of the GEI infrastructure had been improperly taken out of service and could not be restored to its previous configuration. <br />This necessitated the provisioning of new resources to resolve the incident.<br /><br />As a result, customers will need to add our new IP range to the following IP allow lists, if enabled:<br />- The IP allow list on your destination GitHub.com organization or enterprise<br />- If you're running migrations from GitHub.com, the IP allow list on your source GitHub.com organization or enterprise<br />- If you're running migrations from a GitHub Enterprise Server, Bitbucket Server or Bitbucket Data Center instance, the allow list on your configured Azure Blob Storage or -- Amazon S3 storage account<br />- If you're running migrations from Azure DevOps, the allow list on your Azure DevOps organization<br /><br />The new GEI IP ranges for inclusion in applicable IP allow lists are:<br />- 20.99.172.64/28<br />- 135.234.59.224/28  <br /><br />The following IP ranges are no longer used by GEI and can be removed from all applicable IP allow lists:<br />- 40.71.233.224/28<br />- 20.125.12.8/29<br /><br />Users who have run migrations using GitHub Enterprise Importer in the past 90 days will receive email alerts about this change.",
+          "impact": "major",
+          "timestamp": "Jul <var data-var='date'>28</var>, <var data-var='time'>21:41</var> - Jul <var data-var='date'>29</var>, <var data-var='time'>03:15</var> UTC"
+        }
+      ]
+    }
+  ],
+  "start_time": "2025-07-01T00:00:00Z",
+  "end_time": "2025-09-30T23:59:59Z"
+}

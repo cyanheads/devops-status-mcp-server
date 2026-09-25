@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.9.0](changelog/0.9.x/0.9.0.md) — 2026-09-25
+
+devops_get_incidents takes a since date and reads Statuspage history archives past the 50-incident cap, a new azure vendor reads Microsoft's Azure status feed, and resolved AWS events no longer count as current health.
+
 ## [0.8.3](changelog/0.8.x/0.8.3.md) — 2026-09-24
 
 devops_status_check and devops_watch_stack pre-fill a devops_suggest_action call for every vendor with an active problem; a failed DNS or cert domain now reports its failure once, in error, and every certificate error row carries a reason.

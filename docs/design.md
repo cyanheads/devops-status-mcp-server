@@ -7,7 +7,7 @@
 | Name | Description | Key Inputs | Annotations |
 |:-----|:------------|:-----------|:------------|
 | `devops_status_check` | Check current health status for one or more vendors. Returns per-vendor operational indicator, affected components, and active incident summaries. Accepts registered vendor names or raw Statuspage base URLs. Batch-friendly — pass a list to check your full stack in one call. | `vendors: string[]`, `mode?: 'summary' \| 'detailed'` | `readOnlyHint`, `openWorldHint: true` |
-| `devops_get_incidents` | Fetch incident history for a vendor — active, resolved, or scheduled maintenance windows. Returns full timeline of updates (created → investigating → monitoring → resolved), affected components, and postmortem links. | `vendor: string`, `filter?: 'active' \| 'resolved' \| 'scheduled'`, `limit?: number` | `readOnlyHint`, `openWorldHint: true` |
+| `devops_get_incidents` | Fetch incident history for a vendor — active, resolved, or scheduled maintenance windows. Returns full timeline of updates (created → investigating → monitoring → resolved), affected components, and postmortem links. `since` reads a Statuspage page's quarterly history archive past the status API's 50-record ceiling. | `vendor: string`, `filter?: 'all' \| 'active' \| 'resolved' \| 'scheduled'`, `limit?: number`, `offset?: number`, `since?: string` (YYYY-MM-DD) | `readOnlyHint`, `openWorldHint: true` |
 | `devops_watch_stack` | Register a named vendor list as your "stack" and get a unified health snapshot across all entries. Persists the stack in tenant-scoped state so subsequent calls omit the list. Use for morning checks or pre-deploy status sweeps. Returns an aggregate health rollup plus per-vendor detail. | `vendors?: string[]`, `stack_name?: string`, `mode?: 'summary' \| 'detailed'` | `readOnlyHint`, `openWorldHint: true` |
 | `devops_check_certs` | Inspect SSL/TLS certificate health for one or more domains. Pure TypeScript — direct TLS handshake, no external API. Reports: days to expiry (flags < 30 and < 7), chain depth, TLS protocol version (flags 1.0/1.1), subject/issuer/SANs, and HSTS header presence (via follow-up HTTP GET over the TLS connection). Works for any domain, not just registered vendors. | `domains: string[]`, `port?: number` | `readOnlyHint`, `openWorldHint: true` |
 | `devops_check_dns` | Resolve DNS records and verify propagation for one or more domains. Pure TypeScript — queries `node:dns` against multiple public resolvers (Google 8.8.8.8, Cloudflare 1.1.1.1, Quad9 9.9.9.9). Reports: A/AAAA/CNAME/MX/TXT/NS records, resolution latency per resolver, and resolver discrepancies (propagation gaps). Works for any domain. | `domains: string[]`, `record_types?: Array<'A' \| 'AAAA' \| 'CNAME' \| 'MX' \| 'TXT' \| 'NS'>` | `readOnlyHint`, `openWorldHint: true` |
@@ -33,7 +33,7 @@ None. The tool surface is the complete interface.
 Infrastructure health and incident intelligence for DevOps agents. Aggregates vendor status pages (Atlassian Statuspage convention, keyless), incident history, SSL/TLS certificate health, and DNS propagation checks into a single operational picture.
 
 Two source types:
-- **Statuspage API** — vendor status, component health, incidents, and scheduled maintenance windows for any vendor running on Atlassian Statuspage. Probed base URL + `/api/v2/{status,components,incidents,scheduled-maintenances}.json`. No auth required.
+- **Statuspage API** — vendor status, component health, incidents, and scheduled maintenance windows for any vendor running on Atlassian Statuspage. Probed base URL + `/api/v2/{status,components,incidents,scheduled-maintenances}.json`, plus the page's own `/history.json?page=N` archive when `devops_get_incidents` is given `since`. No auth required.
 - **Pure TypeScript** — TLS certificate inspection (`node:tls`) and DNS resolution (`node:dns`). Zero external dependencies. Works for any domain.
 
 **Vendor registry:** a curated TypeScript data file (`src/data/vendor-registry.ts`) mapping vendor slugs to Statuspage base URLs and categories. Not fetched at runtime. Users can bypass it with raw Statuspage URLs.
@@ -61,13 +61,16 @@ Target users: DevOps engineers, SREs, platform teams, and developers who manage 
 
 **Shape per entry:**
 ```ts
-interface VendorEntry {
+type VendorEntry = {
   slug: string;           // canonical identifier used in tool inputs (e.g., "github", "cloudflare")
   name: string;           // display name (e.g., "GitHub", "Cloudflare")
   category: VendorCategory;
-  statuspage_url: string; // Statuspage base URL — typically https:// but may be http:// (e.g., auth0)
-  api_type: 'statuspage'; // future: 'custom' for vendors with bespoke APIs
-}
+  statuspage_url: string; // always https://; the Statuspage API base for 'statuspage',
+                          // the vendor's public status page for every other api_type
+} & (
+  | { api_type: 'statuspage' | 'slack' | 'aws' | 'gcp' | 'azure' | 'firehydrant' }
+  | { api_type: 'statusio'; statusio_page_id: string } // keys the Status.io Public Status API
+);
 
 type VendorCategory =
   | 'cloud'
@@ -80,26 +83,28 @@ type VendorCategory =
   | 'ai';
 ```
 
-**Starter vendor list (26 entries):**
+**Vendor list (52 entries):**
 
-Includes only vendors with verified working Statuspage `/api/v2/status.json` endpoints. Vendors confirmed NOT on Atlassian Statuspage (AWS, GCP, Azure, Hetzner, GitLab, Railway, Fastly, PagerDuty, Okta, Docker Hub, CockroachDB) are excluded from the registry; users can still reach them via raw URL passthrough or future bespoke adapter support.
+Every entry is verified against its live status source (`bun run verify:registry` probes them all). 45 run on Atlassian Statuspage; the other seven are served by native-API adapters in `src/services/status-adapters/` that normalize into the Statuspage shapes: `aws` (AWS Health), `gcp` (Google Cloud Service Health), `azure` (Azure status RSS feed), `gitlab` and `neon` (Status.io), `slack` (Slack status API), and `redis-cloud` (FireHydrant). Vendors with no public machine-readable status source this server can read (Hetzner, Railway, Fastly, PagerDuty, Okta, Docker Hub, CockroachDB) are not in the registry; see Known Limitations.
 
 | Category | Vendors |
 |:---------|:--------|
-| cloud | digitalocean, linode |
+| cloud | digitalocean, linode, aws, gcp, azure |
 | cdn-edge | cloudflare, akamai |
-| dev-platform | github, npm, vercel, netlify, render, fly-io |
-| data | mongodb-atlas, planetscale, supabase, neon, redis-cloud |
-| comms | slack, discord, twilio, sendgrid, mailgun |
-| auth | auth0, clerk |
-| monitoring | datadog, sentry |
-| ai | openai, anthropic |
+| dev-platform | gitlab, github, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, figma, launchdarkly |
+| data | mongodb-atlas, planetscale, supabase, neon, redis-cloud, elastic, influxdb, upstash, cloudinary, segment |
+| comms | slack, discord, twilio, sendgrid, mailgun, hubspot, brevo, courier, loops |
+| auth | auth0, clerk, workos |
+| monitoring | datadog, sentry, new-relic, grafana-cloud, honeycomb |
+| ai | openai, anthropic, elevenlabs, pinecone, cohere |
 
 Notes on specific entries:
 - `anthropic` — Statuspage URL is `https://status.claude.com` (the page is branded "Claude"); `status.anthropic.com` redirects there.
-- `auth0` — Statuspage at `http://status.auth0.com` (HTTP, not HTTPS); the URL for Zod validation must allow `http://` for this entry.
-- `redis-cloud` — Statuspage at `https://status.redis.io` (not `status.redis.com` or `status.redislabs.com`).
-- `neon` — `status.neon.tech` returned a 522 (Cloudflare timeout) during verification; include but mark as may-be-unstable.
+- `akamai` — Statuspage URL is `https://www.akamaistatus.com`; `status.akamai.com` 302s there and the redirect drops the query string, which collapses every history-archive page to page 1.
+- `auth0` — Statuspage at `https://auth0.statuspage.io`; `status.auth0.com` serves HTTP only.
+- `redis-cloud` — `https://status.redis.io` moved from Atlassian Statuspage to FireHydrant; the adapter reads its `/data/payload.json`.
+- `neon` — `https://neonstatus.com` is a Status.io page; the former `status.neon.tech` Statuspage is gone.
+- `azure` — `statuspage_url` is the public page `https://azure.status.microsoft/en-us/status/`; the adapter reads the RSS feed that page links (see Live API Shapes).
 
 Vendor registry is the source of truth for `devops_list_vendors`. Any tool accepting a vendor name resolves it by slug (case-insensitive) against the registry first; if no match and the input looks like a URL, it's treated as a raw Statuspage base URL.
 
@@ -107,7 +112,9 @@ Vendor registry is the source of truth for `devops_list_vendors`. Any tool accep
 
 ## Live API Shapes (verified)
 
-All Statuspage vendors respond to `{base_url}/api/v2/{endpoint}.json` — no auth, no pagination anywhere. `incidents.json` returns the 50 most recent and ignores a `?page=` parameter, so 50 is a hard ceiling on reachable history; `devops_get_incidents` discloses it when a call hits it.
+All Statuspage vendors respond to `{base_url}/api/v2/{endpoint}.json` — no auth, and no pagination on any v2 endpoint. `incidents.json` returns the 50 most recent and ignores a `?page=` parameter, so 50 is a hard ceiling on the v2 feed; `devops_get_incidents` discloses it when a call hits it. The page's history archive (below) is the only surface that reaches past it.
+
+`page.time_zone` is an IANA zone name (`Etc/UTC`, `America/Los_Angeles`) on Atlassian-hosted pages. Some v2-compatible pages that are not hosted by Atlassian omit it (cohere, planetscale, openai), so it is optional in `StatuspagePage`.
 
 ### `GET /api/v2/status.json`
 
@@ -192,6 +199,35 @@ Returns up to 50 most recent resolved incidents plus any active incidents.
 
 Same shape as incidents; additional fields: `scheduled_for`, `scheduled_until`. Status values include `scheduled`, `in_progress`, `completed`.
 
+### `GET {base_url}/history.json?page=N` (undocumented)
+
+The JSON behind a page's "Incident History" view — not in the page's own `/api` endpoint list. Served per host, not per backend: 7 of the registry's 45 Statuspage hosts answer 404 (`cloudflare` with a JSON error body; `planetscale`, `brevo`, `clerk`, `openai`, `elevenlabs`, `cohere` with an HTML 404 — they serve an Atlassian-compatible `/api/v2` only).
+
+```jsonc
+{
+  "page_status": { "page": { "name": "Twilio", "time_zone": "Pacific Time (US & Canada)" /* Rails name, not IANA */ } },
+  "components": [ /* … */ ],
+  "months": [{
+    "name": "January", "year": 2026, "starts_on": 4, "days": 31,
+    "incidents": [{
+      "code": "bchpvm9st7h2",        // = the v2 incident `id`
+      "name": "SMS Delivery Failures From Subset of Twilio Numbers",
+      "message": "…",                // the latest update body, same markup as v2 bodies
+      "impact": "minor",             // none | minor | major | critical | maintenance
+      "timestamp": "Dec <var data-var='date'>31</var>, <var data-var='time'>22:28</var> - Jan <var data-var='date'>1</var>, <var data-var='time'>08:17</var> PST"
+    }]
+  }],
+  "start_time": "2026-01-01T00:00:00-08:00",   // window start, page-local with offset
+  "end_time": "2026-03-31T23:59:59-07:00"
+}
+```
+
+- **Paging:** page 1 is the current calendar quarter (partial), and page N is N−1 quarters earlier. There is no end signal: a page past the end returns 200 with empty months dated in 1996, and a quiet page can have a genuinely empty current quarter.
+- **Redirects drop `?page=`:** `status.sendgrid.com` 302s to `status.twilio.com/history.json`, so every page comes back as page 1. (`status.akamai.com` did the same; the registry now points at `www.akamaistatus.com`.)
+- **`timestamp`:** `Mon D, HH:MM[ - [Mon D, ]HH:MM] ZONE` with the date and times in `<var>` markup — matched by 5,943 of 5,943 recorded records. It carries no year, and its zone label names only the span's end. The year comes from the enclosing `months[]` entry, which files a span under the month it **ends** in, so a start month later than the bucket's belongs to the year before. The zone comes from the v2 `page.time_zone`. An end without a date falls on the start's date. A record with no end is open, in progress, or a cancelled maintenance — the archive does not say which.
+- **Fidelity:** the parsed start equals v2 `created_at` to the minute on 833 of 839 joined records (the rest are vendor-edited times), and the parsed end equals v2 `resolved_at` on 815 of 815. `name` and `impact` match v2 on every joined pair.
+- **Size:** 7–122 KB per page on GitHub; 0.44–0.51 MB on Twilio, which publishes ~900 records a quarter.
+
 ### `GET /api/v2/summary.json`
 
 Returns merged object with `status`, `components`, `incidents`, and `scheduled_maintenances` in a single call. Used by `devops_status_check` in `detailed` mode to minimize round trips.
@@ -244,6 +280,49 @@ Keyless, `content-type: application/json`, no auth and no rate limit. The body i
 
 **Not mapped:** `currently_affected_locations` / `previously_affected_locations` / `updates[].affected_locations` (no normalized counterpart), `most_recent_update` (duplicates `updates[0]`), `number` / `service_key` / `service_name` (deprecated upstream). Summary `components` cover only the products named by currently-open incidents — the feed carries no product health table, so unmentioned products are absent rather than asserted operational.
 
+### `GET https://rssfeed.azure.status.microsoft/en-us/status/feed/` (Azure)
+
+Keyless RSS 2.0, `content-type: text/xml; charset=utf-8`, the feed the [Azure status page](https://azure.status.microsoft/en-us/status/) links. `azurestatuscdn.azureedge.net/en-us/status/feed/` and `azure.status.microsoft/en-us/status/feed/` serve the same envelope. The channel is **empty while nothing is posted** (577 bytes, `lastBuildDate` only), which is its steady state: Microsoft posts here only for broad-impact service issues or ones its targeted notifications cannot reach, and a resolved item leaves the feed. No other keyless machine-readable Azure platform source exists — Azure Service Health (ARM `Microsoft.ResourceHealth/events`) needs Azure AD auth, and the status page's service × region matrix is ~6.9 MB of undocumented HTML.
+
+```xml
+<item>
+  <guid isPermaLink="false">issues-connecting-to-resources-in-west-us</guid> <!-- a title slug; reused across incidents -->
+  <link>https://azurestatusprodncus.azurewebsites.net/en-us/status/</link>  <!-- generic page; not relayed -->
+  <category>API Management</category>  <!-- zero or more, services and regions mixed -->
+  <category>West US</category>
+  <title>Issues connecting to resources in West US </title>              <!-- trailing space -->
+  <description>&lt;p&gt;We are investigating a networking issue …&lt;/p&gt;</description>
+  <pubDate>Thu, 23 Jul 2026 16:29:09 Z</pubDate>
+</item>
+```
+
+**Fixtures** (`tests/services/status-adapters/fixtures/`), from 112 archived captures (2019–2026) of the four hostnames, of which 7 carry an item (one each) and 105 are empty:
+
+| File | Source | Shape |
+|:---|:---|:---|
+| `azure-feed-20260723.xml` | `web.archive.org/web/20260723164925id_/https://rssfeed.azure.status.microsoft/en-us/status/feed/` | nine services plus one region, HTML description, internal `<link>` host |
+| `azure-feed-20240721.xml` | `web.archive.org/web/20240721181144id_/https://azure.status.microsoft/en-us/status/feed/` | no `<category>`, plain-text description |
+| `azure-feed-20220907.xml` | `web.archive.org/web/20220907194758id_/https://azurestatuscdn.azureedge.net/en-us/status/feed/` | `azure-front-door-connectivity-issues`, `&amp;nbsp;` and `<strong>` in the description |
+| `azure-feed-20251029.xml` | `web.archive.org/web/20251029175916id_/https://rssfeed.azure.status.microsoft/en-us/status/feed/` | the same `guid` for a separate incident, a link in the description |
+| `azure-feed-empty.xml` | the live feed, 2026-09-25 | empty channel |
+
+Across the archive the item text is always entity-escaped (no CDATA), `guid isPermaLink` is the only attribute, and after XML decoding `&nbsp;` is the only HTML entity; the description's tags are `p`, `strong`, `a`, `ul`, and `li`. The extractor still reads the other forms RSS 2.0 allows — CDATA sections as text (so tag names inside one never read as elements), comments dropped, attributes on any open tag, self-closing elements as empty, whitespace inside end tags. Entity names resolve against the known table only, never an inherited object property. Element, link, and tag matching run in time linear in the body, so unclosed tags, comments, or malformed links cannot stall the process.
+
+**Normalized mapping** (`azure-adapter.ts`):
+
+| Azure | Statuspage shape | Notes |
+|:---|:---|:---|
+| item listed | `impact`, `status`, `resolved_at` | always `minor`, `investigating`, `null` — the feed has no severity or lifecycle field |
+| any item listed | summary `indicator` | `minor` while any item is listed, `none` otherwise |
+| `guid` + `pubDate` | `id` | `guid@<pubDate as ISO>`; a `guid` alone has been reused for separate incidents |
+| `title` | `name` | trimmed |
+| `pubDate` | `created_at`, `started_at`, the update's `created_at` | parsed to ISO 8601 UTC |
+| `description` | the single update's `body` | HTML rendered as plain text: paragraphs and list items one per line, a link as its text with the URL after it when they differ |
+| `<category>[]` | `affected_components` on the single update | verbatim; an item with none has none |
+| — | summary `components`, `scheduled_maintenances` | always empty |
+
+**Not mapped:** `<link>` (the generic status page, and one capture points it at an internal `azurewebsites.net` origin), `lastBuildDate`.
+
 ---
 
 ## Tool Detail
@@ -284,7 +363,7 @@ z.object({
       name: z.string(),
       impact: z.enum(['none', 'minor', 'major', 'critical']),
       status: z.string(),
-      started_at: z.string().describe('ISO 8601 UTC.'),
+      started_at: z.string().describe("ISO 8601, with the vendor's UTC offset."),
       latest_update: z.string().describe('Most recent incident_update.body text.'),
     })).describe('Active (non-resolved) incidents.'),
     scheduled_maintenances: z.array(z.object({
@@ -362,7 +441,7 @@ The same rule covers a vendor entry that never reaches a fetch: an unresolvable 
 
 ### `devops_get_incidents`
 
-**Description:** Fetch incident history and scheduled maintenance windows for a vendor. Returns the full incident timeline — each investigator update, affected components at each step, and when the incident was resolved. Filter by status to focus on active incidents (use before deploy), resolved history (use for postmortem), or upcoming maintenance windows. Page long histories with `limit` + `offset`.
+**Description:** Fetch incident history and scheduled maintenance windows for a vendor. Returns the full incident timeline — each investigator update, affected components at each step, and when the incident was resolved. Filter by status to focus on active incidents (use before deploy), resolved history (use for postmortem), or upcoming maintenance windows. Page long histories with `limit` + `offset`. On Statuspage vendors, `since` also reads the page's quarterly history archive back to that date, past the v2 feed's 50-record ceiling.
 
 **Input:**
 ```ts
@@ -375,8 +454,21 @@ z.object({
     .describe('Maximum incidents to return per call (1–50). Page through longer history with offset rather than raising this.'),
   offset: z.number().int().min(0).default(0)
     .describe('Matching incidents to skip before applying limit. A truncated result returns the value to use next in the nextOffset enrichment field.'),
+  since: z.union([z.literal(''), z.iso.date()]).optional()
+    .describe('Earliest start date (YYYY-MM-DD, UTC), at most 24 months back; with filter all or resolved. On Statuspage vendors, also reads the history archive back to it.'),
 })
 ```
+
+`""` is read as omitted, since form-based clients send a blank optional field that way. `since` with `active` or `scheduled`, or more than 24 months back, is an `invalid_since` error raised before any request; a malformed date fails the schema.
+
+**With `since`:**
+
+1. The v2 incident list is fetched as before. On a Statuspage backend the maintenance list is fetched too, under `resolved` as well as `all`, because a history record is added only when neither v2 list carries its `code`. Under `resolved` that match is its only use, so a failed maintenance read there skips the archive with a `notice` rather than failing the call; under `all` it fails the call, as it does without `since`.
+2. The history archive is read from page 1, one quarter per page, until a page's window starts at or before the floor (`since` at 00:00 UTC). Each page must be exactly one quarter before the last; one that is not ends the walk. The walk also ends after one page per quarter from today's back to the floor's plus one at each end (the page counts quarters in its own zone), so an archive whose pages do not count back from today is cut off there rather than read indefinitely.
+3. History records join on `code` = v2 `id`, and the v2 record wins. Under `resolved`, only history records with an end are added.
+4. The merged list is floored on each record's start (`scheduled_for`, else `created_at`), sorted by `created_at` descending, and windowed by `limit`/`offset` as usual.
+
+Non-Statuspage backends apply the floor and read no history. A history record maps as `id` = `code`; `name`, `impact` verbatim; `created_at`/`resolved_at` = the parsed start/end in UTC; `status` = `resolved` with an end, else `unknown`; `updates` = one entry carrying `message`, dated at the end (or the start); `shortlink` = `{base_url}/incidents/{code}`; `started_at`, `scheduled_for`, `scheduled_until`, `duration_minutes` null; `affected_components` empty; `source: 'history'`.
 
 **Output:**
 ```ts
@@ -387,20 +479,21 @@ z.object({
     id: z.string(),
     name: z.string(),
     impact: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']),
-    status: z.string().describe('Current status: investigating | identified | monitoring | resolved | postmortem | scheduled | in_progress | completed'),
+    status: z.string().describe('Current status: investigating | identified | monitoring | resolved | postmortem | scheduled | in_progress | completed | unknown (a history record with no end)'),
     created_at: z.string(),
-    started_at: z.string(),
+    started_at: z.string().nullish().describe('Null/absent when the vendor does not set it, and always null on a history record.'),
     resolved_at: z.string().nullable(),
     scheduled_for: z.string().nullable().describe('Present for scheduled maintenances.'),
     scheduled_until: z.string().nullable().describe('Present for scheduled maintenances.'),
     duration_minutes: z.number().nullable().describe('Minutes from started_at to resolved_at. Null for active or scheduled incidents.'),
-    shortlink: z.string().describe('Direct URL to the incident page.'),
+    shortlink: z.string().nullish().describe('Direct URL to the incident page, or null/absent if the vendor provides none.'),
     affected_components: z.array(z.string()).describe('Component names affected by this incident.'),
     updates: z.array(z.object({
       status: z.string(),
       body: z.string(),
       created_at: z.string(),
     })).describe('Chronological list of incident updates (oldest first).'),
+    source: z.enum(['api', 'history']).describe('api: the status API. history: the page\'s history archive, read only with since.'),
   })),
   total_returned: z.number(),
   statuspage_url: z.string(),
@@ -413,10 +506,10 @@ z.object({
 |:---|:---|
 | `truncated`, `shown`, `cap`, `totalCount` | more incidents matched the filter than `limit` returned |
 | `nextOffset` | same — the `offset` to pass next, already computed. Its absence is the stop condition for an agent paging in a loop |
-| `upstreamCeiling` | the vendor's own feed returned as many records as it will ever serve (see below). Independent of `truncated`: a full window can be the vendor's cap rather than this tool's |
-| `notice` | any of the above, or an empty result. Composed into one string because the framework's `notice` is last-wins across `ctx.enrich` calls |
+| `upstreamCeiling` | the vendor's own feed returned as many records as it will ever serve (see below). Independent of `truncated`: a full window can be the vendor's cap rather than this tool's. Absent when `since` was set and the history archive was read back to it |
+| `notice` | any of the above, an empty result, or a history walk that stopped short of `since` — naming the date it reached and why (no archive, a transport or shape failure, an unreadable timestamp, a page that did not step back a quarter, more pages than the floor needs, a failed maintenance-list read under `resolved`). Composed into one string because the framework's `notice` is last-wins across `ctx.enrich` calls |
 
-**Empty results** explain themselves through `notice`, in terms of the call that produced them: an `offset` past the end names the valid range; a filter the backend cannot satisfy says so; otherwise the message names the filters that vendor *can* serve, never the one just used.
+**Empty results** explain themselves through `notice`, in terms of the call that produced them: an `offset` past the end names the valid range; a `since` that left every match out says how many and suggests an earlier date; a filter the backend cannot satisfy says so; otherwise the message names only the filters that can return more than the one just used. `all` is offered only when another disjoint filter is — on a backend with no resolved history and no maintenance feed (`azure`), an empty `active` says the vendor lists no open incidents and suggests no retry.
 
 **Errors:**
 ```ts
@@ -434,6 +527,12 @@ errors: [
     recovery: 'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
   },
   {
+    reason: 'invalid_since',
+    code: JsonRpcErrorCode.ValidationError,
+    when: 'since was passed with filter "active" or "scheduled", or is more than 24 months back.',
+    recovery: 'Pass since as a YYYY-MM-DD date within the last 24 months, with filter "all" or "resolved".',
+  },
+  {
     reason: 'statuspage_unavailable',
     code: JsonRpcErrorCode.ServiceUnavailable,
     when: "The vendor's status API returned an error or timed out.",
@@ -443,20 +542,23 @@ errors: [
 ]
 ```
 
+A history-archive failure is never `statuspage_unavailable`: it becomes a `notice` on the v2 result.
+
 **Annotations:** `readOnlyHint: true`, `openWorldHint: true`, `idempotentHint: true`
 
 #### Backend history capabilities
 
-Normalizing six backends to the Statuspage shapes hides what each feed can actually serve. `backendHistory()` in `status-dispatch.ts` states it, exhaustively over `api_type` so a new backend cannot be added without answering all three questions:
+Normalizing seven backends to the Statuspage shapes hides what each feed can actually serve. `backendHistory()` in `status-dispatch.ts` states it, exhaustively over `api_type` so a new backend cannot be added without answering all four questions:
 
-| Backend | Incident ceiling | Resolved history | Maintenance windows |
-|:---|:---|:---|:---|
-| Statuspage | 50 per fetch, `?page=` ignored | full (within the ceiling) | yes |
-| Slack | 50 per fetch, `?page=` ignored | full (within the ceiling) | none — empty with no network call |
-| AWS Health | unbounded (open events only) | none — no lifecycle field, every event maps to `investigating` | none — empty with no network call |
-| Google Cloud | no record cap; query parameters ignored — a rolling recent window bounded by age, not by a count | full — resolution comes from each incident's `end` | none — empty with no network call |
-| Status.io | unbounded (current incidents only) | current only — resolved incidents drop off the feed | yes |
-| FireHydrant | unbounded — the payload carries the whole history | full | yes |
+| Backend | Incident ceiling | Resolved history | Maintenance windows | History archive (`historyPages`) |
+|:---|:---|:---|:---|:---|
+| Statuspage | 50 per fetch, `?page=` ignored | full (within the ceiling) | yes | yes — read with `since`; per-host availability is disclosed per call |
+| Slack | 50 per fetch, `?page=` ignored | full (within the ceiling) | none — empty with no network call | no |
+| AWS Health | unbounded (current events only) | current only — a resolved event (status `0`, summary prefixed `[RESOLVED]`) stays listed for hours, then drops off | none — empty with no network call | no |
+| Google Cloud | no record cap; query parameters ignored — a rolling recent window bounded by age, not by a count | full — resolution comes from each incident's `end` | none — empty with no network call | no |
+| Azure | unbounded (posted items only) | none — no lifecycle field, every item maps to `investigating` and leaves the feed when resolved | none — empty with no network call | no |
+| Status.io | unbounded (current incidents only) | current only — resolved incidents drop off the feed | yes | no |
+| FireHydrant | unbounded — the payload carries the whole history | full | yes | no |
 
 ---
 
@@ -760,7 +862,7 @@ z.object({
 
 | Service | Wraps | Used By |
 |:--------|:------|:--------|
-| `statuspage-service` | Atlassian Statuspage public API (`/api/v2/status.json`, `/components.json`, `/incidents.json`, `/scheduled-maintenances.json`, `/summary.json`). In-memory cache (60s TTL keyed by URL). `fetchWithTimeout` + retry via `/utils`. | `devops_status_check`, `devops_get_incidents`, `devops_watch_stack` |
+| `statuspage-service` | Atlassian Statuspage public API (`/api/v2/status.json`, `/components.json`, `/incidents.json`, `/scheduled-maintenances.json`, `/summary.json`) and the page's `/history.json?page=N` archive. In-memory cache (60s TTL keyed by URL). `fetchWithTimeout` + retry via `/utils`. `incident-history.ts` beside it walks the archive back to a date and resolves its timestamps to UTC. | `devops_status_check`, `devops_get_incidents`, `devops_watch_stack` |
 | `vendor-registry-service` | In-memory registry loaded from `src/data/vendor-registry.ts` at startup. Resolves vendor slugs → Statuspage URLs. Provides category listing and slug→name lookup. | all status tools, `devops_list_vendors`, `devops_suggest_action` |
 | `cert-service` | `node:tls` — direct TLS handshake, no external API. Parses X.509 fields from `tls.DetailedPeerCertificate`. | `devops_check_certs` |
 | `dns-service` | `node:dns` `Resolver` class — one instance per resolver IP, fanout across record types. | `devops_check_dns` |
@@ -786,7 +888,7 @@ No API keys. No vendor credentials.
 
 ## Implementation Order
 
-1. **Vendor registry data file** — `src/data/vendor-registry.ts` with the 26-entry starter list and the `VendorEntry` / `VendorCategory` types. Independently verifiable.
+1. **Vendor registry data file** — `src/data/vendor-registry.ts` with the curated vendor list and the `VendorEntry` / `VendorCategory` types. Independently verifiable.
 2. **vendor-registry-service** — init/accessor pattern, slug normalization, URL validation for raw inputs.
 3. **`devops_list_vendors`** — first tool, validates the registry shape and slug resolution.
 4. **statuspage-service** — `fetchSummary()`, `fetchIncidents()`, `fetchScheduledMaintenances()`. Cache layer. Verified against live GitHub and Netlify endpoints.
@@ -813,7 +915,7 @@ The vendor registry is curated and finite. Any tool that requires a slug forces 
 
 ### Why not auto-detect whether a vendor uses Statuspage?
 
-The alternative is: probe the URL, detect Statuspage by content type or page shape, fall back to bespoke parsing. This is unreliable (non-Statuspage pages can have similar paths), slower (extra round trip), and unpredictable for users. The registry is the known-good set; raw URL passthrough is the explicit escape hatch. Bespoke vendor parsing (GCP, Azure Health Dashboard) is a future addition.
+The alternative is: probe the URL, detect Statuspage by content type or page shape, fall back to bespoke parsing. This is unreliable (non-Statuspage pages can have similar paths), slower (extra round trip), and unpredictable for users. The registry is the known-good set; raw URL passthrough is the explicit escape hatch. Vendors on other backends (AWS, Google Cloud, Azure, Status.io, Slack, FireHydrant) are reached through registry entries whose `api_type` selects a native adapter, never by detection.
 
 ### Why `devops_watch_stack` rather than a polling/subscription model?
 
@@ -851,9 +953,22 @@ The cap above covers `all_components`, which is mostly operational rows. `degrad
 
 `under_maintenance` stays inside the array: it is a non-operational state, and removing it would change the output contract and hide in-progress windows from anyone reading only that field. It is a planned window rather than a fault, though, so it renders in its own group, marked as such and ordered last behind the real outages.
 
-### Why the upstream history cap is disclosed rather than paged around
+### Why the upstream history cap is disclosed, and reached past only on request
 
-Atlassian's `/api/v2/incidents.json` returns at most 50 records and ignores `?page=`, and Slack's `/api/v2.0.0/history` behaves identically. The tool used to present a full 50-record window as complete history, so a caller doing postmortem work could not tell a vendor whose incidents genuinely stop there from one whose older incidents were simply out of reach. Reaching further means a second, undocumented surface with its own shape and failure modes; that is a separate change, and pretending it exists is worse than naming the ceiling. So the fix is disclosure: `upstreamCeiling` and a `notice` state the cap when it was hit and point at the vendor status page, which is where the omitted incidents actually live. The tool never claims history it did not fetch.
+Atlassian's `/api/v2/incidents.json` returns at most 50 records and ignores `?page=`, and Slack's `/api/v2.0.0/history` behaves identically. On a busy Statuspage page 50 records is about a week. The tool used to present a full 50-record window as complete history, so a caller doing postmortem work could not tell a vendor whose incidents genuinely stop there from one whose older incidents were out of reach. `upstreamCeiling` and a `notice` state the cap whenever it binds. The tool never claims history it did not fetch.
+
+The only surface past the cap is the page's own `/history.json?page=N` archive, and reading it is opt-in through `since`. The decisions behind that path:
+
+- **A date floor, not a boolean or a page count.** A page past the end returns 200 with empty months, so there is no end signal: a boolean needs a hidden page cap, and a page count exposes quarter paging (page 1 is a partial quarter) as a caller concept. A floor maps to the question asked ("since last October"), fixes the page count, and gives `offset` a stable merged list. The 24-month bound keeps a call to at most ten pages (nine quarters, plus one when the page's zone puts the floor's quarter start after UTC midnight) — about 5 MB upstream on the heaviest registry page — and the walk enforces a page count derived from the floor, so a raw URL whose archive claims a future quarter cannot extend it.
+- **Only with `all` or `resolved`.** `active` needs lifecycle stages the archive lacks, and `scheduled` is a forward-looking list that a creation-date floor would cut.
+- **Floored on start (`scheduled_for`, else `created_at`) at 00:00 UTC.** A maintenance created before the floor but scheduled after it stays in range.
+- **The v2 record wins, keyed on `code` across both v2 lists.** The archive carries records inside v2's own time range that neither list returns (mostly past maintenance), so a time boundary cannot dedupe; the join key can. History is read whenever `since` is set, even when v2 already reaches the floor, so the result does not depend on whether the ceiling was hit.
+- **`source` on every incident.** A history record carries less (no components, no timeline), and a consumer needs to know which shape it is holding. It costs about 30 bytes a record.
+- **`unknown`, not an inferred status.** A record with no end may be open, in progress, or a cancelled maintenance; the archive does not say which.
+- **Per-instant offsets, not the zone label.** The label names only the span's end, so a span straddling a DST change would be an hour off on one side. Each end is converted with the offset its own instant had in the v2 `page.time_zone`.
+- **Failure never degrades the v2 path.** A 404, a transport or shape failure, an unreadable timestamp, a page that does not step back exactly one quarter, more pages than the floor needs, or (under `resolved`) a failed read of the maintenance list the records are matched against ends the walk and returns the v2 result plus a `notice` naming how far history reached. Records from pages read before the failure stay; the failing page contributes nothing. The quarter-step check is what keeps a redirect that drops `?page=` from presenting page 1 as an older quarter.
+- **`historyPages` is a backend-family capability.** Availability is per host (seven registry Statuspage hosts 404), so a static per-backend flag would misstate those pages; each call discloses what it found.
+- **Not taken:** hydrating each record through `/api/v2/incidents/{id}.json`. It returns full fidelity even for 2016 codes, but it is equally undocumented and costs one request per record.
 
 ### Why empty-result guidance is enrichment, not output
 
@@ -907,6 +1022,16 @@ Only a Statuspage page reaches this state. The native adapters synthesize an ind
 
 `status_impact` has two observed values, `SERVICE_DISRUPTION` and `SERVICE_INFORMATION`, and the second reads at first like Google's maintenance analog. It is not. The live `SERVICE_INFORMATION` record is a root-caused report of elevated Vertex Gemini API error rates with a remediation section — a past disruption of low impact, not planned work. Routing it to `scheduled_maintenances` would coerce its impact to `maintenance` and its status to `scheduled`/`in_progress`, relabelling a real incident as a planned window and hiding it from `filter: "resolved"`. Google Cloud publishes no maintenance feed of any kind, so `scheduled_maintenances` is always empty for this backend and `backendHistory()` declares `scheduledMaintenance: false`; `devops_get_incidents` says so when `filter: "scheduled"` comes back empty. Severity, not `status_impact`, carries the impact signal.
 
+### Why every Azure item is a fixed `minor`, with no summary components
+
+The Azure feed carries no severity, lifecycle, or resolution field. Reading severity out of the description prose would be a guess dressed as data, so nothing is read from it: each listed item is impact `minor` and status `investigating`, and the indicator is `minor` while any item is listed and `none` otherwise. `minor` is a floor, not an estimate — Microsoft posts to this feed only for service issues with broad impact or ones its targeted notifications cannot reach, so a listed item is at least a degradation, the same floor every other adapter applies to an event of unknown severity. Because nothing ever reads `resolved`, `backendHistory('azure')` declares `resolved: 'none'`; `current` would offer `filter: "resolved"` as an alternative that can never return anything.
+
+The categories stay on the item's single update as `affected_components`, verbatim and undifferentiated, and the summary carries no components. One item's categories mix services and regions and have run to 41 regions plus a service; as summary components they would fill `degraded_components` and the `devops_suggest_action` suggestion's `affected_components` with every region as if each were a separately degraded component. This matches the Slack adapter, which likewise has no component table and attaches services to the latest update.
+
+### Why a resolved AWS event is history, not current health
+
+The AWS Health feed keeps an event listed for hours after it resolves, with event `status` `"0"` and a summary prefixed `[RESOLVED]`. In the archived captures every status-`0` event carries that prefix and no prefixed event carries another status, so `"0"` is read as resolution, not as an informational severity. Such an event maps to a resolved incident — `resolved_at` from its newest `event_log` entry, impact the highest its `event_log` reached — and stays out of the summary's components, incidents, indicator, and open-event count, so `devops_status_check` never reports a finished event as a degraded component or feeds it into a `devops_suggest_action` suggestion. Because resolved events are served only while listed, `backendHistory('aws')` declares `resolved: 'current'`.
+
 ### Instruction tool vs. LLM sampling
 
 `devops_suggest_action` could use `ctx.sample` to ask the client's LLM for dynamic guidance. The risk: non-deterministic output, client dependency, potential latency. The value proposition of this tool is predictable, category-specific playbooks — "Cloudflare CDN is down, here are the known mitigation patterns." Static playbook dispatch by vendor category is deterministic, fast, and works in all clients. If `ctx.sample` is present and the vendor/incident is complex, the handler can optionally enrich the response — but the base path is always static.
@@ -919,8 +1044,9 @@ Statuspage APIs are designed for polling (vendors use them for their own dashboa
 
 ## Known Limitations
 
-- **Non-Statuspage vendors:** Many major vendors do NOT use Atlassian Statuspage. AWS (health.aws.amazon.com), Google Cloud (status.cloud.google.com), GitLab and Neon (Status.io), Slack (own status API), and Redis Cloud (FireHydrant) are served by native adapters in `src/services/status-adapters/`. Azure (status.azure.com, RSS/XML), Hetzner (status.hetzner.com), Railway (custom), Fastly (access-restricted), PagerDuty (custom endpoint), Okta (auth-gated), Docker Hub (custom), and CockroachDB (unreachable) have no adapter and are excluded from the built-in registry. Users can attempt raw URL passthrough for any that may use Statuspage under a different subdomain, but the server makes no guarantees.
-- **Upstream history ceilings:** Atlassian Statuspage and Slack both serve at most 50 incident records per fetch with no working pagination parameter, so `devops_get_incidents` cannot reach older incidents for those backends at any `offset`. It discloses the ceiling (`upstreamCeiling` + `notice`) when a call hits it rather than presenting the window as complete history; older incidents remain on the vendor's own status page. AWS Health, Status.io, and FireHydrant have no such ceiling — see the backend history table under `devops_get_incidents`. Google Cloud has no record ceiling either, but its feed is a rolling recent window: older incidents fall out of it by age, which no per-call count reveals, so nothing is disclosed and they remain reachable only on the dashboard.
+- **Non-Statuspage vendors:** Many major vendors do NOT use Atlassian Statuspage. AWS (health.aws.amazon.com), Google Cloud (status.cloud.google.com), Azure (azure.status.microsoft, RSS), GitLab and Neon (Status.io), Slack (own status API), and Redis Cloud (FireHydrant) are served by native adapters in `src/services/status-adapters/`. Hetzner (status.hetzner.com), Railway (custom), Fastly (access-restricted), PagerDuty (custom endpoint), Okta (auth-gated), Docker Hub (custom), and CockroachDB (unreachable) have no adapter and are excluded from the built-in registry. Users can attempt raw URL passthrough for any that may use Statuspage under a different subdomain, but the server makes no guarantees.
+- **Upstream history ceilings:** Atlassian Statuspage and Slack both serve at most 50 incident records per fetch with no working pagination parameter, so `devops_get_incidents` cannot reach older incidents for those backends at any `offset`. It discloses the ceiling (`upstreamCeiling` + `notice`) when a call hits it rather than presenting the window as complete history. On Statuspage, `since` reads the page's history archive back up to 24 months; the archive is undocumented, is not served by every page, and its records are thinner than v2 (no components or update timeline, minute-precision times). Slack has no archive, so its older incidents remain on its own status page. AWS Health, Azure, Status.io, and FireHydrant have no such ceiling — see the backend history table under `devops_get_incidents`. Google Cloud has no record ceiling either, but its feed is a rolling recent window: older incidents fall out of it by age, which no per-call count reveals, so nothing is disclosed and they remain reachable only on the dashboard.
+- **Azure status carries no severity or lifecycle:** every listed Azure item reads as an open `minor` incident, whatever its prose says, and its resolved history is not retrievable — a resolved item leaves the feed. The feed is empty whenever nothing is posted, so the adapter's mapping could only be verified against archived captures, not a live populated feed.
 - **Vendor self-reporting:** Statuspage data is vendor-published. Vendors may lag incident acknowledgment. `devops_check_certs` and `devops_check_dns` provide ground-truth checks that complement self-reported status.
 - **TLS inspection from server host:** `devops_check_certs` connects from wherever the MCP server runs. If the server is hosted, cert checks reflect connectivity from that host — a cert served correctly to the host may still be broken in a specific region. For complete coverage, run the server locally.
 - **DNS propagation scope:** `devops_check_dns` queries three public resolvers. Propagation completeness across all global resolvers requires a larger resolver set or a dedicated propagation service.

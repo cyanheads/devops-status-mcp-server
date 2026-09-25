@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.8.3-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.0.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.9.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.0.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.0-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -29,7 +29,7 @@
 
 ## Overview
 
-Vendor status pages, SSL/TLS certificates, and DNS propagation — normalized across Atlassian Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, and Firehydrant backends, plus direct TLS/DNS checks for any domain. List and check 51 built-in vendors, fetch incident timelines, watch a persisted stack, and get a tailored incident-response playbook, all without API keys. Runs as a stdio process, a local Streamable HTTP server, or the public hosted endpoint above.
+Vendor status pages, SSL/TLS certificates, and DNS propagation — normalized across Atlassian Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, and Firehydrant backends, plus direct TLS/DNS checks for any domain. List and check 52 built-in vendors, fetch incident timelines, watch a persisted stack, and get a tailored incident-response playbook, all without API keys. Runs as a stdio process, a local Streamable HTTP server, or the public hosted endpoint above.
 
 ### Tools
 
@@ -59,15 +59,15 @@ All resource data is also reachable via tools. Tool-only agents are fully suppor
 
 - Accepts an optional free-text `query` (matches name and slug, case-insensitive) and an optional `category` filter — eight categories: `cloud`, `cdn-edge`, `dev-platform`, `data`, `comms`, `auth`, `monitoring`, `ai`
 - Returns slug (what to pass to other tools), display name, category, and status page URL
-- 51 built-in entries, most on Atlassian Statuspage; `aws`, `gcp`, `gitlab`, `neon`, `slack`, and `redis-cloud` route through native-API adapters normalized to the same shape
-- Azure is excluded — its status feed is RSS with no severity/lifecycle field, so the normalized shape can't be filled without inventing values
+- 52 built-in entries, most on Atlassian Statuspage; `aws`, `gcp`, `azure`, `gitlab`, `neon`, `slack`, and `redis-cloud` route through native-API adapters normalized to the same shape
+- `azure` reads Microsoft's Azure status RSS feed, which carries no severity or lifecycle: each posted item is an open `minor` incident with its services and regions as affected components, and the feed is empty while nothing is posted
 - Statuspage-compatible pages not in the registry are still reachable by passing a raw base URL to other tools
 
 Built-in vendor registry:
 
 | Category | Vendors |
 |:---------|:--------|
-| `cloud` | digitalocean, linode, aws, gcp |
+| `cloud` | digitalocean, linode, aws, gcp, azure |
 | `cdn-edge` | cloudflare, akamai |
 | `dev-platform` | gitlab, github, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, figma, launchdarkly |
 | `data` | mongodb-atlas, planetscale, supabase, neon, redis-cloud, elastic, influxdb, upstash, cloudinary, segment |
@@ -94,8 +94,11 @@ Built-in vendor registry:
 - `filter`: `all` (default, incidents + scheduled maintenances), `active` (investigating/identified/monitoring), `resolved` (fully resolved), or `scheduled` (maintenance windows only)
 - Returns per-update bodies in chronological order, affected component names, duration in minutes for resolved incidents, and a direct shortlink to the incident page
 - `limit` (1–50) with `offset` for paging; a truncated result discloses the total and the next `offset` to fetch
-- Some vendor feeds cap their own history (`upstreamCeiling`) — incidents older than that ceiling are reachable only on the vendor's own status page
-- AWS exposes only currently-open events — `filter: "resolved"` and `filter: "scheduled"` are always empty for it
+- Some vendor feeds cap their own history (`upstreamCeiling`). Atlassian Statuspage's API stops at the newest 50 incidents, which on a busy page is about a week
+- `since` (`YYYY-MM-DD`, up to 24 months back, with `filter: "all"` or `"resolved"`) leaves out incidents that started before that date. On Statuspage vendors it also reads the status page's quarterly history archive back to that date, reaching past the 50-record ceiling
+- Every incident carries `source`: `api` for the status API, or `history` for an archive record, which has the title, impact, start and end times, and final update message but no components or update timeline. When a record is in both, the API version is kept
+- If the archive can't be read (the page doesn't publish one, it times out, or it comes back in an unexpected shape), the call still returns the status API result, with a `notice` saying how far history reached
+- AWS keeps a resolved event listed for hours after it ends, so `filter: "resolved"` returns only those still listed; Azure's feed lists open items only, so `filter: "resolved"` is always empty for it; AWS, Azure, Google Cloud, and Slack publish no maintenance windows, so `filter: "scheduled"` is always empty for them
 
 ---
 
@@ -144,7 +147,7 @@ Built-in vendor registry:
 
 ### `devops-status://vendors/{name}` <sub>resource</sub>
 
-- Returns the full registry entry for a vendor slug — status page URL, category, and API type (`statuspage`, `statusio`, `slack`, `aws`, `gcp`, `firehydrant`)
+- Returns the full registry entry for a vendor slug — status page URL, category, and API type (`statuspage`, `statusio`, `slack`, `aws`, `gcp`, `azure`, `firehydrant`)
 - Cached publicly for 1 hour — the registry is compiled in and identical for every caller
 - Same data is reachable via `devops_list_vendors` — tool-only agents are fully supported
 
@@ -157,7 +160,7 @@ Built on [`@cyanheads/mcp-ts-core`](https://github.com/cyanheads/mcp-ts-core): s
 DevOps-status-specific:
 
 - **No API keys required** — every status backend is a public API; TLS and DNS use Node.js stdlib (`node:tls`, `node:dns`)
-- 51-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; adapter layer normalizes Status.io, Slack, AWS Health, Google Cloud Service Health, and Firehydrant backends into the Statuspage shapes; extendable via raw Statuspage URL passthrough
+- 52-vendor built-in registry covering cloud, CDN, dev-platform, data, comms, auth, monitoring, and AI categories; adapter layer normalizes Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, and Firehydrant backends into the Statuspage shapes; extendable via raw Statuspage URL passthrough
 - 60-second in-memory cache on status reads shared across all tenants — prevents thundering-herd on batch calls
 - `devops_watch_stack` persists named vendor lists in tenant-scoped state for repeat morning checks or pre-deploy sweeps
 - `devops_suggest_action` dispatches category-specific playbooks deterministically — no LLM sampling dependency, works in all clients
@@ -352,7 +355,7 @@ The Dockerfile defaults to HTTP transport, stateless session mode, and logs to `
 | `src/services/cert/` | `node:tls` — TLS handshake, X.509 parsing, expiry and protocol flagging. |
 | `src/services/dns/` | `node:dns` — multi-resolver DNS fan-out, propagation discrepancy detection. |
 | `src/services/statuspage/` | Statuspage public API client with 60-second in-memory cache. |
-| `src/services/status-adapters/` | Native-API adapters (Status.io, Slack, AWS Health, Google Cloud Service Health, Firehydrant) + `api_type` dispatch, normalizing into the Statuspage shapes. |
+| `src/services/status-adapters/` | Native-API adapters (Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Firehydrant) + `api_type` dispatch, normalizing into the Statuspage shapes. |
 | `src/services/vendor-registry/` | In-memory vendor registry loaded from `src/data/vendor-registry.ts`. |
 | `src/data/` | Static vendor registry data file (`vendor-registry.ts`). |
 | `tests/` | Vitest tests mirroring `src/`. |

@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-09-20 14:18:24
+Generated on: 2026-09-25 08:40:11
 
 ```text
 devops-status-mcp-server/
@@ -32,6 +32,7 @@ devops-status-mcp-server/
 │   ├── 0.6.x/
 │   ├── 0.7.x/
 │   ├── 0.8.x/
+│   ├── 0.9.x/
 │   └── template.md
 ├── docs/
 │   ├── design.md
@@ -170,12 +171,14 @@ devops-status-mcp-server/
 │   │   │   └── dns-service.ts
 │   │   ├── status-adapters/
 │   │   │   ├── aws-adapter.ts
+│   │   │   ├── azure-adapter.ts
 │   │   │   ├── firehydrant-adapter.ts
 │   │   │   ├── gcp-adapter.ts
 │   │   │   ├── slack-adapter.ts
 │   │   │   ├── status-dispatch.ts
 │   │   │   └── statusio-adapter.ts
 │   │   ├── statuspage/
+│   │   │   ├── incident-history.ts
 │   │   │   ├── statuspage-service.ts
 │   │   │   └── types.ts
 │   │   └── vendor-registry/
@@ -212,6 +215,11 @@ devops-status-mcp-server/
 │   │   ├── status-adapters/
 │   │   │   ├── fixtures/
 │   │   │   │   ├── aws-currentevents.utf16be.bin
+│   │   │   │   ├── azure-feed-20220907.xml
+│   │   │   │   ├── azure-feed-20240721.xml
+│   │   │   │   ├── azure-feed-20251029.xml
+│   │   │   │   ├── azure-feed-20260723.xml
+│   │   │   │   ├── azure-feed-empty.xml
 │   │   │   │   ├── firehydrant-redis.json
 │   │   │   │   ├── gcp-incidents.json
 │   │   │   │   ├── slack-current.json
@@ -219,12 +227,29 @@ devops-status-mcp-server/
 │   │   │   │   ├── statusio-gitlab.json
 │   │   │   │   └── statusio-incident-doc-derived.json
 │   │   │   ├── aws-adapter.test.ts
+│   │   │   ├── azure-adapter.test.ts
 │   │   │   ├── firehydrant-adapter.test.ts
 │   │   │   ├── gcp-adapter.test.ts
 │   │   │   ├── slack-adapter.test.ts
 │   │   │   ├── status-dispatch.test.ts
 │   │   │   └── statusio-adapter.test.ts
 │   │   ├── statuspage/
+│   │   │   ├── fixtures/
+│   │   │   │   ├── cloudflare-incidents.json
+│   │   │   │   ├── github-history-p1.json
+│   │   │   │   ├── github-history-p2.json
+│   │   │   │   ├── github-history-p3.json
+│   │   │   │   ├── github-history-p4.json
+│   │   │   │   ├── github-history-p5.json
+│   │   │   │   ├── github-incidents.json
+│   │   │   │   ├── github-scheduled-maintenances.json
+│   │   │   │   ├── twilio-history-p1.json
+│   │   │   │   ├── twilio-history-p2.json
+│   │   │   │   ├── twilio-history-p3.json
+│   │   │   │   ├── twilio-history-p4.json
+│   │   │   │   ├── twilio-incidents.json
+│   │   │   │   └── twilio-scheduled-maintenances.json
+│   │   │   ├── incident-history.test.ts
 │   │   │   └── statuspage-service.test.ts
 │   │   └── vendor-registry/
 │   │       └── vendor-registry-service.test.ts

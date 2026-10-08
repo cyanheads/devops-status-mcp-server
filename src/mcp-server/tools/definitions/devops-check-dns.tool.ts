@@ -207,7 +207,6 @@ export const devopsCheckDns = tool('devops_check_dns', {
         throw ctx.fail(
           'invalid_domain',
           `Domain "${domain}" must not include a protocol prefix. Pass the bare hostname.`,
-          { ...ctx.recoveryFor('invalid_domain') },
         );
       }
     }
@@ -227,7 +226,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
       // mirroring devops_status_check's raw-URL guard handling.
       const blocked = ssrfRejectionMessage(err);
       if (blocked === null) throw err;
-      throw ctx.fail('target_blocked', blocked, { ...ctx.recoveryFor('target_blocked') });
+      throw ctx.fail('target_blocked', blocked);
     }
 
     ctx.log.info('DNS check completed', {

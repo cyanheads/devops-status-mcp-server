@@ -425,12 +425,16 @@ describe('devopsStatusCheck', () => {
   });
 
   it('throws vendor_not_found when the only vendor is unknown — nothing to return', async () => {
-    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
-    const input = devopsStatusCheck.input.parse({ vendors: ['totally-unknown-slug-xyz'] });
-    await expect(devopsStatusCheck.handler(input, ctx)).rejects.toMatchObject({
-      data: {
-        reason: 'vendor_not_found',
-        recovery: { hint: expect.stringContaining('devops_list_vendors') },
+    const result = await runToolContract(devopsStatusCheck, {
+      vendors: ['totally-unknown-slug-xyz'],
+    });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        data: {
+          reason: 'vendor_not_found',
+          recovery: { hint: expect.stringContaining('devops_list_vendors') },
+        },
       },
     });
   });

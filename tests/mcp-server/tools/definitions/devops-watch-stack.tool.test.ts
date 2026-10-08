@@ -4,7 +4,7 @@
  */
 
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
-import { createMockContext, getEnrichment } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, getEnrichment, runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
 import { devopsWatchStack } from '@/mcp-server/tools/definitions/devops-watch-stack.tool.js';
@@ -151,12 +151,18 @@ describe('devopsWatchStack', () => {
   });
 
   it('throws no_stack when no vendors provided and no saved stack', async () => {
-    const ctx = createMockContext({ tenantId: 'test-tenant', errors: devopsWatchStack.errors });
-    const input = devopsWatchStack.input.parse({ stack_name: 'empty-stack-xyz' });
-    await expect(devopsWatchStack.handler(input, ctx)).rejects.toMatchObject({
-      data: {
-        reason: 'no_stack',
-        recovery: { hint: expect.stringContaining('Provide a vendors list') },
+    const result = await runToolContract(
+      devopsWatchStack,
+      { stack_name: 'empty-stack-xyz' },
+      { context: { tenantId: 'test-tenant' } },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        data: {
+          reason: 'no_stack',
+          recovery: { hint: expect.stringContaining('Provide a vendors list') },
+        },
       },
     });
   });
@@ -181,15 +187,18 @@ describe('devopsWatchStack', () => {
   });
 
   it('throws vendor_not_found when no vendor in the stack is checkable', async () => {
-    const ctx = createMockContext({ tenantId: 'test-tenant', errors: devopsWatchStack.errors });
-    const input = devopsWatchStack.input.parse({
-      vendors: ['unknown-xyz-999'],
-      stack_name: 'err-stack',
-    });
-    await expect(devopsWatchStack.handler(input, ctx)).rejects.toMatchObject({
-      data: {
-        reason: 'vendor_not_found',
-        recovery: { hint: expect.stringContaining('devops_list_vendors') },
+    const result = await runToolContract(
+      devopsWatchStack,
+      { vendors: ['unknown-xyz-999'], stack_name: 'err-stack' },
+      { context: { tenantId: 'test-tenant' } },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        data: {
+          reason: 'vendor_not_found',
+          recovery: { hint: expect.stringContaining('devops_list_vendors') },
+        },
       },
     });
   });

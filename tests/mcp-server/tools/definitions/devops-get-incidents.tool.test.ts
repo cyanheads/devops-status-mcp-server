@@ -222,12 +222,17 @@ describe('devopsGetIncidents', () => {
   });
 
   it('throws vendor_not_found for unknown slug', async () => {
-    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
-    const input = devopsGetIncidents.input.parse({ vendor: 'unknown-xyz', filter: 'all' });
-    await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
-      data: {
-        reason: 'vendor_not_found',
-        recovery: { hint: expect.stringContaining('devops_list_vendors') },
+    const result = await runToolContract(devopsGetIncidents, {
+      vendor: 'unknown-xyz',
+      filter: 'all',
+    });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        data: {
+          reason: 'vendor_not_found',
+          recovery: { hint: expect.stringContaining('devops_list_vendors') },
+        },
       },
     });
   });
@@ -240,17 +245,19 @@ describe('devopsGetIncidents', () => {
       ),
     );
 
-    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
-    const input = devopsGetIncidents.input.parse({
+    const result = await runToolContract(devopsGetIncidents, {
       vendor: 'http://169.254.169.254',
       filter: 'all',
     });
-    await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
-      message:
-        'URL "http://169.254.169.254" resolves to 169.254.169.254 (link-local / cloud-metadata).',
-      data: {
-        reason: 'target_blocked',
-        recovery: { hint: expect.stringContaining('DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS') },
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        message:
+          'URL "http://169.254.169.254" resolves to 169.254.169.254 (link-local / cloud-metadata).',
+        data: {
+          reason: 'target_blocked',
+          recovery: { hint: expect.stringContaining('DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS') },
+        },
       },
     });
   });
@@ -2086,24 +2093,26 @@ describe('devopsGetIncidents', () => {
     });
 
     describe('since validation', () => {
-      it.each(['active', 'scheduled'])(
+      it.each(['active', 'scheduled'] as const)(
         'rejects since with filter %s before any request',
         async (filter) => {
-          const ctx = createMockContext({ errors: devopsGetIncidents.errors });
-          const err = await Promise.resolve(
-            devopsGetIncidents.handler(
-              devopsGetIncidents.input.parse({ vendor: 'github', filter, since: '2026-01-01' }),
-              ctx,
-            ),
-          ).catch((e: unknown) => e);
-
-          expect(err).toBeInstanceOf(McpError);
-          expect((err as McpError).code).toBe(JsonRpcErrorCode.ValidationError);
-          expect((err as McpError).data).toMatchObject({
-            reason: 'invalid_since',
-            recovery: { hint: expect.stringContaining('24 months') },
+          const result = await runToolContract(devopsGetIncidents, {
+            vendor: 'github',
+            filter,
+            since: '2026-01-01',
           });
-          expect((err as McpError).message).toContain(`"${filter}"`);
+
+          expect(result.isError).toBe(true);
+          expect(result.structuredContent).toMatchObject({
+            error: {
+              code: JsonRpcErrorCode.ValidationError,
+              message: expect.stringContaining(`"${filter}"`),
+              data: {
+                reason: 'invalid_since',
+                recovery: { hint: expect.stringContaining('24 months') },
+              },
+            },
+          });
           expect(http.calls).toHaveLength(0);
         },
       );

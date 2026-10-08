@@ -3,7 +3,7 @@
  * @module tests/mcp-server/tools/definitions/devops-check-certs.tool.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { devopsCheckCerts } from '@/mcp-server/tools/definitions/devops-check-certs.tool.js';
 import type { CertResult } from '@/services/cert/cert-service.js';
@@ -186,14 +186,17 @@ describe('devopsCheckCerts', () => {
   });
 
   it('throws invalid_domain for protocol-prefixed input', async () => {
-    const ctx = createMockContext({ errors: devopsCheckCerts.errors });
     // Full end-to-end parse: the relaxed schema now admits this string, so the handler's
-    // PROTOCOL_RE check is what rejects it — no Zod bypass required.
-    const input = devopsCheckCerts.input.parse({ domains: ['https://example.com'] });
-    await expect(devopsCheckCerts.handler(input, ctx)).rejects.toMatchObject({
-      data: {
-        reason: 'invalid_domain',
-        recovery: { hint: expect.stringContaining('bare hostname') },
+    // PROTOCOL_RE check is what rejects it — no Zod bypass required. runToolContract
+    // applies the framework's recovery fill, so the envelope carries the declared hint.
+    const result = await runToolContract(devopsCheckCerts, { domains: ['https://example.com'] });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        data: {
+          reason: 'invalid_domain',
+          recovery: { hint: expect.stringContaining('bare hostname') },
+        },
       },
     });
   });

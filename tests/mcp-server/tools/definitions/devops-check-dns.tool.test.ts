@@ -3,7 +3,7 @@
  * @module tests/mcp-server/tools/definitions/devops-check-dns.tool.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { devopsCheckDns } from '@/mcp-server/tools/definitions/devops-check-dns.tool.js';
 import type { DnsResult } from '@/services/dns/dns-service.js';
@@ -196,12 +196,16 @@ describe('devopsCheckDns', () => {
   });
 
   it('throws invalid_domain for protocol-prefixed input', async () => {
-    const ctx = createMockContext({ errors: devopsCheckDns.errors });
-    const input = devopsCheckDns.input.parse({ domains: ['https://example.com'] });
-    await expect(devopsCheckDns.handler(input, ctx)).rejects.toMatchObject({
-      data: {
-        reason: 'invalid_domain',
-        recovery: { hint: expect.stringContaining('bare hostname') },
+    // runToolContract applies the framework's recovery fill, so the envelope carries
+    // the declared hint.
+    const result = await runToolContract(devopsCheckDns, { domains: ['https://example.com'] });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        data: {
+          reason: 'invalid_domain',
+          recovery: { hint: expect.stringContaining('bare hostname') },
+        },
       },
     });
   });

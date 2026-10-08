@@ -155,7 +155,6 @@ export const devopsCheckCerts = tool('devops_check_certs', {
         throw ctx.fail(
           'invalid_domain',
           `Domain "${domain}" must not include a protocol prefix. Pass the bare hostname (e.g., "github.com").`,
-          { ...ctx.recoveryFor('invalid_domain') },
         );
       }
     }

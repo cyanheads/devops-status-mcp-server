@@ -159,7 +159,6 @@ export const devopsStatusCheck = tool('devops_status_check', {
       throw ctx.fail(
         first.reason,
         `None of the ${prepared.length} requested vendors could be checked. ${failures.map((f) => f.message).join(' ')}`,
-        { ...ctx.recoveryFor(first.reason) },
       );
     }
 

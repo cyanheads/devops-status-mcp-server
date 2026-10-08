@@ -239,7 +239,6 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         throw ctx.fail(
           'no_stack',
           `No saved stack found for "${input.stack_name}". Provide a vendors list.`,
-          { ...ctx.recoveryFor('no_stack') },
         );
       }
       vendorList = saved;
@@ -255,7 +254,6 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       throw ctx.fail(
         first.reason,
         `No vendor in "${input.stack_name}" could be checked. ${failures.map((f) => f.message).join(' ')}`,
-        { ...ctx.recoveryFor(first.reason) },
       );
     }
 

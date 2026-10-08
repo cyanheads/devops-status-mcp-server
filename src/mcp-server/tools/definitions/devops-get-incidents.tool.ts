@@ -476,7 +476,6 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       throw ctx.fail(
         'vendor_not_found',
         `"${input.vendor}" is not a known vendor slug and is not a valid URL.`,
-        { ...ctx.recoveryFor('vendor_not_found') },
       );
     }
 
@@ -487,7 +486,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       } catch (err) {
         const blocked = ssrfRejectionMessage(err);
         if (blocked === null) throw err;
-        throw ctx.fail('target_blocked', blocked, { ...ctx.recoveryFor('target_blocked') });
+        throw ctx.fail('target_blocked', blocked);
       }
     }
 
@@ -499,7 +498,6 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
         throw ctx.fail(
           'invalid_since',
           `since reads incident history, so it accepts filter "all" or "resolved", not "${input.filter}".`,
-          { ...ctx.recoveryFor('invalid_since') },
         );
       }
       const earliest = earliestSince(new Date());
@@ -507,7 +505,6 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
         throw ctx.fail(
           'invalid_since',
           `since ${since} is more than ${SINCE_MAX_MONTHS} months back; the earliest date accepted today is ${earliest}.`,
-          { ...ctx.recoveryFor('invalid_since') },
         );
       }
     }

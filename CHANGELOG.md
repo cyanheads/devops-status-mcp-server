@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.9.1](changelog/0.9.x/0.9.1.md) — 2026-10-08
+
+Moves to mcp-ts-core 0.13.14: tool error results carry a request ID and keep server internals out of error data, common argument-type mistakes are repaired instead of rejected, and the Docker image installs dependencies on the build platform and gains a health check.
+
 ## [0.9.0](changelog/0.9.x/0.9.0.md) — 2026-09-25
 
 devops_get_incidents takes a since date and reads Statuspage history archives past the 50-incident cap, a new azure vendor reads Microsoft's Azure status feed, and resolved AWS events no longer count as current health.

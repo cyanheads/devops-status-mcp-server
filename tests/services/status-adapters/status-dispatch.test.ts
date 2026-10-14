@@ -70,14 +70,15 @@ beforeEach(() => {
     'fetch',
     vi.fn().mockImplementation((url: string) => {
       const u = String(url);
+      const { hostname } = new URL(u);
       const body =
-        new URL(u).hostname === 'status.dev.azure.com'
+        hostname === 'status.dev.azure.com'
           ? AZURE_DEVOPS_HEALTH_BODY // its _rss feed reads the empty channel below
-          : u.includes('hostedstatus.com')
+          : hostname === 'status-api.hostedstatus.com'
             ? STATUSIO_BODY
             : u.includes('/data/payload.json')
               ? FIREHYDRANT_BODY
-              : u.includes('status.cloud.google.com')
+              : hostname === 'status.cloud.google.com'
                 ? [] // the Google Cloud feed is a bare incident array
                 : u.includes('/api/v2.0.0/history')
                   ? []

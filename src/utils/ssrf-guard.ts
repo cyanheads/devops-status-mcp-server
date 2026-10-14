@@ -190,20 +190,30 @@ function isPrivateIPv6(ip: string): string | null {
 }
 
 /**
- * Strip an optional `:port` suffix, returning the bare address.
+ * Split a resolver target into its address and optional port.
  *
- * `dns.setServers()` accepts `1.2.3.4:53` and `[::1]:53`, so a resolver target
- * can carry a port that has to come off before the address is range-checked —
+ * Resolver targets take the `1.2.3.4`, `1.2.3.4:53`, and `[::1]:53` forms, so a
+ * target can carry a port that has to come off before the address is range-checked —
  * `127.0.0.1:53` otherwise reads as an IPv6 literal and matches no v6 prefix.
  * A bare IPv6 literal cannot carry a port (the colons are ambiguous, which is
  * why the bracket form exists), so anything else with a colon is left intact.
+ * The address is returned as written; it is not validated as an IP literal here.
  */
+export function parseResolverTarget(target: string): { address: string; port?: number } {
+  const bracketed = /^\[([^\]]+)\](?::(\d+))?$/.exec(target);
+  if (bracketed?.[1]) {
+    return bracketed[2] === undefined
+      ? { address: bracketed[1] }
+      : { address: bracketed[1], port: Number(bracketed[2]) };
+  }
+  const ipv4WithPort = /^(\d{1,3}(?:\.\d{1,3}){3}):(\d+)$/.exec(target);
+  if (ipv4WithPort?.[1]) return { address: ipv4WithPort[1], port: Number(ipv4WithPort[2]) };
+  return { address: target };
+}
+
+/** Strip an optional `:port` suffix, returning the bare address. */
 function stripPort(target: string): string {
-  const bracketed = /^\[([^\]]+)\](?::\d+)?$/.exec(target);
-  if (bracketed?.[1]) return bracketed[1];
-  const ipv4WithPort = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(target);
-  if (ipv4WithPort?.[1]) return ipv4WithPort[1];
-  return target;
+  return parseResolverTarget(target).address;
 }
 
 /** Check a single IP string (v4 or v6, with or without a port). Returns the range label if blocked, null if public. */
@@ -324,10 +334,9 @@ export async function assertSafeDomain(domain: string): Promise<void> {
 
 /**
  * Assert that a resolver IP address is not in a private range (direct IP, no DNS involved).
- * Accepts a bare IPv4/IPv6 literal or the `ip:port` / `[ipv6]:port` forms that
- * `dns.setServers()` takes. Anything that is not an IP literal is rejected rather
- * than passed through to `setServers()` unchecked — a hostname there would be
- * resolved by Node with no range check of its own.
+ * Accepts a bare IPv4/IPv6 literal or the `ip:port` / `[ipv6]:port` forms.
+ * Anything that is not an IP literal is rejected rather than resolved — a hostname
+ * would need a lookup whose answer this check never sees.
  * Throws with `SSRF_BLOCKED` prefix if the IP is private or is not a valid literal.
  * No-ops when DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.
  */

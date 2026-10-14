@@ -1,9 +1,11 @@
 /**
  * @fileoverview Tool to resolve DNS records and verify propagation across multiple public resolvers.
- * Pure node:dns — no external APIs.
+ * Queries each resolver directly over the DNS wire protocol (UDP, TCP on truncation) — no
+ * external APIs.
  * @module mcp-server/tools/definitions/devops-check-dns.tool
  */
 
+import { isIP } from 'node:net';
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
@@ -13,10 +15,51 @@ import {
   DNS_QUERY_STATUSES,
   getDnsService,
 } from '@/services/dns/dns-service.js';
-import { ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
+import { normalizeDomainInput } from '@/utils/domain-input.js';
+import { clampMax, deferralNotice, splitBatch, uniqueInOrder } from '@/utils/input-bounds.js';
+import { parseResolverTarget, ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
+import { vendorInline } from '@/utils/vendor-markdown.js';
 
-const PROTOCOL_RE = /^https?:\/\//i;
-const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS'] as const;
+const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'CAA', 'SOA'] as const;
+
+/** Domains queried per call; later entries come back in `deferred_domains`. */
+const DOMAINS_PER_CALL = 10;
+/** Most domain entries one call accepts, queried and deferred together. */
+const DOMAINS_MAX = 100;
+/**
+ * Distinct resolvers queried per call; later ones come back in `deferred_resolvers`. Every
+ * domain is queried at every resolver, so this and the domain cap bound one call's queries.
+ */
+const RESOLVERS_PER_CALL = 5;
+/** Most resolver entries one call accepts, before duplicates are dropped. */
+const RESOLVERS_MAX = 20;
+/** Longest `timeout_ms` honored; a larger value is served at this. */
+const TIMEOUT_MAX_MS = 10_000;
+const DNS_PORT = 53;
+
+/**
+ * The address and port a resolver entry sends to — the identity two entries share when they
+ * name one resolver. Entries are parsed the way the wire client parses them, so "8.8.8.8" and
+ * "8.8.8.8:53" key alike (53 is the default port), as do an IPv6 address with or without
+ * brackets and in compressed or expanded form; the same address on another port stays
+ * distinct. An entry that is not an IP literal keys as written, so the resolver check still
+ * rejects it by name.
+ */
+function resolverKey(resolver: string): string {
+  const { address, port = DNS_PORT } = parseResolverTarget(resolver);
+  const family = isIP(address);
+  if (family === 0) return resolver;
+  return `${family === 6 ? canonicalIPv6(address) : address} ${port}`;
+}
+
+/** An IPv6 literal in its canonical text form; one the URL parser refuses keeps its spelling. */
+function canonicalIPv6(address: string): string {
+  try {
+    return new URL(`http://[${address}]/`).hostname.slice(1, -1);
+  } catch {
+    return address.toLowerCase();
+  }
+}
 
 /**
  * Queried when the field is omitted or sent as an empty array. An empty list would query
@@ -26,9 +69,16 @@ const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS'] as const;
 const DEFAULT_RECORD_TYPES: RecordType[] = ['A', 'AAAA', 'MX', 'TXT'];
 const DEFAULT_RESOLVERS = ['8.8.8.8', '1.1.1.1', '9.9.9.9'];
 
+/**
+ * Record values for one content[] line. TXT and CAA values are whatever the queried domain
+ * publishes, so each is rendered as relayed text — one line, no markup a renderer would act
+ * on. structuredContent keeps them as resolved.
+ */
+const renderValues = (values: string[]) => values.map(vendorInline).join(', ');
+
 export const devopsCheckDns = tool('devops_check_dns', {
   description:
-    'Resolve DNS records for one or more domains across multiple public resolvers and compare what each resolver returned. Works for any domain — no vendor registry required. Reports records found (A/AAAA/CNAME/MX/TXT/NS), resolution latency per resolver, and a typed outcome per resolver and record type so "the domain does not exist" (nxdomain), "the resolver could not answer" (servfail), and "no record of this type" (nodata) stay distinguishable. Resolver disagreements are reported without asserting a cause: partial_resolution (some resolvers answered, others returned nothing) points at a real propagation or resolver problem, while value_variation (every resolver answered with different values) is the normal steady state for anycast and geo-steered domains. Pair with devops_check_certs when a domain resolves but TLS to it is failing.',
+    'Resolve DNS records for one or more domains across multiple public resolvers and compare what each resolver returned. Works for any domain — no vendor registry required. Reports records found (A/AAAA/CNAME/MX/TXT/NS/CAA/SOA), resolution latency per resolver, and a typed outcome per resolver and record type so "the domain does not exist" (nxdomain), "the resolver could not answer" (servfail), and "no record of this type" (nodata) stay distinguishable. Resolver disagreements are reported without asserting a cause: partial_resolution (some resolvers answered, others returned nothing) points at a real propagation or resolver problem, while value_variation (every resolver answered with different values) is the normal steady state for anycast and geo-steered domains. Pair with devops_check_certs when a domain resolves but TLS to it is failing.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -37,16 +87,20 @@ export const devopsCheckDns = tool('devops_check_dns', {
         z
           .string()
           .min(1)
-          .describe('A domain name to query (e.g., "github.com", "api.example.com").'),
+          .describe(
+            'A domain name to query (e.g., "github.com", "_dmarc.example.com"). A URL or a host:port is reduced to its host.',
+          ),
       )
       .min(1)
-      .max(10)
-      .describe('Domain names to query. Up to 10 per call.'),
+      .max(DOMAINS_MAX)
+      .describe(
+        'Domain names to query. The first 10 entries are queried; up to 100 are accepted, and entries past the 10th come back unqueried and verbatim in deferred_domains, to resend in another call. Each entry is read as one name: surrounding whitespace and letter case are ignored, a scheme, port, path, query, or fragment is dropped, and an internationalized name is converted to its ASCII form ("münchen.de" → "xn--mnchen-3ya.de"); a trailing dot and underscore labels are kept. An entry that is not a domain name — an IP address, a user name before "@", a bad port, or a malformed label — gets its own result with "error" set and is never queried; the other entries still run.',
+      ),
     record_types: z
       .array(z.enum(RECORD_TYPES))
       .default(DEFAULT_RECORD_TYPES)
       .describe(
-        'DNS record types to resolve. Defaults to A, AAAA, MX, and TXT. An empty array uses the same defaults. Add NS to check nameserver delegation. Add CNAME when investigating redirect chains.',
+        'DNS record types to resolve. Defaults to A, AAAA, MX, and TXT. An empty array uses the same defaults. A type listed more than once is queried once. Add NS to check nameserver delegation. Add CNAME when investigating redirect chains. Add CAA when a certificate will not issue or renew: it lists the certificate authorities allowed to issue for the name. CAA is reported for the exact name only; a CA that finds none there checks the parent domains, so no CAA at a subdomain does not mean any CA may issue. Add SOA to compare zone serials across resolvers. SOA answers only at a zone apex, so a name below it returns nodata (a name that is a CNAME returns the SOA of its target). A serial difference means a zone change has not reached every resolver only when those resolvers report the same primary nameserver; a different primary means more than one DNS provider serves the zone.',
       ),
     resolvers: z
       .array(
@@ -57,21 +111,21 @@ export const devopsCheckDns = tool('devops_check_dns', {
             'A resolver IP literal — IPv4 ("8.8.8.8"), IPv6 ("2001:4860:4860::8888"), or either with a port ("1.1.1.1:53", "[2001:4860:4860::8888]:53"). A hostname is rejected.',
           ),
       )
+      .max(RESOLVERS_MAX)
       .default(DEFAULT_RESOLVERS)
       .describe(
-        'Resolver IP addresses to query. Defaults to Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). An empty array uses the same defaults. Add custom resolvers to test resolver-specific behavior. Each must be an IP literal, not a hostname; resolvers in private, loopback, or cloud-metadata ranges are rejected unless DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
+        'Resolver IP addresses to query. Defaults to Google (8.8.8.8), Cloudflare (1.1.1.1), and Quad9 (9.9.9.9). An empty array uses the same defaults. Add custom resolvers to test resolver-specific behavior. A resolver listed more than once — the same address and port, however written ("8.8.8.8" and "8.8.8.8:53") — is queried once, under its first spelling. The first 5 distinct resolvers are queried; up to 20 entries are accepted, and the rest come back unqueried in deferred_resolvers, to resend with the same domains in another call. Each must be an IP literal, not a hostname; resolvers in private, loopback, or cloud-metadata ranges are rejected unless DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
       ),
     timeout_ms: z
       .number()
       .int()
       .min(1000)
-      .max(10000)
       // Lazy default — resolved at parse time from server config, so the
       // DEVOPS_STATUS_DNS_TIMEOUT_MS env var takes effect without baking a
       // value in at module load. An explicit timeout_ms always wins.
       .default(() => getServerConfig().dnsTimeoutMs)
       .describe(
-        'Query timeout per domain+resolver combination in milliseconds. Defaults to the DEVOPS_STATUS_DNS_TIMEOUT_MS env var (3000 when unset).',
+        'Time limit in milliseconds for each domain+resolver pair, covering every requested record type and any retry over TCP. A resolver that has not answered within it reports "timeout" for the unanswered types. At least 1000; a value over 10000 is served as 10000, and the notice says so. Defaults to 3000 unless the server is configured otherwise.',
       ),
   }),
 
@@ -80,11 +134,15 @@ export const devopsCheckDns = tool('devops_check_dns', {
       .array(
         z
           .object({
-            domain: z.string().describe('The domain that was queried.'),
+            domain: z
+              .string()
+              .describe(
+                'The domain name that was queried, as read from the submitted entry (lowercase, ASCII, no scheme, port, or path). For an entry that is not a domain name, the submitted string as given.',
+              ),
             records: z
               .record(z.string(), z.array(z.string()))
               .describe(
-                'Resolved records from a single resolver, keyed by record type (A, AAAA, CNAME, MX, TXT, NS). Taken from the primary resolver (first in "resolvers"), or from the first resolver that returned records when the primary returned none. Read "records_source" for which resolver these came from, and "resolver_results" for the full per-resolver picture. This is also the reference set the per-resolver answers are reported against: a resolver that returned exactly these values for a type names it in "records_same_as_domain" rather than repeating them.',
+                'Resolved records from a single resolver, keyed by record type (A, AAAA, CNAME, MX, TXT, NS, CAA, SOA). Names carry no trailing dot; MX renders as "<preference> <exchange>", CAA as \'<flags> <tag> "<value>"\', and SOA as "<primary nameserver> <hostmaster> <serial> <refresh> <retry> <expire> <minimum>". Taken from the primary resolver (first in "resolvers"), or from the first resolver that returned records when the primary returned none. Read "records_source" for which resolver these came from, and "resolver_results" for the full per-resolver picture. This is also the reference set the per-resolver answers are reported against: a resolver that returned exactly these values for a type names it in "records_same_as_domain" rather than repeating them.',
               ),
             records_source: z
               .string()
@@ -123,7 +181,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
                     status_by_type: z
                       .record(z.string(), z.enum(DNS_QUERY_STATUSES))
                       .describe(
-                        'Outcome for each requested record type, keyed by type. "ok" = records returned; "nodata" = the domain exists but has no record of this type; "nxdomain" = the domain does not exist (check for a typo, an expired registration, or a missing delegation); "servfail" = the resolver could not complete the query, commonly a DNSSEC validation failure; "refused" = the resolver declined; "timeout" = no answer within timeout_ms; "error" = any other failure, described in "error".',
+                        'Outcome for each requested record type, keyed by type. "ok" = records returned; "nodata" = the domain exists but has no record of this type; "nxdomain" = the domain does not exist (check for a typo, an expired registration, or a missing delegation); "servfail" = the resolver could not complete the query, commonly a DNSSEC validation failure; "refused" = the resolver declined the query or refused the connection; "timeout" = no answer within timeout_ms; "error" = any other failure, described in "error".',
                       ),
                     error: z
                       .string()
@@ -173,22 +231,34 @@ export const devopsCheckDns = tool('devops_check_dns', {
               .string()
               .nullable()
               .describe(
-                'Set only when the domain could not be queried at all. Either it was rejected before any query (for example a private, loopback, or cloud-metadata target) and "resolver_results" is empty, or every resolver failed and none returned records, in which case each failing resolver is named with its own outcome ("8.8.8.8: SERVFAIL on A; 1.1.1.1: NXDOMAIN on A") so a split result stays visible. Null when at least one resolver answered; per-resolver failures are still in "resolver_results" and "flags".',
+                'Set only when the domain could not be queried at all. Either it was rejected before any query — the entry is not a domain name (the message names the entry and the accepted shapes), or it is a private, loopback, or cloud-metadata target — and "resolver_results" is empty, or every resolver failed and none returned records, in which case each failing resolver is named with its own outcome ("8.8.8.8: SERVFAIL on A; 1.1.1.1: NXDOMAIN on A") so a split result stays visible. Null when at least one resolver answered; per-resolver failures are still in "resolver_results" and "flags".',
               ),
           })
           .describe('DNS resolution result for one domain.'),
       )
       .describe('Per-domain DNS resolution results.'),
+    deferred_domains: z
+      .array(z.string().describe('A submitted domain entry, exactly as sent.'))
+      .describe(
+        'Domain entries past the first 10, not queried on this call, verbatim and in input order. Resend them in another call. Empty when every entry was queried.',
+      ),
+    deferred_resolvers: z
+      .array(z.string().describe('A submitted resolver entry, exactly as sent.'))
+      .describe(
+        'Distinct resolvers past the first 5, not queried on this call, verbatim and in input order. Resend them with the same domains in another call. Empty when every resolver was queried.',
+      ),
   }),
 
+  enrichment: {
+    notice: z
+      .string()
+      .optional()
+      .describe(
+        'Present when the call was served at a bound: domains or resolvers past the per-call cap, named in deferred_domains and deferred_resolvers, or a timeout_ms over 10000 that was served as 10000. Absent otherwise.',
+      ),
+  },
+
   errors: [
-    {
-      reason: 'invalid_domain',
-      code: JsonRpcErrorCode.ValidationError,
-      when: 'A domain string contains a protocol prefix or invalid format.',
-      recovery:
-        'Pass bare hostnames without "https://" (e.g., "example.com" not "https://example.com").',
-    },
     {
       reason: 'target_blocked',
       code: JsonRpcErrorCode.ValidationError,
@@ -197,28 +267,34 @@ export const devopsCheckDns = tool('devops_check_dns', {
         'Use a public resolver IP literal (e.g., 8.8.8.8, 1.1.1.1), optionally with a port; pass an address rather than a hostname. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true for trusted local/internal monitoring deployments.',
     },
   ],
-  // Note: SSRF-blocked domains surface as per-domain error results (status with error field).
-  // SSRF-blocked resolver IPs are caught in the handler and rethrown as target_blocked.
+  /**
+   * An entry that is not a domain name and an SSRF-blocked domain surface as per-domain results
+   * with the error field set. SSRF-blocked resolver IPs are caught in the handler and rethrown as
+   * target_blocked.
+   */
 
   async handler(input, ctx) {
-    // Validate domains — no protocol prefixes
-    for (const domain of input.domains) {
-      if (PROTOCOL_RE.test(domain)) {
-        throw ctx.fail(
-          'invalid_domain',
-          `Domain "${domain}" must not include a protocol prefix. Pass the bare hostname.`,
-        );
-      }
-    }
+    // The raw entries are split before normalization, so an entry that is not a domain name
+    // takes its slot as an error row and a deferred entry comes back exactly as sent.
+    const domains = splitBatch(input.domains, DOMAINS_PER_CALL);
+    const entries = domains.served.map((domain) => normalizeDomainInput(domain, 'dns'));
+    const resolvers = splitBatch(
+      input.resolvers.length > 0 ? uniqueInOrder(input.resolvers, resolverKey) : DEFAULT_RESOLVERS,
+      RESOLVERS_PER_CALL,
+    );
+    const recordTypes =
+      input.record_types.length > 0 ? uniqueInOrder(input.record_types) : DEFAULT_RECORD_TYPES;
+    const timeout = clampMax('timeout_ms', input.timeout_ms, TIMEOUT_MAX_MS);
 
     const dnsService = getDnsService();
     let results: DnsResult[];
     try {
       results = await dnsService.checkDomains(
-        input.domains,
-        input.record_types.length > 0 ? input.record_types : DEFAULT_RECORD_TYPES,
-        input.resolvers.length > 0 ? input.resolvers : DEFAULT_RESOLVERS,
-        input.timeout_ms,
+        entries,
+        recordTypes,
+        resolvers.served,
+        timeout.value,
+        ctx.signal,
       );
     } catch (err) {
       // Resolver-IP SSRF blocks throw out of checkDomains (the pre-check runs before the
@@ -229,12 +305,45 @@ export const devopsCheckDns = tool('devops_check_dns', {
       throw ctx.fail('target_blocked', blocked);
     }
 
+    const notices = [
+      ...(domains.deferred.length > 0
+        ? [
+            deferralNotice({
+              cap: DOMAINS_PER_CALL,
+              deferredCount: domains.deferred.length,
+              field: 'deferred_domains',
+              noun: 'domains',
+              verb: 'queried',
+            }),
+          ]
+        : []),
+      ...(resolvers.deferred.length > 0
+        ? [
+            deferralNotice({
+              cap: RESOLVERS_PER_CALL,
+              deferredCount: resolvers.deferred.length,
+              field: 'deferred_resolvers',
+              noun: 'resolvers',
+              verb: 'queried',
+            }),
+          ]
+        : []),
+      ...(timeout.notice ? [timeout.notice] : []),
+    ];
+    if (notices.length > 0) ctx.enrich.notice(notices.join(' '));
+
     ctx.log.info('DNS check completed', {
-      domains: input.domains.length,
+      domains: entries.length,
       withDiscrepancies: results.filter((r) => r.propagation_discrepancies.length > 0).length,
+      ...(domains.deferred.length > 0 ? { deferredDomains: domains.deferred.length } : {}),
+      ...(resolvers.deferred.length > 0 ? { deferredResolvers: resolvers.deferred.length } : {}),
     });
 
-    return { results };
+    return {
+      results,
+      deferred_domains: domains.deferred,
+      deferred_resolvers: resolvers.deferred,
+    };
   },
 
   format: (result) => {
@@ -257,7 +366,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
       if (recordEntries.length > 0) {
         lines.push(`**Records (from ${r.records_source ?? 'no resolver'}):**`);
         for (const [type, values] of recordEntries) {
-          lines.push(`- ${type}: ${values.join(', ')}`);
+          lines.push(`- ${type}: ${renderValues(values)}`);
         }
       } else if (r.records_source) {
         lines.push(`**Records:** none returned by ${r.records_source}`);
@@ -283,7 +392,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
           const values = rr.records[type];
           const answer =
             values && values.length > 0
-              ? ` → ${values.join(', ')}`
+              ? ` → ${renderValues(values)}`
               : rr.records_same_as_domain.includes(type)
                 ? ` → same values as the domain-level ${type} records above`
                 : '';
@@ -304,12 +413,18 @@ export const devopsCheckDns = tool('devops_check_dns', {
           );
           for (const [resolver, values] of Object.entries(d.values_by_resolver)) {
             lines.push(
-              `  - ${resolver} (${d.status_by_resolver[resolver]}): ${values.length > 0 ? values.join(', ') : 'no records'}`,
+              `  - ${resolver} (${d.status_by_resolver[resolver]}): ${values.length > 0 ? renderValues(values) : 'no records'}`,
             );
           }
         }
       }
       lines.push('');
+    }
+    if (result.deferred_domains.length > 0) {
+      lines.push(`**Deferred domains (not queried):** ${result.deferred_domains.join(', ')}`);
+    }
+    if (result.deferred_resolvers.length > 0) {
+      lines.push(`**Deferred resolvers (not queried):** ${result.deferred_resolvers.join(', ')}`);
     }
     return [{ type: 'text', text: lines.join('\n') }];
   },

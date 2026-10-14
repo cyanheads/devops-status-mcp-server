@@ -6,6 +6,8 @@
  */
 
 import { EventEmitter } from 'node:events';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { DEFAULT_CIPHERS } from 'node:tls';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ──────────────────────────────────────────────
@@ -83,32 +85,44 @@ class MockTlsSocket extends EventEmitter {
   }
 }
 
-vi.mock('node:tls', () => ({
-  /**
-   * Invokes the caller's `checkServerIdentity` before the connect callback, mirroring the real
-   * handshake — that is where the service captures Node's hostname-verification result.
-   */
-  connect: (
-    opts: {
-      host?: string;
-      checkServerIdentity?: (host: string, cert: unknown) => Error | undefined;
+/** The options of every `tls.connect` call the mock received, in call order. */
+let connectCalls: Array<Record<string, unknown>> = [];
+
+/** When true, `connect` and `checkServerIdentity` are the real ones (loopback-server tests). */
+let realTls = false;
+
+vi.mock('node:tls', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:tls')>();
+  return {
+    ...actual,
+    /**
+     * Invokes the caller's `checkServerIdentity` before the connect callback, mirroring the real
+     * handshake — that is where the service captures Node's hostname-verification result.
+     */
+    connect: (
+      opts: import('node:tls').ConnectionOptions & {
+        checkServerIdentity?: (host: string, cert: unknown) => Error | undefined;
+      },
+      callback?: () => void,
+    ) => {
+      connectCalls.push(opts as Record<string, unknown>);
+      if (realTls) return actual.connect(opts, callback);
+      const socket = new MockTlsSocket();
+      setImmediate(() => {
+        if (mockSocketConfig.hang) return;
+        if (mockSocketConfig.error) {
+          socket.emit('error', mockSocketConfig.error);
+          return;
+        }
+        opts.checkServerIdentity?.(opts.host ?? '', mockSocketConfig.cert ?? {});
+        if (callback) callback();
+      });
+      return socket;
     },
-    callback?: () => void,
-  ) => {
-    const socket = new MockTlsSocket();
-    setImmediate(() => {
-      if (mockSocketConfig.hang) return;
-      if (mockSocketConfig.error) {
-        socket.emit('error', mockSocketConfig.error);
-        return;
-      }
-      opts.checkServerIdentity?.(opts.host ?? '', mockSocketConfig.cert ?? {});
-      if (callback) callback();
-    });
-    return socket;
-  },
-  checkServerIdentity: () => mockSocketConfig.hostnameError,
-}));
+    checkServerIdentity: (host: string, cert: import('node:tls').PeerCertificate) =>
+      realTls ? actual.checkServerIdentity(host, cert) : mockSocketConfig.hostnameError,
+  };
+});
 
 // ──────────────────────────────────────────────
 // SSRF guard mock — unit tests for TLS logic; guard behavior is tested in ssrf-guard.test.ts.
@@ -129,7 +143,26 @@ vi.mock('@/utils/ssrf-guard.js', async (importOriginal) => ({
 import { runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { devopsCheckCerts } from '@/mcp-server/tools/definitions/devops-check-certs.tool.js';
 import type { CertResult } from '@/services/cert/cert-service.js';
-import { CertService, getCertService, initCertService } from '@/services/cert/cert-service.js';
+import {
+  CertService,
+  getCertService,
+  initCertService,
+  inspectCert,
+} from '@/services/cert/cert-service.js';
+import { normalizeDomainInput } from '@/utils/domain-input.js';
+import { type LoopbackTlsServer, startTlsServer } from './loopback-tls-server.js';
+
+/** Run `checkDomains` the way the tool does: each host normalized, with a live signal. */
+function checkHosts(
+  service: CertService,
+  hosts: string[],
+  port: number,
+  timeoutMs: number,
+  signal = new AbortController().signal,
+): Promise<CertResult[]> {
+  const entries = hosts.map((host) => normalizeDomainInput(host, 'tls'));
+  return service.checkDomains(entries, port, timeoutMs, signal);
+}
 
 /** Milliseconds from now for a cert that expires in `days` days. */
 function daysFromNow(days: number): Date {
@@ -170,7 +203,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('healthy cert (>30 days) + HSTS + TLSv1.3 → status ok, flag HSTS present', async () => {
     mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: true };
     const service = getCertService();
-    const results = await service.checkDomains(['example.com'], 443, 5000);
+    const results = await checkHosts(service, ['example.com'], 443, 5000);
     expect(results[0]!.status).toBe('ok');
     expect(results[0]!.flags).toContain('HSTS present');
     expect(results[0]!.tls!.protocol).toBe('TLSv1.3');
@@ -182,7 +215,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('cert expiring in 20 days → status warning, flag contains "warning"', async () => {
     mockSocketConfig = { cert: fakeCert(20), protocol: 'TLSv1.3', hsts: true };
     const service = getCertService();
-    const results = await service.checkDomains(['soon.com'], 443, 5000);
+    const results = await checkHosts(service, ['soon.com'], 443, 5000);
     expect(results[0]!.status).toBe('warning');
     expect(results[0]!.flags.some((f) => f.includes('warning'))).toBe(true);
     expect(results[0]!.cert!.days_until_expiry).toBeGreaterThanOrEqual(19);
@@ -192,7 +225,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('cert expiring in 5 days → status critical, flag contains CRITICAL', async () => {
     mockSocketConfig = { cert: fakeCert(5), protocol: 'TLSv1.3', hsts: true };
     const service = getCertService();
-    const results = await service.checkDomains(['expiring.com'], 443, 5000);
+    const results = await checkHosts(service, ['expiring.com'], 443, 5000);
     expect(results[0]!.status).toBe('critical');
     expect(results[0]!.flags.some((f) => f.includes('CRITICAL'))).toBe(true);
     expect(results[0]!.cert!.days_until_expiry).toBeLessThan(7);
@@ -201,7 +234,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('HSTS not configured → flag "HSTS not configured", status still ok for healthy cert', async () => {
     mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: false };
     const service = getCertService();
-    const results = await service.checkDomains(['nohsts.com'], 443, 5000);
+    const results = await checkHosts(service, ['nohsts.com'], 443, 5000);
     expect(results[0]!.flags).toContain('HSTS not configured');
     // A healthy cert with no HSTS is 'ok' (HSTS flag is informational, not a status upgrade)
     expect(results[0]!.status).toBe('ok');
@@ -210,7 +243,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('TLSv1.1 protocol → status critical, flag mentions Insecure TLS', async () => {
     mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.1', hsts: true };
     const service = getCertService();
-    const results = await service.checkDomains(['oldtls.com'], 443, 5000);
+    const results = await checkHosts(service, ['oldtls.com'], 443, 5000);
     expect(results[0]!.status).toBe('critical');
     expect(results[0]!.tls!.protocol).toBe('TLSv1.1');
     expect(results[0]!.flags.some((f) => f.includes('Insecure TLS'))).toBe(true);
@@ -219,7 +252,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('TLSv1.0 protocol → status critical, flag mentions Insecure TLS', async () => {
     mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1', hsts: true };
     const service = getCertService();
-    const results = await service.checkDomains(['tls10.com'], 443, 5000);
+    const results = await checkHosts(service, ['tls10.com'], 443, 5000);
     expect(results[0]!.status).toBe('critical');
     expect(results[0]!.flags.some((f) => f.includes('Insecure TLS'))).toBe(true);
   });
@@ -227,7 +260,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
   it('connection error → status error, cert and tls null, failure in error only', async () => {
     mockSocketConfig = { error: new Error('getaddrinfo ENOTFOUND unreachable.com') };
     const service = getCertService();
-    const results = await service.checkDomains(['unreachable.com'], 443, 5000);
+    const results = await checkHosts(service, ['unreachable.com'], 443, 5000);
     expect(results[0]!.status).toBe('error');
     expect(results[0]!.cert).toBeNull();
     expect(results[0]!.tls).toBeNull();
@@ -238,7 +271,7 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
 
   it('timeout → status error, cert and tls null, failure in error only', async () => {
     mockSocketConfig = { hang: true };
-    const results = await getCertService().checkDomains(['slow.example.com'], 81, 30);
+    const results = await checkHosts(getCertService(), ['slow.example.com'], 81, 30);
     expect(results[0]).toMatchObject({
       domain: 'slow.example.com',
       port: 81,
@@ -250,20 +283,13 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
     });
   });
 
-  it('batch: one success, one error — both results present', async () => {
-    // First call succeeds (healthy cert), second call errors
-    let callCount = 0;
-    const connectSpy = vi.fn((_opts: Record<string, unknown>, cb?: () => void) => {
-      callCount++;
+  it('batch: one success, one error — each row keeps its own outcome, in entry order', async () => {
+    // Keyed by host, not call order: both connects start before either socket settles.
+    const connectSpy = vi.fn((opts: { host?: string }, cb?: () => void) => {
       const socket = new MockTlsSocket();
       setImmediate(() => {
-        if (callCount === 1) {
-          // Success path
-          mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: true };
-          if (cb) cb();
-        } else {
-          socket.emit('error', new Error('ECONNREFUSED'));
-        }
+        if (opts.host === 'fail.com') socket.emit('error', new Error('ECONNREFUSED'));
+        else cb?.();
       });
       return socket;
     });
@@ -274,11 +300,12 @@ describe('CertService — expiry and flag logic via node:tls mock', () => {
 
     try {
       const service = new CertService();
-      const results = await service.checkDomains(['ok.com', 'fail.com'], 443, 3000);
-      expect(results).toHaveLength(2);
-      // At least one result should be an error
-      const errorResults = results.filter((r) => r.status === 'error');
-      expect(errorResults.length).toBeGreaterThanOrEqual(1);
+      const results = await checkHosts(service, ['ok.com', 'fail.com'], 443, 3000);
+      expect(results.map((r) => [r.domain, r.status, r.error])).toEqual([
+        ['ok.com', 'ok', null],
+        ['fail.com', 'error', 'ECONNREFUSED'],
+      ]);
+      expect(connectSpy).toHaveBeenCalledTimes(2);
     } finally {
       Object.defineProperty(tlsMod, 'connect', { value: savedConnect, configurable: true });
     }
@@ -301,7 +328,7 @@ describe('CertService — a domain rejected before any connection (#45)', () => 
   });
 
   it('reports the failure in error only, without the internal sentinel', async () => {
-    const results = await getCertService().checkDomains(['localhost'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['localhost'], 443, 5000);
     expect(results[0]).toMatchObject({
       domain: 'localhost',
       port: 443,
@@ -318,7 +345,7 @@ describe('CertService — a domain rejected before any connection (#45)', () => 
     vi.mocked(assertSafeDomain).mockRejectedValueOnce(
       new Error('getaddrinfo ENOTFOUND other.example'),
     );
-    const results = await getCertService().checkDomains(['localhost', 'other.example'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['localhost', 'other.example'], 443, 5000);
     expect(results[0]!.error).toBe(GUARD_SENTENCE);
     expect(results[1]).toMatchObject({
       domain: 'other.example',
@@ -365,7 +392,7 @@ describe('CertService — a handshake that presents no certificate (#49)', () =>
   });
 
   it('reports status error with a reason, keeping the TLS session and its findings', async () => {
-    const results = await getCertService().checkDomains(['no-cert.example.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['no-cert.example.com'], 443, 5000);
     expect(results[0]).toMatchObject({
       domain: 'no-cert.example.com',
       status: 'error',
@@ -378,11 +405,12 @@ describe('CertService — a handshake that presents no certificate (#49)', () =>
 
   it('keeps an insecure-TLS finding and names the cause when the connection ends early', async () => {
     mockSocketConfig = { cert: {}, protocol: 'TLSv1.1', noHstsResponse: true };
-    const results = await getCertService().checkDomains(['no-cert.example.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['no-cert.example.com'], 443, 5000);
     expect(results[0]!.status).toBe('error');
+    // A close with no HTTP reply says nothing about HSTS (#65).
     expect(results[0]!.flags).toEqual([
       'Insecure TLS version in use: TLSv1.1',
-      'HSTS not configured',
+      'HSTS not checked — no HTTP response on port 443',
     ]);
     expect(results[0]!.error).toBe(
       'The TLS handshake completed but the server presented no certificate.',
@@ -427,7 +455,7 @@ describe('CertService — hostname and chain-trust verification', () => {
         "Hostname/IP does not match certificate's altnames: Host: wrong.host.example.com. is not in the cert's altnames: DNS:example.com",
       ),
     };
-    const results = await getCertService().checkDomains(['wrong.host.example.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['wrong.host.example.com'], 443, 5000);
 
     expect(results[0]!.status).toBe('critical');
     expect(results[0]!.cert!.hostname_verification_error).toContain('does not match');
@@ -447,7 +475,7 @@ describe('CertService — hostname and chain-trust verification', () => {
       authorized: false,
       authorizationError: 'SELF_SIGNED_CERT_IN_CHAIN',
     };
-    const results = await getCertService().checkDomains(['untrusted-root.example.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['untrusted-root.example.com'], 443, 5000);
 
     expect(results[0]!.status).toBe('critical');
     expect(results[0]!.cert!.authorization_error).toBe('SELF_SIGNED_CERT_IN_CHAIN');
@@ -466,7 +494,7 @@ describe('CertService — hostname and chain-trust verification', () => {
       authorized: false,
       authorizationError: 'DEPTH_ZERO_SELF_SIGNED_CERT',
     };
-    const results = await getCertService().checkDomains(['self.example.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['self.example.com'], 443, 5000);
 
     expect(results[0]!.flags).toContain('Self-signed certificate');
     expect(results[0]!.cert!.authorization_error).toBe('DEPTH_ZERO_SELF_SIGNED_CERT');
@@ -484,7 +512,7 @@ describe('CertService — hostname and chain-trust verification', () => {
       authorized: false,
       authorizationError: err,
     };
-    const results = await getCertService().checkDomains(['no-intermediate.example.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['no-intermediate.example.com'], 443, 5000);
 
     expect(results[0]!.cert!.authorization_error).toBe('UNABLE_TO_VERIFY_LEAF_SIGNATURE');
     expect(results[0]!.status).toBe('critical');
@@ -498,7 +526,7 @@ describe('CertService — hostname and chain-trust verification', () => {
       authorized: false,
       authorizationError: 'CERT_HAS_EXPIRED',
     };
-    const results = await getCertService().checkDomains(['expired.example.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['expired.example.com'], 443, 5000);
 
     expect(results[0]!.status).toBe('critical');
     expect(results[0]!.cert!.authorization_error).toBe('CERT_HAS_EXPIRED');
@@ -520,7 +548,7 @@ describe('CertService — chain depth', () => {
     // The runtime leaves issuerCertificate unset even for CA-issued chains; a leaf-only "1"
     // would read as "no intermediates were served", which is false.
     mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: true };
-    const results = await getCertService().checkDomains(['ca-issued.example.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['ca-issued.example.com'], 443, 5000);
 
     expect(results[0]!.cert!.chain_depth).toBeNull();
     expect(results[0]!.cert!.chain_depth_unavailable_reason).toContain('issuerCertificate');
@@ -536,9 +564,391 @@ describe('CertService — chain depth', () => {
       issuer: { CN: 'ISRG Root X1' },
     };
     mockSocketConfig = { cert: leaf, protocol: 'TLSv1.3', hsts: true };
-    const results = await getCertService().checkDomains(['chained.com'], 443, 5000);
+    const results = await checkHosts(getCertService(), ['chained.com'], 443, 5000);
 
     expect(results[0]!.cert!.chain_depth).toBe(2);
     expect(results[0]!.cert!.chain_depth_unavailable_reason).toBeNull();
+  });
+});
+
+describe('devops_check_certs domains entries (#68)', () => {
+  beforeEach(() => {
+    initCertService();
+    connectCalls = [];
+    mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: true };
+  });
+
+  afterEach(() => {
+    mockSocketConfig = {};
+  });
+
+  async function check(args: { domains: string[]; port?: number }) {
+    const result = await runToolContract(devopsCheckCerts, { timeout_ms: 5000, ...args });
+    expect(result.isError).toBeFalsy();
+    return (result.structuredContent as { results: CertResult[] }).results;
+  }
+
+  it('connects to a plain or trailing-dot hostname as given', async () => {
+    const results = await check({ domains: ['example.com', 'example.com.'] });
+    expect(results.map((r) => [r.domain, r.port, r.status])).toEqual([
+      ['example.com', 443, 'ok'],
+      ['example.com.', 443, 'ok'],
+    ]);
+    expect(connectCalls.map((c) => [c.host, c.port])).toEqual([
+      ['example.com', 443],
+      ['example.com.', 443],
+    ]);
+  });
+
+  it('still rejects an empty string at the schema', async () => {
+    const result = await runToolContract(devopsCheckCerts, { domains: [''] });
+    expect(result.isError).toBe(true);
+    expect(connectCalls).toEqual([]);
+  });
+
+  it('uses a port written on the entry for that row', async () => {
+    const results = await check({ domains: ['example.com:8443', 'example.com'] });
+    expect(results.map((r) => [r.domain, r.port])).toEqual([
+      ['example.com', 8443],
+      ['example.com', 443],
+    ]);
+    expect(connectCalls.map((c) => [c.host, c.port])).toEqual([
+      ['example.com', 8443],
+      ['example.com', 443],
+    ]);
+  });
+
+  it('lets a written port win over the port input, and reduces a URL to its host', async () => {
+    const results = await check({ domains: ['HTTP://Example.com:443/'], port: 8443 });
+    expect(results[0]).toMatchObject({ domain: 'example.com', port: 443, status: 'ok' });
+    expect(connectCalls[0]).toMatchObject({ host: 'example.com', port: 443 });
+  });
+
+  it('connects to the ASCII form of a Unicode name', async () => {
+    const results = await check({ domains: ['münchen.de'] });
+    expect(results[0]!.domain).toBe('xn--mnchen-3ya.de');
+    expect(connectCalls[0]).toMatchObject({ host: 'xn--mnchen-3ya.de' });
+  });
+
+  it('connects to a bracketed IPv6 literal by its address and port', async () => {
+    const results = await check({ domains: ['[2606:4700:4700::1111]:443'], port: 8443 });
+    expect(results[0]).toMatchObject({ domain: '2606:4700:4700::1111', port: 443 });
+    expect(connectCalls[0]).toMatchObject({ host: '2606:4700:4700::1111', port: 443 });
+
+    const result = await runToolContract(devopsCheckCerts, {
+      domains: ['[2606:4700:4700::1111]:443'],
+      timeout_ms: 5000,
+    });
+    const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+    expect(text).toContain('[2606:4700:4700::1111]:443 — ok');
+  });
+
+  it('reports each entry with no host reading in its own row and checks the rest', async () => {
+    const domains = ['example.com', 'user@example.com', ' ', '-bad.com', 'example.com:99999'];
+    const results = await check({ domains });
+
+    expect(results).toHaveLength(5);
+    expect(results[0]).toMatchObject({ domain: 'example.com', status: 'ok' });
+    for (const [i, raw] of domains.entries()) {
+      if (i === 0) continue;
+      expect(results[i]).toMatchObject({
+        domain: raw,
+        port: 443,
+        status: 'error',
+        cert: null,
+        tls: null,
+        flags: [],
+      });
+      expect(results[i]!.error).toContain(JSON.stringify(raw));
+      expect(results[i]!.error).toContain('Pass a hostname ("example.com")');
+    }
+    expect(connectCalls.map((c) => c.host)).toEqual(['example.com']);
+  });
+
+  it('runs the SSRF guard on the normalized address and never connects to it', async () => {
+    const { assertSafeDomain } = await import('@/utils/ssrf-guard.js');
+    const actual =
+      await vi.importActual<typeof import('@/utils/ssrf-guard.js')>('@/utils/ssrf-guard.js');
+    vi.mocked(assertSafeDomain).mockImplementation(actual.assertSafeDomain);
+    try {
+      const results = await check({
+        domains: [
+          'https://10.0.0.1/',
+          'https://169.254.169.254/latest/meta-data',
+          'http://0x7f.1:8080/',
+          '[::1]:443',
+        ],
+      });
+      expect(results.map((r) => [r.domain, r.port, r.status])).toEqual([
+        ['10.0.0.1', 443, 'error'],
+        ['169.254.169.254', 443, 'error'],
+        ['127.0.0.1', 8080, 'error'],
+        ['::1', 443, 'error'],
+      ]);
+      expect(results[0]!.error).toContain('resolves to 10.0.0.1 (private (RFC 1918))');
+      expect(results[1]!.error).toContain('resolves to 169.254.169.254 (link-local');
+      expect(results[2]!.error).toContain('resolves to 127.0.0.1 (loopback)');
+      expect(results[3]!.error).toContain('resolves to ::1 (loopback)');
+      expect(connectCalls).toEqual([]);
+    } finally {
+      vi.mocked(assertSafeDomain).mockReset();
+      vi.mocked(assertSafeDomain).mockResolvedValue(undefined);
+    }
+  });
+});
+
+/**
+ * The real handshake against loopback servers: what the service keeps when the port does not
+ * answer HTTP, the legacy-TLS retry, SNI, one deadline across attempts, and caller cancellation.
+ * The certificate is self-signed for localhost, so a completed check grades `critical`.
+ *
+ * The timing cases fake only `setTimeout`/`clearTimeout`, which carry the `timeout_ms` deadline;
+ * the sockets stay real. The clock moves only when a case advances it, so a check that settles
+ * did so on its own I/O or at the exact deadline step, never on how fast the machine is.
+ */
+describe('inspectCert against loopback TLS servers (#65)', () => {
+  let server: LoopbackTlsServer | undefined;
+  const live = () => new AbortController().signal;
+  const notChecked = (port: number) => `HSTS not checked — no HTTP response on port ${port}`;
+  const fakeDeadline = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+  /** Waits on real I/O (node:timers/promises is never faked) until `condition` holds. */
+  async function until(condition: () => boolean) {
+    while (!condition()) await sleep(5);
+  }
+
+  /** Whether `promise` has settled, read without awaiting it. */
+  function track(promise: Promise<unknown>) {
+    const state = { settled: false };
+    promise.then(
+      () => {
+        state.settled = true;
+      },
+      () => {
+        state.settled = true;
+      },
+    );
+    return state;
+  }
+
+  /** Move the fake clock, then let every continuation it released run. */
+  async function advance(ms: number) {
+    await vi.advanceTimersByTimeAsync(ms);
+    await sleep(0);
+  }
+
+  beforeEach(() => {
+    realTls = true;
+    connectCalls = [];
+  });
+
+  afterEach(async () => {
+    vi.useRealTimers();
+    realTls = false;
+    await server?.close();
+    server = undefined;
+  });
+
+  async function serve(mode: Parameters<typeof startTlsServer>[0]) {
+    server = await startTlsServer(mode);
+    return server;
+  }
+
+  /** The row of a completed handshake whose port gave no HTTP reply. */
+  function expectCertKeptWithoutHsts(result: CertResult, port: number) {
+    expect(result.error).toBeNull();
+    expect(result.status).toBe('critical');
+    expect(result.cert?.subject).toBe('localhost');
+    expect(result.cert?.san).toEqual(['localhost', '127.0.0.1']);
+    expect(result.tls?.protocol).toMatch(/^TLSv1\.[23]$/);
+    expect(result.flags).toEqual(['Self-signed certificate', notChecked(port)]);
+  }
+
+  it('judges HSTS from an HTTP reply, with and without the header', async () => {
+    const withHsts = await serve({ kind: 'http', hsts: true });
+    const present = await inspectCert('localhost', withHsts.port, 5000, live());
+    expect(present.flags).toEqual(['Self-signed certificate', 'HSTS present']);
+    await withHsts.close();
+
+    const without = await serve({ kind: 'http', hsts: false });
+    const absent = await inspectCert('localhost', without.port, 5000, live());
+    expect(absent.flags).toEqual(['Self-signed certificate', 'HSTS not configured']);
+    expect(absent.error).toBeNull();
+  });
+
+  it('reports a failure before the handshake in error only, as before', async () => {
+    const s = await serve({ kind: 'stall' });
+    const result = await inspectCert('localhost', s.port, 400, live());
+    expect(result).toMatchObject({
+      status: 'error',
+      cert: null,
+      tls: null,
+      flags: [],
+      error: 'Timed out after 400ms',
+    });
+  });
+
+  it('keeps the certificate when the port sends a non-HTTP banner and stays open', async () => {
+    const s = await serve({ kind: 'banner' });
+    // The deadline never fires here, so only the banner can end the HSTS read.
+    fakeDeadline();
+    const result = await inspectCert('localhost', s.port, 5000, live());
+
+    expectCertKeptWithoutHsts(result, s.port);
+  });
+
+  it('keeps the certificate when the port says nothing after the handshake, reporting at timeout_ms', async () => {
+    const s = await serve({ kind: 'silent' });
+    fakeDeadline();
+    const pending = inspectCert('localhost', s.port, 600, live());
+    const state = track(pending);
+    // The GET reached the server, so the check is parked on the HTTP reply.
+    await until(() => s.requests() === 1);
+
+    await advance(599);
+    expect(state.settled).toBe(false);
+    await advance(1);
+    expect(state.settled).toBe(true);
+    expectCertKeptWithoutHsts(await pending, s.port);
+  });
+
+  it('carries the kept certificate and the not-checked flag through devops_check_certs', async () => {
+    const s = await serve({ kind: 'banner' });
+    const result = await runToolContract(devopsCheckCerts, {
+      domains: [`localhost:${s.port}`],
+      timeout_ms: 5000,
+    });
+
+    expect(result.isError).toBeFalsy();
+    const [row] = (result.structuredContent as { results: CertResult[] }).results;
+    expectCertKeptWithoutHsts(row!, s.port);
+    const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+    expect(text).toContain(`### 🔴 localhost:${s.port} — critical`);
+    expect(text).toContain(`**Flags:** Self-signed certificate | ${notChecked(s.port)}`);
+    expect(text).toContain('**Subject:** localhost');
+    expect(text).not.toContain('**Error:**');
+  });
+
+  it('keeps the certificate when the port resets after the GET', async () => {
+    const s = await serve({ kind: 'reset' });
+    expectCertKeptWithoutHsts(await inspectCert('localhost', s.port, 5000, live()), s.port);
+  });
+
+  it('keeps the certificate, and never claims HSTS is missing, when the port closes after the GET', async () => {
+    const s = await serve({ kind: 'close' });
+    const result = await inspectCert('localhost', s.port, 5000, live());
+    expectCertKeptWithoutHsts(result, s.port);
+    expect(result.flags).not.toContain('HSTS not configured');
+  });
+
+  it('sends the hostname as SNI, and no SNI for an IP literal', async () => {
+    const s = await serve({ kind: 'http', hsts: true });
+    await inspectCert('localhost', s.port, 5000, live());
+    await inspectCert('127.0.0.1', s.port, 5000, live());
+
+    expect(connectCalls.map((c) => c.servername)).toEqual(['localhost', undefined]);
+    expect(s.servernames).toEqual(['localhost', null]);
+  });
+
+  it('makes one connection with the default options to a modern server', async () => {
+    const s = await serve({ kind: 'http', hsts: true });
+    const result = await inspectCert('localhost', s.port, 5000, live());
+
+    expect(result.tls?.protocol).toMatch(/^TLSv1\.[23]$/);
+    expect(s.connections()).toBe(1);
+    expect(connectCalls).toHaveLength(1);
+    expect(connectCalls[0]).not.toHaveProperty('minVersion');
+    expect(connectCalls[0]).not.toHaveProperty('ciphers');
+  });
+
+  /** The retry's options on the runtime running the suite: Bun rejects any `@SECLEVEL` string. */
+  function expectLegacyRetryOptions() {
+    expect(connectCalls).toHaveLength(2);
+    expect(connectCalls[0]).not.toHaveProperty('minVersion');
+    expect(connectCalls[1]).toMatchObject({ minVersion: 'TLSv1' });
+    if (process.versions.bun) {
+      expect(connectCalls[1]).not.toHaveProperty('ciphers');
+    } else {
+      expect(connectCalls[1]).toMatchObject({ ciphers: `${DEFAULT_CIPHERS}:@SECLEVEL=0` });
+    }
+  }
+
+  it.each([
+    ['TLSv1', { kind: 'legacy-hello', version: 'TLSv1', retry: 'serve' }],
+    ['TLSv1.1', { kind: 'legacy-hello', version: 'TLSv1.1', retry: 'serve' }],
+    ['TLSv1', { kind: 'legacy-alert', version: 'TLSv1' }],
+    ['TLSv1.1', { kind: 'legacy-alert', version: 'TLSv1.1' }],
+  ] as const)('grades a server that only speaks %s critical (%o)', async (version, mode) => {
+    const s = await serve(mode);
+    const result = await inspectCert('localhost', s.port, 5000, live());
+
+    expect(result.error).toBeNull();
+    expect(result.status).toBe('critical');
+    expect(result.tls?.protocol).toBe(version);
+    expect(result.cert?.subject).toBe('localhost');
+    expect(result.flags).toEqual([
+      'Self-signed certificate',
+      `Insecure TLS version in use: ${version}`,
+      'HSTS not configured',
+    ]);
+    expect(s.connections()).toBe(2);
+    expectLegacyRetryOptions();
+  });
+
+  it("reports the retry's own error when the retry fails too", async () => {
+    const s = await serve({ kind: 'legacy-hello', version: 'TLSv1', retry: 'refuse' });
+    const result = await inspectCert('localhost', s.port, 5000, live());
+
+    expect(result).toMatchObject({ status: 'error', cert: null, tls: null, flags: [] });
+    expect(result.error).toMatch(/unsupported.protocol/i);
+    expect(s.connections()).toBe(2);
+    expectLegacyRetryOptions();
+  });
+
+  it('holds the first attempt and the retry to one timeout_ms', async () => {
+    const s = await serve({ kind: 'legacy-hello', version: 'TLSv1', retry: 'stall' });
+    fakeDeadline();
+    const pending = inspectCert('localhost', s.port, 600, live());
+    const state = track(pending);
+    // 400 ms of the deadline pass before the first attempt fails; the retry gets the 200 left.
+    vi.advanceTimersByTime(400);
+    await until(() => s.connections() === 2);
+
+    await advance(199);
+    expect(state.settled).toBe(false);
+    await advance(1);
+    expect(state.settled).toBe(true);
+    expect((await pending).error).toBe('Timed out after 600ms');
+    expect(s.connections()).toBe(2);
+  });
+
+  describe('caller cancellation', () => {
+    it.each([
+      ['during the handshake', 'stall'],
+      ['while waiting for an HTTP reply', 'silent'],
+    ] as const)('rejects at once %s, instead of reporting a row', async (_label, kind) => {
+      const s = await serve({ kind });
+      fakeDeadline();
+      const caller = new AbortController();
+      const reason = new Error('caller went away');
+      const pending = inspectCert('localhost', s.port, 5000, caller.signal);
+      // Parked where the label says: the TCP connection accepted, or the GET received.
+      await until(() => (kind === 'stall' ? s.connections() === 1 : s.requests() === 1));
+      caller.abort(reason);
+
+      // The deadline never fires here, so only the abort can settle the check.
+      await expect(pending).rejects.toBe(reason);
+    });
+
+    it('rejects the whole batch rather than absorbing the cancellation into a row', async () => {
+      const s = await serve({ kind: 'stall' });
+      const caller = new AbortController();
+      setTimeout(() => caller.abort(), 150);
+
+      const hosts = [`localhost:${s.port}`, 'not a host'];
+      await expect(
+        checkHosts(new CertService(), hosts, 443, 5000, caller.signal),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    });
   });
 });

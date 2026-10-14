@@ -1,17 +1,19 @@
 /**
- * @fileoverview DNS resolution service — multi-resolver propagation checks via node:dns/promises.
+ * @fileoverview DNS resolution service — multi-resolver propagation checks over the DNS wire
+ * client, with each outcome read from the resolver's response code.
  * @module services/dns/dns-service
  */
 
-import { Resolver } from 'node:dns/promises';
 import { performance } from 'node:perf_hooks';
+import type { DomainEntry } from '@/utils/domain-input.js';
 import {
   assertSafeDomain,
   assertSafeResolverIp,
   ssrfRejectionMessage,
 } from '@/utils/ssrf-guard.js';
+import { parseResolverAddress, queryRecordTypes } from './dns-wire-client.js';
 
-export type RecordType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS';
+export type RecordType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS' | 'CAA' | 'SOA';
 
 /**
  * Outcome of one resolver answering one record type. `nodata` is the only silent case —
@@ -36,19 +38,6 @@ export type DnsQueryStatus = (typeof DNS_QUERY_STATUSES)[number];
 export const DISCREPANCY_KINDS = ['value_variation', 'partial_resolution'] as const;
 export type DiscrepancyKind = (typeof DISCREPANCY_KINDS)[number];
 
-/**
- * node:dns error code → typed outcome. Anything unmapped falls through to `error`. `ENOTFOUND` is
- * deliberately absent — it is resolved separately in `queryResolver`, see the note there.
- */
-const DNS_ERROR_STATUS: Record<string, DnsQueryStatus> = {
-  ENODATA: 'nodata',
-  ESERVFAIL: 'servfail',
-  EREFUSED: 'refused',
-  ECONNREFUSED: 'refused',
-  ETIMEOUT: 'timeout',
-  ETIMEDOUT: 'timeout',
-};
-
 /** Operator-facing meaning of each non-`ok` outcome. */
 const STATUS_EXPLANATION: Record<DnsQueryStatus, string> = {
   ok: 'records were returned',
@@ -57,7 +46,7 @@ const STATUS_EXPLANATION: Record<DnsQueryStatus, string> = {
     'the domain does not exist — check for a typo, an expired registration, or a missing delegation',
   servfail:
     'the resolver could not complete the query — commonly a DNSSEC validation failure or a broken delegation',
-  refused: 'the resolver refused the query',
+  refused: 'the resolver refused the query or the connection',
   timeout: 'the resolver did not answer within the timeout',
   error: 'the query failed',
 };
@@ -111,28 +100,6 @@ export interface DnsResult {
   resolver_results: ResolverResult[];
 }
 
-/** Resolve one record type using one resolver; returns sorted string values. */
-async function resolveOne(resolver: Resolver, domain: string, type: RecordType): Promise<string[]> {
-  switch (type) {
-    case 'A':
-      return resolver.resolve4(domain);
-    case 'AAAA':
-      return resolver.resolve6(domain);
-    case 'CNAME':
-      return resolver.resolveCname(domain);
-    case 'MX': {
-      const records = await resolver.resolveMx(domain);
-      return records.map((r) => `${r.priority} ${r.exchange}`).sort();
-    }
-    case 'TXT': {
-      const records = await resolver.resolveTxt(domain);
-      return records.map((r) => r.join('')).sort();
-    }
-    case 'NS':
-      return resolver.resolveNs(domain);
-  }
-}
-
 /**
  * Roll one resolver's per-type outcomes into a single headline status: `ok` when any requested
  * type resolved, otherwise the most actionable failure present (see FAILURE_PRECEDENCE).
@@ -149,60 +116,28 @@ function rollUpStatus(
   return FAILURE_PRECEDENCE.find((s) => seen.includes(s)) ?? 'error';
 }
 
-/** Query one resolver for all requested record types. */
+/**
+ * Query one resolver for all requested record types under one deadline. Each type's status is
+ * the resolver's own answer: NOERROR with records is `ok`, NOERROR without is `nodata`, and
+ * NXDOMAIN, SERVFAIL, and REFUSED map one to one.
+ */
 async function queryResolver(
-  resolverIp: string,
+  resolver: string,
   domain: string,
   types: RecordType[],
   timeoutMs: number,
+  signal: AbortSignal,
 ): Promise<ResolverAnswer> {
-  const resolver = new Resolver({ timeout: timeoutMs });
-  resolver.setServers([resolverIp]);
-
   const start = performance.now();
+  const answers = await queryRecordTypes(resolver, domain, types, timeoutMs, signal);
+
   const records: Partial<Record<RecordType, string[]>> = {};
   const statusByType: Partial<Record<RecordType, DnsQueryStatus>> = {};
-  const outcomes: Partial<
-    Record<RecordType, { code?: string; message?: string; values?: string[] }>
-  > = {};
-
-  await Promise.allSettled(
-    types.map(async (type) => {
-      try {
-        outcomes[type] = { values: await resolveOne(resolver, domain, type) };
-      } catch (err) {
-        const e = err as NodeJS.ErrnoException;
-        outcomes[type] = { code: e.code ?? '', message: e.message };
-      }
-    }),
-  );
-
-  /**
-   * `ENOTFOUND` is ambiguous on a per-type query: c-ares raises it both for a true NXDOMAIN and
-   * for a NOERROR response with an empty answer section on some types (github.com AAAA). Claim
-   * nxdomain only when every requested type came back ENOTFOUND — any type that resolved, or that
-   * failed differently, proves the name itself resolves, which makes the empty type a NODATA.
-   */
-  const allNotFound =
-    types.length > 0 && types.every((type) => outcomes[type]?.code === 'ENOTFOUND');
-
-  for (const type of types) {
-    const outcome = outcomes[type];
-    if (!outcome) {
-      statusByType[type] = 'error';
-    } else if (outcome.values) {
-      if (outcome.values.length > 0) {
-        records[type] = outcome.values.sort();
-        statusByType[type] = 'ok';
-      } else {
-        // Empty success is NOERROR with an empty answer section — the NODATA case.
-        statusByType[type] = 'nodata';
-      }
-    } else if (outcome.code === 'ENOTFOUND') {
-      statusByType[type] = allNotFound ? 'nxdomain' : 'nodata';
-    } else {
-      statusByType[type] = DNS_ERROR_STATUS[outcome.code ?? ''] ?? 'error';
-    }
+  const details: Partial<Record<RecordType, string>> = {};
+  for (const [type, answer] of answers) {
+    statusByType[type] = answer.status;
+    if (answer.status === 'ok') records[type] = [...answer.values].sort();
+    if (answer.detail) details[type] = answer.detail;
   }
 
   /**
@@ -222,14 +157,13 @@ async function queryResolver(
       ? null
       : [...byStatus]
           .map(([status, affected]) => {
-            const raw =
-              status === 'error' ? outcomes[affected[0] as RecordType]?.message : undefined;
+            const raw = status === 'error' ? details[affected[0] as RecordType] : undefined;
             return `${status.toUpperCase()} on ${affected.join(', ')}${raw ? ` (${raw})` : ''}`;
           })
           .join('; ');
 
   return {
-    resolver: resolverIp,
+    resolver,
     latency_ms: Math.round(performance.now() - start),
     records,
     status: rollUpStatus(statusByType, types),
@@ -315,43 +249,57 @@ function elideAgreeingRecords(
 }
 
 export class DnsService {
+  /**
+   * One row per entry, in entry order. An invalid entry and a guard rejection are never queried.
+   * Caller cancellation (`signal`) stops in-flight queries and rejects the whole call rather than
+   * surfacing as per-row failures.
+   */
   async checkDomains(
-    domains: string[],
+    entries: DomainEntry[],
     types: RecordType[],
     resolverIps: string[],
     timeoutMs: number,
+    signal: AbortSignal,
   ): Promise<DnsResult[]> {
-    // SSRF guard: reject resolver IPs that are in private/loopback ranges (direct IP check —
-    // no DNS resolution needed since the caller controls the value).
+    /**
+     * SSRF guard: reject resolver IPs in private/loopback ranges (a direct IP check — the caller
+     * controls the value). The address parse then rejects a non-literal or an out-of-range port
+     * even when private targets are allowed, since a hostname would need a lookup to reach.
+     */
     for (const ip of resolverIps) {
       assertSafeResolverIp(ip);
+      parseResolverAddress(ip);
     }
 
     const results = await Promise.allSettled(
-      domains.map(async (domain) => {
+      entries.map(async (entry) => {
+        if (entry.kind === 'invalid') throw new Error(entry.error);
         // SSRF guard: reject domains that resolve to private/loopback/cloud-metadata addresses.
-        await assertSafeDomain(domain);
-        return this.checkOneDomain(domain, types, resolverIps, timeoutMs);
+        await assertSafeDomain(entry.host);
+        signal.throwIfAborted();
+        return this.checkOneDomain(entry.host, types, resolverIps, timeoutMs, signal);
       }),
     );
+    signal.throwIfAborted();
     /**
-     * A rejected domain was never queried, so there is nothing to observe about it: the
+     * A rejected entry was never queried, so there is nothing to observe about it: the
      * failure goes in `error` alone and `flags` stays empty. A guard rejection reads as
-     * its caller-facing text, as on every other rejection path.
+     * its caller-facing text, as on every other rejection path. `domain` is the name that was
+     * checked, or the submitted string for an entry that never became one.
      */
-    return results.map((r, i) =>
-      r.status === 'fulfilled'
-        ? r.value
-        : {
-            domain: domains[i] ?? 'unknown',
-            records: {},
-            records_source: null,
-            resolver_results: [],
-            propagation_discrepancies: [],
-            flags: [],
-            error: ssrfRejectionMessage(r.reason) ?? (r.reason as Error).message,
-          },
-    );
+    return results.map((r, i) => {
+      if (r.status === 'fulfilled') return r.value;
+      const entry = entries[i] as DomainEntry;
+      return {
+        domain: entry.kind === 'host' ? entry.host : entry.input,
+        records: {},
+        records_source: null,
+        resolver_results: [],
+        propagation_discrepancies: [],
+        flags: [],
+        error: ssrfRejectionMessage(r.reason) ?? (r.reason as Error).message,
+      };
+    });
   }
 
   private async checkOneDomain(
@@ -359,9 +307,10 @@ export class DnsService {
     types: RecordType[],
     resolverIps: string[],
     timeoutMs: number,
+    signal: AbortSignal,
   ): Promise<DnsResult> {
     const resolverResults = await Promise.all(
-      resolverIps.map((ip) => queryResolver(ip, domain, types, timeoutMs)),
+      resolverIps.map((ip) => queryResolver(ip, domain, types, timeoutMs, signal)),
     );
 
     const discrepancies = findDiscrepancies(resolverResults, types);

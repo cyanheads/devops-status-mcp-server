@@ -185,43 +185,95 @@ describe('devopsCheckCerts', () => {
     expect(result.results[0]!.cert).toBeNull();
   });
 
-  it('throws invalid_domain for protocol-prefixed input', async () => {
-    // Full end-to-end parse: the relaxed schema now admits this string, so the handler's
-    // PROTOCOL_RE check is what rejects it — no Zod bypass required. runToolContract
-    // applies the framework's recovery fill, so the envelope carries the declared hint.
-    const result = await runToolContract(devopsCheckCerts, { domains: ['https://example.com'] });
-    expect(result.isError).toBe(true);
-    expect(result.structuredContent).toMatchObject({
-      error: {
-        data: {
-          reason: 'invalid_domain',
-          recovery: { hint: expect.stringContaining('bare hostname') },
-        },
-      },
-    });
-  });
-
-  it('lets a malformed non-protocol domain reach the cert service as an error result', async () => {
+  it('hands the service a URL or a path-bearing entry as its host (#68)', async () => {
     const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
       _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
-    // A domain with a path is not protocol-prefixed, so it clears the handler's PROTOCOL_RE
-    // check and reaches the service, which can't complete a handshake and returns a soft
-    // per-domain error status — it is not silently accepted as valid.
-    const MALFORMED_ERROR: CertResult = {
-      ...ERROR_CERT,
-      domain: 'example.com/path',
-      error: 'getaddrinfo ENOTFOUND example.com/path',
+    _mockCheckDomains.mockResolvedValue([VALID_CERT, VALID_CERT]);
+
+    const result = await runToolContract(devopsCheckCerts, {
+      domains: ['https://example.com', 'example.com/path'],
+    });
+    expect(result.isError).toBeFalsy();
+    expect(_mockCheckDomains).toHaveBeenLastCalledWith(
+      [
+        { kind: 'host', input: 'https://example.com', host: 'example.com', port: null },
+        { kind: 'host', input: 'example.com/path', host: 'example.com', port: null },
+      ],
+      443,
+      5000,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('hands the service an entry with no host reading as an invalid entry (#68)', async () => {
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
+      _mockCheckDomains: ReturnType<typeof vi.fn>;
     };
-    _mockCheckDomains.mockResolvedValue([MALFORMED_ERROR]);
+    _mockCheckDomains.mockResolvedValue([VALID_CERT, ERROR_CERT]);
 
     const ctx = createMockContext({ errors: devopsCheckCerts.errors });
-    // The relaxed schema admits this string instead of rejecting it with a raw regex message.
-    const input = devopsCheckCerts.input.parse({ domains: ['example.com/path'] });
-    const result = await devopsCheckCerts.handler(input, ctx);
+    const input = devopsCheckCerts.input.parse({
+      domains: ['example.com:8443', 'user@example.com'],
+    });
+    await devopsCheckCerts.handler(input, ctx);
 
-    expect(result.results[0]!.status).toBe('error');
-    expect(_mockCheckDomains).toHaveBeenCalledWith(['example.com/path'], 443, 5000);
+    const [entries, port, , signal] = _mockCheckDomains.mock.lastCall as [
+      Array<Record<string, unknown>>,
+      number,
+      number,
+      AbortSignal,
+    ];
+    expect(entries[0]).toEqual({
+      kind: 'host',
+      input: 'example.com:8443',
+      host: 'example.com',
+      port: 8443,
+    });
+    expect(entries[1]).toMatchObject({ kind: 'invalid', input: 'user@example.com' });
+    expect(port).toBe(443);
+    // The caller's cancellation reaches the service.
+    expect(signal).toBe(ctx.signal);
+  });
+
+  it('declares no invalid_domain error, since no entry fails the call (#68)', () => {
+    expect(devopsCheckCerts.errors).toBeUndefined();
+  });
+
+  it('describes the accepted entry shapes and the per-entry port (#68)', () => {
+    const domains = devopsCheckCerts.input.shape.domains.description ?? '';
+    expect(domains).toContain('a port written on the entry is used for that entry');
+    expect(domains).toContain('gets its own result with status "error"');
+    expect(domains).not.toContain('Do not include "https://"');
+    expect(devopsCheckCerts.input.shape.port.description).toContain(
+      'A port written on an entry ("example.com:8443") wins for that entry.',
+    );
+  });
+
+  it('describes HSTS as judged only on ports that answer HTTP (#65)', () => {
+    const { flags, status, error } = devopsCheckCerts.output.shape.results.element.shape;
+    expect(flags.description).toContain('"HSTS not checked — no HTTP response on port 993"');
+    expect(status.description).toContain('HSTS never changes it');
+    expect(error.description).toContain('including a completed handshake whose port never');
+    expect(devopsCheckCerts.description).toContain('HSTS presence when the port answers HTTP');
+    expect(devopsCheckCerts.description).toContain('a server offering only those is still');
+    expect(devopsCheckCerts.input.shape.timeout_ms.description).toContain(
+      'a second handshake with TLS 1.0/1.1 enabled',
+    );
+  });
+
+  it('points at a CAA check when a certificate fails to issue or renew', () => {
+    expect(devopsCheckCerts.description).toContain(
+      'When a certificate fails to issue or renew, run devops_check_dns with record_types ["CAA"]',
+    );
+  });
+
+  it('brackets an IPv6 host in the rendered heading (#68)', () => {
+    const blocks = devopsCheckCerts.format!({
+      deferred_domains: [],
+      results: [{ ...VALID_CERT, domain: '2606:4700:4700::1111', port: 853 }],
+    });
+    expect((blocks[0] as { text: string }).text).toContain('[2606:4700:4700::1111]:853 — ok');
   });
 
   it('returns warning status for cert expiring in 20 days', async () => {
@@ -275,14 +327,23 @@ describe('devopsCheckCerts', () => {
 
     expect(result.results).toHaveLength(2);
     expect(_mockCheckDomains).toHaveBeenCalledWith(
-      ['example.com', 'unreachable.example.com'],
+      [
+        { kind: 'host', input: 'example.com', host: 'example.com', port: null },
+        {
+          kind: 'host',
+          input: 'unreachable.example.com',
+          host: 'unreachable.example.com',
+          port: null,
+        },
+      ],
       443,
       5000,
+      ctx.signal,
     );
   });
 
   it('formats output with cert subject and expiry', async () => {
-    const result = { results: [VALID_CERT] };
+    const result = { deferred_domains: [], results: [VALID_CERT] };
     const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('example.com');
@@ -293,7 +354,7 @@ describe('devopsCheckCerts', () => {
   });
 
   it('formats an unavailable chain depth without asserting a count', () => {
-    const result = { results: [CRITICAL_CERT] };
+    const result = { deferred_domains: [], results: [CRITICAL_CERT] };
     const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('**Chain depth:** unavailable');
@@ -303,7 +364,7 @@ describe('devopsCheckCerts', () => {
   });
 
   it('formats hostname and chain-trust findings', () => {
-    const result = { results: [MISMATCH_CERT, UNTRUSTED_CERT] };
+    const result = { deferred_domains: [], results: [MISMATCH_CERT, UNTRUSTED_CERT] };
     const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('Hostname mismatch:');
@@ -312,8 +373,50 @@ describe('devopsCheckCerts', () => {
     expect(text).toContain('SELF_SIGNED_CERT_IN_CHAIN');
   });
 
+  /**
+   * The subject, issuer, and SANs are whatever the inspected host's certificate carries, and
+   * a hostname mismatch quotes its SANs, so content[] renders them as relayed text: one line
+   * each, `<` and entity-starting `&` escaped. structuredContent keeps them as presented.
+   */
+  it('escapes certificate-supplied names in content[], keeping structuredContent as presented', async () => {
+    const MARKUP_CERT: CertResult = {
+      ...VALID_CERT,
+      domain: 'markup.example.com',
+      cert: {
+        ...VALID_CERT.cert!,
+        subject: 'evil.example\n# heading <b>',
+        san: ['<img src=x>.example', 'ok.example'],
+        issuer: 'Acme &amp; Co <i>CA</i>',
+        hostname_verification_error:
+          "Hostname/IP does not match certificate's altnames: Host: markup.example.com. is not in the cert's altnames: DNS:<img src=x>.example",
+      },
+    };
+    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
+      _mockCheckDomains: ReturnType<typeof vi.fn>;
+    };
+    _mockCheckDomains.mockResolvedValue([MARKUP_CERT]);
+
+    const result = await runToolContract(devopsCheckCerts, { domains: ['markup.example.com'] });
+    expect(result.isError).toBeFalsy();
+    const structured = result.structuredContent as { results: CertResult[] };
+    expect(structured.results[0]!.cert).toEqual(MARKUP_CERT.cert);
+
+    const lines = result.content
+      .map((b) => (b.type === 'text' ? b.text : ''))
+      .join('\n')
+      .split('\n');
+    expect(lines).toContain('**Subject:** evil.example # heading &lt;b>');
+    expect(lines).toContain('**SANs:** &lt;img src=x>.example, ok.example');
+    expect(lines).toContain('**Issuer:** Acme &amp;amp; Co &lt;i>CA&lt;/i>');
+    expect(lines).toContain(
+      "**Hostname mismatch:** Hostname/IP does not match certificate's altnames: Host: markup.example.com. is not in the cert's altnames: DNS:&lt;img src=x>.example",
+    );
+    expect(lines).not.toContain('# heading <b>');
+    expect(lines.some((l) => /<(b|i|img)\b/.test(l))).toBe(false);
+  });
+
   it('formats error result gracefully (null cert), stating the failure once', () => {
-    const result = { results: [ERROR_CERT] };
+    const result = { deferred_domains: [], results: [ERROR_CERT] };
     const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('### ❌ unreachable.example.com:443 — error');
@@ -325,5 +428,139 @@ describe('devopsCheckCerts', () => {
     const flags = devopsCheckCerts.output.shape.results.element.shape.flags.description;
     expect(flags).toContain('Empty when the connection never completed a handshake');
     expect(flags).toContain('A handshake that completed without a certificate keeps');
+  });
+
+  describe('input bounds (#69)', () => {
+    type Entry = { kind: 'host'; host: string } | { kind: 'invalid'; input: string };
+    type Structured = { results: CertResult[]; deferred_domains: string[]; notice?: string };
+
+    async function call(args: Record<string, unknown>) {
+      const { _mockCheckDomains } = (await import(
+        '@/services/cert/cert-service.js'
+      )) as unknown as { _mockCheckDomains: ReturnType<typeof vi.fn> };
+      // One row per entry, named as the service names it, so the rows mirror what was inspected.
+      _mockCheckDomains.mockReset();
+      _mockCheckDomains.mockImplementation(async (entries: Entry[]) =>
+        entries.map((e) => ({ ...VALID_CERT, domain: e.kind === 'host' ? e.host : e.input })),
+      );
+      const result = await runToolContract(devopsCheckCerts, args as never);
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      const [entries, port, timeout] = (_mockCheckDomains.mock.lastCall ?? []) as [
+        Entry[],
+        number,
+        number,
+      ];
+      return {
+        result,
+        text,
+        structured: result.structuredContent as Structured,
+        entries,
+        port,
+        timeout,
+      };
+    }
+
+    const names = (count: number, from = 1) =>
+      Array.from({ length: count }, (_, i) => `h${from + i}.example.com`);
+
+    it('inspects the first 10 hosts and returns the rest verbatim in deferred_domains', async () => {
+      const domains = [...names(10), 'https://H11.example.com/login', 'h12.example.com:8443'];
+      const { result, structured, entries, text } = await call({ domains });
+
+      expect(result.isError).toBeFalsy();
+      expect(entries.map((e) => (e.kind === 'host' ? e.host : e.input))).toEqual(names(10));
+      expect(structured.results.map((r) => r.domain)).toEqual(names(10));
+      expect(structured.deferred_domains).toEqual([
+        'https://H11.example.com/login',
+        'h12.example.com:8443',
+      ]);
+      const notice =
+        'Only the first 10 of 12 domains were inspected (10 per call); resend the 2 in deferred_domains in another call.';
+      expect(structured.notice).toBe(notice);
+      expect(text.split(notice)).toHaveLength(2);
+      expect(text).toContain(
+        '**Deferred domains (not inspected):** https://H11.example.com/login, h12.example.com:8443',
+      );
+    });
+
+    it('lets an entry with no single host within the first 10 take a slot as its own row', async () => {
+      const { structured, entries } = await call({
+        domains: [...names(9), 'user@example.com', 'h10.example.com'],
+      });
+
+      expect(entries).toHaveLength(10);
+      expect(entries[9]).toMatchObject({ kind: 'invalid', input: 'user@example.com' });
+      expect(structured.deferred_domains).toEqual(['h10.example.com']);
+    });
+
+    it('accepts 100 hosts and rejects 101, naming 100', async () => {
+      const hundred = await call({ domains: names(100) });
+      expect(hundred.result.isError).toBeFalsy();
+      expect(hundred.entries).toHaveLength(10);
+      expect(hundred.structured.deferred_domains).toEqual(names(90, 11));
+
+      const over = await call({ domains: names(101) });
+      expect(over.result.isError).toBe(true);
+      expect(over.entries).toBeUndefined();
+      expect(
+        (over.result.structuredContent as { error: { message: string } }).error.message,
+      ).toContain('<=100 items');
+    });
+
+    it('serves a timeout_ms over 15000 at 15000 and says so, keeping the 1000 floor', async () => {
+      const { timeout, structured, text } = await call({
+        domains: ['example.com'],
+        timeout_ms: 15001,
+      });
+      expect(timeout).toBe(15000);
+      const notice = 'timeout_ms 15001 is past the maximum of 15000; 15000 was used.';
+      expect(structured.notice).toBe(notice);
+      expect(text.split(notice)).toHaveLength(2);
+
+      const floor = await call({ domains: ['example.com'], timeout_ms: 999 });
+      expect(floor.result.isError).toBe(true);
+      expect(floor.entries).toBeUndefined();
+    });
+
+    it('keeps rejecting a port outside 1–65535', async () => {
+      for (const port of [0, 65536]) {
+        const { result, entries } = await call({ domains: ['example.com'], port });
+        expect(result.isError).toBe(true);
+        expect(entries).toBeUndefined();
+      }
+    });
+
+    it('joins the deferral and the timeout clamp into one notice', async () => {
+      const { structured } = await call({ domains: names(11), timeout_ms: 20000 });
+      expect(structured.notice).toBe(
+        'Only the first 10 of 11 domains were inspected (10 per call); resend the 1 in deferred_domains in another call. ' +
+          'timeout_ms 20000 is past the maximum of 15000; 15000 was used.',
+      );
+    });
+
+    it('serves a call at every cap unchanged, with an empty deferred list and no notice', async () => {
+      const { result, structured, entries, port, timeout, text } = await call({
+        domains: names(10),
+        port: 8443,
+        timeout_ms: 15000,
+      });
+
+      expect(result.isError).toBeFalsy();
+      expect(entries).toHaveLength(10);
+      expect(port).toBe(8443);
+      expect(timeout).toBe(15000);
+      expect(structured.results.map((r) => r.domain)).toEqual(names(10));
+      expect(structured).not.toHaveProperty('notice');
+      expect(text).not.toContain('per call');
+      expect(text).not.toContain('Deferred');
+      expect(structured.deferred_domains).toEqual([]);
+    });
+
+    it('states the caps in the input descriptions', () => {
+      const { domains, timeout_ms } = devopsCheckCerts.input.shape;
+      expect(domains.description).toContain('deferred_domains');
+      expect(domains.description).toContain('up to 100 are accepted');
+      expect(timeout_ms.description).toContain('a value over 15000 is served as 15000');
+    });
   });
 });

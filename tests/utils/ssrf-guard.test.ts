@@ -9,6 +9,7 @@ import {
   assertSafeDomain,
   assertSafeResolverIp,
   assertSafeUrl,
+  parseResolverTarget,
   ssrfRejectionMessage,
 } from '@/utils/ssrf-guard.js';
 
@@ -542,5 +543,24 @@ describe('ssrfRejectionMessage', () => {
     expect(ssrfRejectionMessage(new Error('SSRF_BLOCKED: SSRF_BLOCKED: x'))).toBe(
       'SSRF_BLOCKED: x',
     );
+  });
+});
+
+describe('parseResolverTarget', () => {
+  it.each([
+    ['8.8.8.8', { address: '8.8.8.8' }],
+    ['8.8.8.8:5353', { address: '8.8.8.8', port: 5353 }],
+    ['2001:4860:4860::8888', { address: '2001:4860:4860::8888' }],
+    ['[2001:4860:4860::8888]', { address: '2001:4860:4860::8888' }],
+    ['[::1]:53', { address: '::1', port: 53 }],
+    // Not an IP literal: returned as written, for the caller's literal check to reject.
+    ['dns.google', { address: 'dns.google' }],
+    ['dns.google:53', { address: 'dns.google:53' }],
+  ])('splits %s', (target, expected) => {
+    expect(parseResolverTarget(target)).toEqual(expected);
+  });
+
+  it('returns an out-of-range port as written, for the caller to bound', () => {
+    expect(parseResolverTarget('1.1.1.1:99999')).toEqual({ address: '1.1.1.1', port: 99999 });
   });
 });

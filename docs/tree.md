@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-10-08 11:19:52
+Generated on: 2026-10-14 21:19:07
 
 ```text
 devops-status-mcp-server/
@@ -25,6 +25,7 @@ devops-status-mcp-server/
 │   └── settings.json
 ├── changelog/
 │   ├── 0.1.x/
+│   ├── 0.10.x/
 │   ├── 0.2.x/
 │   ├── 0.3.x/
 │   ├── 0.4.x/
@@ -170,12 +171,17 @@ devops-status-mcp-server/
 │   │   ├── cert/
 │   │   │   └── cert-service.ts
 │   │   ├── dns/
-│   │   │   └── dns-service.ts
+│   │   │   ├── dns-message.ts
+│   │   │   ├── dns-service.ts
+│   │   │   └── dns-wire-client.ts
 │   │   ├── status-adapters/
 │   │   │   ├── aws-adapter.ts
 │   │   │   ├── azure-adapter.ts
+│   │   │   ├── azure-devops-adapter.ts
+│   │   │   ├── component-scope.ts
 │   │   │   ├── firehydrant-adapter.ts
 │   │   │   ├── gcp-adapter.ts
+│   │   │   ├── rss-extract.ts
 │   │   │   ├── slack-adapter.ts
 │   │   │   ├── status-dispatch.ts
 │   │   │   └── statusio-adapter.ts
@@ -187,7 +193,12 @@ devops-status-mcp-server/
 │   │       └── vendor-registry-service.ts
 │   ├── utils/
 │   │   ├── cached-fetch.ts
-│   │   └── ssrf-guard.ts
+│   │   ├── domain-input.ts
+│   │   ├── html-to-text.ts
+│   │   ├── input-bounds.ts
+│   │   ├── ssrf-guard.ts
+│   │   ├── vendor-markdown.ts
+│   │   └── word-match.ts
 │   └── index.ts
 ├── tests/
 │   ├── config/
@@ -198,6 +209,10 @@ devops-status-mcp-server/
 │   │   │       └── vendor-entry.resource.test.ts
 │   │   └── tools/
 │   │       └── definitions/
+│   │           ├── fixtures/
+│   │           │   ├── incidents-heavy-aws.json
+│   │           │   ├── incidents-heavy-circleci.json
+│   │           │   └── incidents-heavy-gcp.json
 │   │           ├── devops-check-certs.tool.test.ts
 │   │           ├── devops-check-dns.tool.test.ts
 │   │           ├── devops-get-incidents.tool.test.ts
@@ -211,12 +226,19 @@ devops-status-mcp-server/
 │   ├── resources/
 │   ├── services/
 │   │   ├── cert/
-│   │   │   └── cert-service.test.ts
+│   │   │   ├── cert-service.test.ts
+│   │   │   └── loopback-tls-server.ts
 │   │   ├── dns/
-│   │   │   └── dns-service.test.ts
+│   │   │   ├── dns-message.test.ts
+│   │   │   ├── dns-service.test.ts
+│   │   │   ├── dns-wire-client.test.ts
+│   │   │   └── fake-dns-server.ts
 │   │   ├── status-adapters/
 │   │   │   ├── fixtures/
 │   │   │   │   ├── aws-currentevents.utf16be.bin
+│   │   │   │   ├── azure-devops-health-20261014.json
+│   │   │   │   ├── azure-devops-health-docs-example.json
+│   │   │   │   ├── azure-devops-rss-20261014.xml
 │   │   │   │   ├── azure-feed-20220907.xml
 │   │   │   │   ├── azure-feed-20240721.xml
 │   │   │   │   ├── azure-feed-20251029.xml
@@ -227,9 +249,15 @@ devops-status-mcp-server/
 │   │   │   │   ├── slack-current.json
 │   │   │   │   ├── slack-history.json
 │   │   │   │   ├── statusio-gitlab.json
-│   │   │   │   └── statusio-incident-doc-derived.json
+│   │   │   │   ├── statusio-incident-doc-derived.json
+│   │   │   │   ├── statusio-neon.json
+│   │   │   │   ├── statuspage-auth0-summary.json
+│   │   │   │   ├── statuspage-digitalocean-summary.json
+│   │   │   │   └── statuspage-twilio-summary.json
 │   │   │   ├── aws-adapter.test.ts
 │   │   │   ├── azure-adapter.test.ts
+│   │   │   ├── azure-devops-adapter.test.ts
+│   │   │   ├── component-scope.test.ts
 │   │   │   ├── firehydrant-adapter.test.ts
 │   │   │   ├── gcp-adapter.test.ts
 │   │   │   ├── slack-adapter.test.ts
@@ -244,6 +272,7 @@ devops-status-mcp-server/
 │   │   │   │   ├── github-history-p4.json
 │   │   │   │   ├── github-history-p5.json
 │   │   │   │   ├── github-incidents.json
+│   │   │   │   ├── github-scheduled-maintenances-20261014.json
 │   │   │   │   ├── github-scheduled-maintenances.json
 │   │   │   │   ├── twilio-history-p1.json
 │   │   │   │   ├── twilio-history-p2.json
@@ -256,9 +285,15 @@ devops-status-mcp-server/
 │   │   └── vendor-registry/
 │   │       └── vendor-registry-service.test.ts
 │   ├── tools/
-│   └── utils/
-│       ├── cached-fetch.test.ts
-│       └── ssrf-guard.test.ts
+│   ├── utils/
+│   │   ├── cached-fetch.test.ts
+│   │   ├── domain-input.test.ts
+│   │   ├── html-to-text.test.ts
+│   │   ├── input-bounds.test.ts
+│   │   ├── ssrf-guard.test.ts
+│   │   ├── vendor-markdown.test.ts
+│   │   └── word-match.test.ts
+│   └── index.test.ts
 ├── .dockerignore
 ├── .env.example
 ├── .gitattributes

@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.10.0](changelog/0.10.x/0.10.0.md) — 2026-10-14 · ⚠️ Breaking · 🛡️ Security
+
+Adds an azure-devops vendor, a wire-format DNS client with CAA and SOA, URL-tolerant domain input, incident narrowing with until and match, and plain-text vendor update bodies; batch and output inputs are served at a cap instead of rejected, and saved stacks are isolated per caller. Breaking: several validation and startup changes.
+
 ## [0.9.1](changelog/0.9.x/0.9.1.md) — 2026-10-08
 
 Moves to mcp-ts-core 0.13.14: tool error results carry a request ID and keep server internals out of error data, common argument-type mistakes are repaired instead of rejected, and the Docker image installs dependencies on the build platform and gains a health check.

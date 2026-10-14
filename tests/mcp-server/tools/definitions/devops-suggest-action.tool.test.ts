@@ -3,8 +3,9 @@
  * @module tests/mcp-server/tools/definitions/devops-suggest-action.tool.test
  */
 
-import { createMockContext } from '@cyanheads/mcp-ts-core/testing';
+import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { devopsListVendors } from '@/mcp-server/tools/definitions/devops-list-vendors.tool.js';
 import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
 import { initVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 
@@ -274,10 +275,176 @@ describe('devopsSuggestAction', () => {
       const input = devopsSuggestAction.input.parse({ vendor: 'cloud' });
       const result = await devopsSuggestAction.handler(input, ctx);
       expect(result.vendor_category).toBeNull();
-      const incidents = result.nextToolSuggestions.find(
-        (s) => s.toolName === 'devops_get_incidents',
+      // Unresolved, so the first follow-up searches the registry rather than picking a hit (#72)
+      expect(result.nextToolSuggestions[0]).toMatchObject({
+        toolName: 'devops_list_vendors',
+        args: { query: 'cloud' },
+      });
+    });
+  });
+
+  describe('unresolved vendor routes to a registry search (#72)', () => {
+    const unresolvedReason = (vendor: string) =>
+      `"${vendor}" is not a registry slug or display name — search the registry for its slug, then call devops_get_incidents with it.`;
+
+    it('suggests devops_list_vendors for an unregistered vendor, and no incidents call', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'unknownco' });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      expect(result.vendor_category).toBeNull();
+      expect(result.guidance).toContain('Service Outage');
+      expect(result.nextToolSuggestions[0]).toEqual({
+        toolName: 'devops_list_vendors',
+        reason: unresolvedReason('unknownco'),
+        args: { query: 'unknownco' },
+      });
+      expect(result.nextToolSuggestions.map((s) => s.toolName)).not.toContain(
+        'devops_get_incidents',
       );
-      expect(incidents!.args.vendor).toBe('cloud');
+    });
+
+    it('trims the vendor before it becomes the search query', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: '  Sendinblue ' });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      expect(result.nextToolSuggestions[0]).toEqual({
+        toolName: 'devops_list_vendors',
+        reason: unresolvedReason('Sendinblue'),
+        args: { query: 'Sendinblue' },
+      });
+      // The vendor field still echoes the input as provided
+      expect(result.vendor).toBe('  Sendinblue ');
+    });
+
+    it('renders the trimmed vendor in the content[] heading, as one escaped line', async () => {
+      const trimmed = await runToolContract(devopsSuggestAction, { vendor: '  Sendinblue ' });
+      const text = trimmed.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      expect(text.split('\n')[0]).toBe('## Incident Response: Sendinblue');
+      expect(trimmed.structuredContent).toMatchObject({ vendor: '  Sendinblue ' });
+
+      const marked = await runToolContract(devopsSuggestAction, {
+        vendor: 'Acme\n# Injected <b>bold</b> &amp;',
+      });
+      const lines = marked.content
+        .map((b) => (b.type === 'text' ? b.text : ''))
+        .join('\n')
+        .split('\n');
+      expect(lines[0]).toBe('## Incident Response: Acme # Injected &lt;b>bold&lt;/b> &amp;amp;');
+      expect(lines).not.toContain('# Injected <b>bold</b> &amp;');
+      expect(marked.structuredContent).toMatchObject({
+        vendor: 'Acme\n# Injected <b>bold</b> &amp;',
+      });
+    });
+
+    it('escapes the caller vendor quoted in a suggestion reason in content[]', async () => {
+      const result = await runToolContract(devopsSuggestAction, { vendor: 'Acme\n# <b>Co</b>' });
+      const lines = result.content
+        .map((b) => (b.type === 'text' ? b.text : ''))
+        .join('\n')
+        .split('\n');
+      const why = lines.filter((line) => line.startsWith('**Why:** "Acme'));
+      expect(why).toEqual([
+        '**Why:** "Acme # &lt;b>Co&lt;/b>" is not a registry slug or display name — search the registry for its slug, then call devops_get_incidents with it.',
+      ]);
+    });
+
+    it('keeps a multi-line incident summary inside its quote and escapes component names', async () => {
+      const result = await runToolContract(devopsSuggestAction, {
+        vendor: 'github',
+        incident_summary: 'Degraded Actions\n## Next steps <b>now</b>',
+        affected_components: ['Actions\n# Runners', 'Git <ops>'],
+      });
+      const lines = result.content
+        .map((b) => (b.type === 'text' ? b.text : ''))
+        .join('\n')
+        .split('\n');
+      const quoteStart = lines.indexOf('**Incident context:**') + 1;
+      expect(lines.slice(quoteStart, quoteStart + 2)).toEqual([
+        '  > Degraded Actions',
+        '  > ## Next steps &lt;b>now&lt;/b>',
+      ]);
+      expect(lines).toContain('**Affected components:** Actions # Runners, Git &lt;ops>');
+      expect(result.structuredContent).toMatchObject({
+        diagnostics_summary: { affected_components: ['Actions\n# Runners', 'Git <ops>'] },
+      });
+    });
+
+    it('the suggested search finds the registry slug for a partial name', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'Sendinblue' });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      const search = result.nextToolSuggestions[0]!;
+      expect(search.toolName).toBe('devops_list_vendors');
+      // Executing the pre-filled call returns the slug devops_get_incidents accepts
+      const listed = await devopsListVendors.handler(
+        devopsListVendors.input.parse(search.args),
+        createMockContext(),
+      );
+      expect(listed.vendors.map((v) => v.slug)).toContain('brevo');
+    });
+
+    it('keeps the slug-filled incidents call for a display name (#20 regression)', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'Amazon Web Services' });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      expect(result.nextToolSuggestions[0]).toMatchObject({
+        toolName: 'devops_get_incidents',
+        args: { vendor: 'aws', filter: 'active', limit: 5 },
+      });
+      expect(result.nextToolSuggestions.map((s) => s.toolName)).not.toContain(
+        'devops_list_vendors',
+      );
+    });
+
+    it('keeps the URL-filled incidents call for a raw status page URL', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'https://status.example-internal.com',
+      });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      expect(result.nextToolSuggestions[0]).toMatchObject({
+        toolName: 'devops_get_incidents',
+        args: { vendor: 'https://status.example-internal.com', filter: 'active', limit: 5 },
+      });
+      expect(result.nextToolSuggestions.map((s) => s.toolName)).not.toContain(
+        'devops_list_vendors',
+      );
+    });
+
+    it('still adds the DNS and certificate checks for an unregistered vendor with your_domain', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'unknownco',
+        your_domain: 'https://app.example.com/login',
+      });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      expect(result.nextToolSuggestions.map((s) => s.toolName)).toEqual([
+        'devops_list_vendors',
+        'devops_check_dns',
+        'devops_check_certs',
+      ]);
+      expect(result.nextToolSuggestions[1]!.args.domains).toEqual(['app.example.com']);
+    });
+
+    it('carries the search suggestion on both surfaces through the production parse', async () => {
+      const result = await runToolContract(devopsSuggestAction, { vendor: 'unknownco' });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({
+        vendor: 'unknownco',
+        vendor_category: null,
+        nextToolSuggestions: [
+          {
+            toolName: 'devops_list_vendors',
+            reason: unresolvedReason('unknownco'),
+            args: { query: 'unknownco' },
+          },
+        ],
+      });
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      expect(text).toContain('### `devops_list_vendors`');
+      expect(text).toContain(`**Why:** ${unresolvedReason('unknownco')}`);
+      expect(text).toContain('**Args:** `{"query":"unknownco"}`');
+      expect(text).not.toContain('devops_get_incidents`');
     });
   });
 

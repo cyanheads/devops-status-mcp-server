@@ -3,11 +3,15 @@
  * @module tests/mcp-server/tools/definitions/devops-watch-stack.tool.test
  */
 
+import { resetConfig } from '@cyanheads/mcp-ts-core/config';
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { createMockContext, getEnrichment, runToolContract } from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
-import { devopsWatchStack } from '@/mcp-server/tools/definitions/devops-watch-stack.tool.js';
+import {
+  devopsWatchStack,
+  stacksPersist,
+} from '@/mcp-server/tools/definitions/devops-watch-stack.tool.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
 import {
   getVendorRegistryService,
@@ -855,6 +859,474 @@ describe('devopsWatchStack', () => {
         }
       ).text;
       expect(text).not.toContain('Recommended Next Steps');
+    });
+  });
+});
+
+/**
+ * Stacks are saved only where the tenant identifies the caller. Each case sets the
+ * framework's transport and auth env, then re-parses its config so the tool reads the
+ * deployment posture a real process would.
+ */
+describe('devopsWatchStack: deployment posture', () => {
+  async function serveOperational() {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+    _mockFetchSummary.mockReset();
+    _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
+  }
+
+  function useDeployment(env: Record<string, string>) {
+    for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+    resetConfig();
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetConfig();
+  });
+
+  describe('HTTP without authentication', () => {
+    beforeEach(() => {
+      useDeployment({ MCP_TRANSPORT_TYPE: 'http', MCP_AUTH_MODE: 'none' });
+    });
+
+    it('does not save stacks', () => {
+      expect(stacksPersist()).toBe(false);
+    });
+
+    it('rejects a vendors-less call with vendors_required after another call passed vendors', async () => {
+      await serveOperational();
+      const ctx = createMockContext({ tenantId: 'default', errors: devopsWatchStack.errors });
+      const setSpy = vi.spyOn(ctx.state, 'set');
+      const getSpy = vi.spyOn(ctx.state, 'get');
+
+      const swept = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: ['github', 'cloudflare'], stack_name: 'prod.eu' }),
+        ctx,
+      );
+      expect(swept.stack_persisted).toBe(false);
+
+      await expect(
+        devopsWatchStack.handler(devopsWatchStack.input.parse({ stack_name: 'prod.eu' }), ctx),
+      ).rejects.toMatchObject({ data: { reason: 'vendors_required' } });
+      expect(setSpy).not.toHaveBeenCalled();
+      expect(getSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns vendors_required with its recovery on both surfaces', async () => {
+      const result = await runToolContract(
+        devopsWatchStack,
+        { stack_name: 'prod.eu' },
+        { context: { tenantId: 'default' } },
+      );
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        error: {
+          data: {
+            reason: 'vendors_required',
+            recovery: { hint: expect.stringContaining('Pass the vendors list on every call') },
+          },
+        },
+      });
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain('vendors_required');
+      expect(text).toContain('Pass the vendors list on every call');
+    });
+
+    it('sweeps the passed vendors unchanged, with stack_persisted false and a notice on both surfaces', async () => {
+      await serveOperational();
+      const result = await runToolContract(
+        devopsWatchStack,
+        { vendors: ['github'], stack_name: 'prod.eu' },
+        { context: { tenantId: 'default' } },
+      );
+      expect(result.isError).toBeFalsy();
+      const structured = result.structuredContent as {
+        stack_persisted: boolean;
+        persistence_notice?: string;
+        vendors: Array<{ vendor: string; indicator: string }>;
+        health: string;
+      };
+      expect(structured.stack_persisted).toBe(false);
+      expect(structured.health).toBe('all_operational');
+      expect(structured.vendors.map((v) => [v.vendor, v.indicator])).toEqual([['github', 'none']]);
+      expect(structured.persistence_notice).toContain('does not save stacks');
+      expect(structured.persistence_notice).toContain('pass vendors on every call');
+
+      const text = result.content.map((c) => (c as { text: string }).text).join('\n');
+      expect(text).toContain('does not save stacks');
+      expect(text).not.toContain('Stack list saved for future calls');
+    });
+
+    it('keeps the truncation notice alongside the persistence notice', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const many = Array.from({ length: 5 }, (_, i) => ({
+        ...CRITICAL_SUMMARY.components[0]!,
+        id: `c${i}`,
+        name: `Component ${i}`,
+        status: 'operational' as const,
+      }));
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockResolvedValue({
+        data: { ...OPERATIONAL_SUMMARY, components: many },
+        cached: false,
+      });
+
+      const result = await runToolContract(
+        devopsWatchStack,
+        { vendors: ['github'], mode: 'detailed', component_limit: 2 },
+        { context: { tenantId: 'default' } },
+      );
+      const structured = result.structuredContent as {
+        notice?: string;
+        persistence_notice?: string;
+      };
+      expect(structured.notice).toContain('3 of 5 components are not shown');
+      expect(structured.persistence_notice).toContain('does not save stacks');
+    });
+
+    it('keeps a component_filter miss beside the truncation and persistence notices (#62)', async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const base = CRITICAL_SUMMARY.components[0]!;
+      const grouped: StatuspageSummaryResponse = {
+        ...OPERATIONAL_SUMMARY,
+        components: [
+          { ...base, id: 'grp-eu', name: 'Europe', status: 'operational', group: true },
+          ...Array.from({ length: 4 }, (_, i) => ({
+            ...base,
+            id: `c${i}`,
+            name: `Region ${i}`,
+            status: 'operational' as const,
+            group_id: 'grp-eu',
+          })),
+        ],
+      };
+      const githubUrl = getVendorRegistryService().getBySlug('github')!.statuspage_url;
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockImplementation((url: string) =>
+        Promise.resolve({ data: url === githubUrl ? grouped : OPERATIONAL_SUMMARY, cached: false }),
+      );
+
+      const result = await runToolContract(
+        devopsWatchStack,
+        {
+          vendors: ['github', 'cloudflare'],
+          mode: 'detailed',
+          component_filter: 'europe',
+          component_limit: 2,
+        },
+        { context: { tenantId: 'default' } },
+      );
+      const structured = result.structuredContent as {
+        notice?: string;
+        persistence_notice?: string;
+        vendors: Array<{ all_components?: Array<{ name: string; group: string | null }> }>;
+      };
+      expect(structured.vendors[0]!.all_components).toEqual([
+        expect.objectContaining({ name: 'Region 0', group: 'Europe' }),
+        expect.objectContaining({ name: 'Region 1', group: 'Europe' }),
+      ]);
+      expect(structured.notice).toBe(
+        '2 of 4 components are not shown — component lists are capped at 2 per vendor. Set component_filter to reach a specific component, or raise component_limit. component_filter "europe" matched no component of cloudflare (0 published). It matches component and group names as a case-insensitive substring; call again without component_filter to list them.',
+      );
+      expect(structured.persistence_notice).toContain('does not save stacks');
+      const text = result.content.map((c) => (c as { text: string }).text).join('\n');
+      expect(text).toContain('- Europe / Region 0: operational');
+      expect(text).toContain('matched no component of cloudflare (0 published)');
+      expect(text).toContain('does not save stacks');
+    });
+  });
+
+  describe('stdio', () => {
+    beforeEach(() => {
+      useDeployment({ MCP_TRANSPORT_TYPE: 'stdio', MCP_AUTH_MODE: 'none' });
+    });
+
+    it('saves and reuses a stack with no persistence notice', async () => {
+      expect(stacksPersist()).toBe(true);
+      await serveOperational();
+      const ctx = createMockContext({ tenantId: 'default', errors: devopsWatchStack.errors });
+
+      const saved = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: ['github'], stack_name: 'prod.eu' }),
+        ctx,
+      );
+      expect(saved.stack_persisted).toBe(true);
+
+      const reused = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ stack_name: 'prod.eu' }),
+        ctx,
+      );
+      expect(reused.vendors.map((v) => v.vendor)).toEqual(['github']);
+      expect(getEnrichment(ctx)).toEqual({});
+    });
+  });
+
+  /**
+   * Vendor-count bounds (#69). Where the call saves the stack, more than 20 rejects before
+   * anything is saved; where it doesn't, the call is a read that checks the first 20 and
+   * defers the rest. Over 100 rejects everywhere.
+   */
+  describe('vendor-count bounds (#69)', () => {
+    const SLUGS = [
+      'digitalocean',
+      'linode',
+      'cloudflare',
+      'akamai',
+      'github',
+      'npm',
+      'vercel',
+      'netlify',
+      'render',
+      'fly-io',
+      'circleci',
+      'travis-ci',
+      'snyk',
+      'atlassian',
+      'figma',
+      'launchdarkly',
+      'mongodb-atlas',
+      'planetscale',
+      'supabase',
+      'elastic',
+      'influxdb',
+      'cloudinary',
+      'segment',
+      'discord',
+      'mailgun',
+    ];
+    const DEFERRAL_21 =
+      'Only the first 20 of 21 vendors were checked (20 per call); resend the 1 in deferred_vendors in another call.';
+
+    type BoundsResult = {
+      vendors: Array<{ vendor: string; all_components?: unknown[] }>;
+      summary: { total: number; operational: number };
+      stack_persisted: boolean;
+      deferred_vendors: string[];
+      notice?: string;
+      persistence_notice?: string;
+    };
+
+    async function call(args: Record<string, unknown>) {
+      // Over-cap arguments are the point, so they skip the input type.
+      const result = await runToolContract(devopsWatchStack, args as never, {
+        context: { tenantId: 'default' },
+      });
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      return { result, structured: result.structuredContent as BoundsResult, text };
+    }
+
+    async function mockSummary() {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockResolvedValue({ data: OPERATIONAL_SUMMARY, cached: false });
+      return _mockFetchSummary;
+    }
+
+    describe('where stacks are saved (stdio)', () => {
+      beforeEach(() => {
+        useDeployment({ MCP_TRANSPORT_TYPE: 'stdio', MCP_AUTH_MODE: 'none' });
+      });
+
+      it('rejects 21 vendors with stack_too_large naming 20, before resolving or saving anything', async () => {
+        const fetchSummary = await mockSummary();
+        const ctx = createMockContext({ tenantId: 'default', errors: devopsWatchStack.errors });
+        await devopsWatchStack.handler(
+          devopsWatchStack.input.parse({ vendors: ['github'], stack_name: 'prod' }),
+          ctx,
+        );
+        fetchSummary.mockClear();
+        const setSpy = vi.spyOn(ctx.state, 'set');
+
+        const err = await Promise.resolve(
+          devopsWatchStack.handler(
+            devopsWatchStack.input.parse({ vendors: SLUGS.slice(0, 21), stack_name: 'prod' }),
+            ctx,
+          ),
+        ).catch((e: unknown) => e);
+
+        expect(err).toMatchObject({ data: { reason: 'stack_too_large' } });
+        expect((err as Error).message).toContain('21 vendors');
+        expect((err as Error).message).toContain('at most 20');
+        expect(setSpy).not.toHaveBeenCalled();
+        expect(fetchSummary).not.toHaveBeenCalled();
+        // The stack saved before is untouched.
+        const reused = await devopsWatchStack.handler(
+          devopsWatchStack.input.parse({ stack_name: 'prod' }),
+          ctx,
+        );
+        expect(reused.vendors.map((v) => v.vendor)).toEqual(['github']);
+      });
+
+      it('returns stack_too_large with its recovery on both surfaces', async () => {
+        await mockSummary();
+        const { result, structured, text } = await call({ vendors: SLUGS.slice(0, 21) });
+
+        expect(result.isError).toBe(true);
+        expect(structured).toMatchObject({
+          error: {
+            data: {
+              reason: 'stack_too_large',
+              recovery: { hint: expect.stringContaining('at most 20') },
+            },
+          },
+        });
+        expect(text).toContain('stack_too_large');
+        expect(text).toContain('at most 20');
+      });
+
+      it('saves 20 vendors with an empty deferred_vendors and no notice', async () => {
+        await mockSummary();
+        const { result, structured, text } = await call({ vendors: SLUGS.slice(0, 20) });
+
+        expect(result.isError).toBeFalsy();
+        expect(structured.stack_persisted).toBe(true);
+        expect(structured.vendors).toHaveLength(20);
+        expect(structured.deferred_vendors).toEqual([]);
+        expect(structured.notice).toBeUndefined();
+        expect(text).not.toContain('Deferred');
+      });
+
+      it('sweeps the first 20 of a saved stack longer than 20 and defers the rest', async () => {
+        const fetchSummary = await mockSummary();
+        const ctx = createMockContext({ tenantId: 'default', errors: devopsWatchStack.errors });
+        // A saved stack can exceed 20 on a persistent storage backend.
+        await ctx.state.set('stack/legacy', SLUGS);
+        const setSpy = vi.spyOn(ctx.state, 'set');
+
+        const result = await devopsWatchStack.handler(
+          devopsWatchStack.input.parse({ stack_name: 'legacy' }),
+          ctx,
+        );
+
+        expect(result.vendors.map((v) => v.vendor)).toEqual(SLUGS.slice(0, 20));
+        expect(result.deferred_vendors).toEqual(SLUGS.slice(20));
+        expect(result.summary.total).toBe(20);
+        expect(result.stack_persisted).toBe(false);
+        expect(fetchSummary).toHaveBeenCalledTimes(20);
+        expect(setSpy).not.toHaveBeenCalled();
+
+        const effective = devopsWatchStack.output.extend(devopsWatchStack.enrichment!);
+        const structured = effective.parse({ ...result, ...getEnrichment(ctx) });
+        expect(structured.notice).toBe(
+          'Only the first 20 of 25 vendors were checked (20 per call); resend the 5 in deferred_vendors in another call. The saved stack "legacy" holds 25 vendors; save them under several stack names of at most 20 each to sweep every one.',
+        );
+        const text = (devopsWatchStack.format!(structured)[0] as { text: string }).text;
+        expect(text).toContain(
+          '**Deferred (5, not checked):** influxdb, cloudinary, segment, discord, mailgun',
+        );
+      });
+
+      it('rejects more than 100 vendors at the schema, naming 100', async () => {
+        const fetchSummary = await mockSummary();
+        const vendors = Array.from({ length: 101 }, (_, i) => SLUGS[i % SLUGS.length]!);
+        const { result, text } = await call({ vendors });
+
+        expect(result.isError).toBe(true);
+        expect(text).toMatch(/vendors\b.*<=100 items/);
+        expect(fetchSummary).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('where stacks are not saved (HTTP without authentication)', () => {
+      beforeEach(() => {
+        useDeployment({ MCP_TRANSPORT_TYPE: 'http', MCP_AUTH_MODE: 'none' });
+      });
+
+      it('checks the first 20 of 21 vendors and defers the 21st, with both notices', async () => {
+        const fetchSummary = await mockSummary();
+        const { result, structured, text } = await call({ vendors: SLUGS.slice(0, 21) });
+
+        expect(result.isError).toBeFalsy();
+        expect(structured.vendors.map((v) => v.vendor)).toEqual(SLUGS.slice(0, 20));
+        expect(structured.deferred_vendors).toEqual(['influxdb']);
+        expect(structured.summary).toMatchObject({ total: 20, operational: 20 });
+        expect(structured.stack_persisted).toBe(false);
+        expect(fetchSummary).toHaveBeenCalledTimes(20);
+        expect(structured.notice).toBe(DEFERRAL_21);
+        expect(structured.persistence_notice).toContain('does not save stacks');
+
+        expect(text).toContain('20 vendors |');
+        expect(text).toContain('**Deferred (1, not checked):** influxdb');
+        expect(text).toContain(DEFERRAL_21);
+        expect(text).toContain('does not save stacks');
+      });
+
+      it('rejects more than 100 vendors at the schema, naming 100', async () => {
+        await mockSummary();
+        const vendors = Array.from({ length: 101 }, (_, i) => SLUGS[i % SLUGS.length]!);
+        const { result, text } = await call({ vendors });
+
+        expect(result.isError).toBe(true);
+        expect(text).toMatch(/vendors\b.*<=100 items/);
+      });
+
+      it('composes the deferral and clamp notices with the truncation notice', async () => {
+        const { _mockFetchSummary } = (await import(
+          '@/services/statuspage/statuspage-service.js'
+        )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+        const many = Array.from({ length: 503 }, (_, i) => ({
+          ...CRITICAL_SUMMARY.components[0]!,
+          id: `c${i}`,
+          name: `Component ${i}`,
+          status: 'operational' as const,
+        }));
+        _mockFetchSummary.mockReset();
+        _mockFetchSummary.mockResolvedValue({
+          data: { ...OPERATIONAL_SUMMARY, components: many },
+          cached: false,
+        });
+
+        const { structured, text } = await call({
+          vendors: SLUGS.slice(0, 21),
+          mode: 'detailed',
+          component_limit: 1000,
+        });
+
+        const expected = `${DEFERRAL_21} component_limit 1000 is past the maximum of 500; 500 was used. 60 of 10060 components are not shown — component lists are capped at 500 per vendor. Set component_filter to reach a specific component.`;
+        expect(structured.vendors[0]!.all_components).toHaveLength(500);
+        expect(structured.notice).toBe(expected);
+        expect(structured.persistence_notice).toContain('does not save stacks');
+        expect(text).toContain(expected);
+      });
+    });
+  });
+
+  describe('HTTP with JWT authentication', () => {
+    beforeEach(() => {
+      useDeployment({
+        MCP_TRANSPORT_TYPE: 'http',
+        MCP_AUTH_MODE: 'jwt',
+        MCP_AUTH_SECRET_KEY: 'test-secret-key-that-is-at-least-32-characters-long',
+      });
+    });
+
+    /** Isolation between tenants is the framework's, keyed by the token's `tid`. */
+    it('saves and reuses a stack for the token’s tenant', async () => {
+      expect(stacksPersist()).toBe(true);
+      await serveOperational();
+      const ctx = createMockContext({ tenantId: 'tenant-a', errors: devopsWatchStack.errors });
+
+      const saved = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: ['github'], stack_name: 'prod.eu' }),
+        ctx,
+      );
+      expect(saved.stack_persisted).toBe(true);
+
+      const reused = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ stack_name: 'prod.eu' }),
+        ctx,
+      );
+      expect(reused.vendors.map((v) => v.vendor)).toEqual(['github']);
+      expect(getEnrichment(ctx)).toEqual({});
     });
   });
 });

@@ -12,7 +12,9 @@ import { fetchVendorSummary } from '@/services/status-adapters/status-dispatch.j
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
 import type { ResolvedVendor } from '@/services/vendor-registry/vendor-registry-service.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
+import { deferralNotice, splitBatch } from '@/utils/input-bounds.js';
 import { assertSafeUrl, ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
+import { vendorInline, vendorQuote } from '@/utils/vendor-markdown.js';
 
 /**
  * Render a settled-rejection as the per-vendor `error` string.
@@ -40,8 +42,71 @@ export function vendorErrorMessage(reason: unknown): string {
  */
 export const DEFAULT_COMPONENT_LIMIT = 50;
 
-/** Highest `component_limit` accepted — above the largest published component list. */
+/**
+ * Highest `component_limit` applied — above the largest published component list. A larger
+ * request is clamped to it rather than rejected.
+ */
 export const MAX_COMPONENT_LIMIT = 500;
+
+/**
+ * Vendors checked per call. Each one is its own upstream fetch, all in parallel, so the
+ * entries past it are returned for the caller to resend rather than fetched.
+ */
+export const MAX_VENDORS_PER_CALL = 20;
+
+/**
+ * Longest vendors list accepted at all. Deferred entries are echoed back, so this bounds
+ * the response; it sits above the registry's size, so a list of every slug is served in
+ * part rather than rejected.
+ */
+export const MAX_VENDORS_INPUT = 100;
+
+/** A vendors list split at {@link MAX_VENDORS_PER_CALL}, with the notice for the deferral. */
+export type VendorBatch = {
+  served: string[];
+  deferred: string[];
+  /** Present only when entries were deferred. */
+  notice?: string;
+};
+
+/** Split a vendors list into the entries checked on this call and the ones to resend. */
+export function splitVendors(vendors: readonly string[]): VendorBatch {
+  const { served, deferred } = splitBatch(vendors, MAX_VENDORS_PER_CALL);
+  if (deferred.length === 0) return { served, deferred };
+  return {
+    served,
+    deferred,
+    notice: deferralNotice({
+      cap: MAX_VENDORS_PER_CALL,
+      deferredCount: deferred.length,
+      field: 'deferred_vendors',
+      noun: 'vendors',
+      verb: 'checked',
+    }),
+  };
+}
+
+/**
+ * The sentence naming deferred entries in a message about the checked ones, e.g.
+ * " 1 more past the first 20 was not checked: github." Empty when nothing was deferred.
+ */
+export function deferredVendorsSentence(deferred: readonly string[]): string {
+  if (deferred.length === 0) return '';
+  const verb = deferred.length === 1 ? 'was' : 'were';
+  return ` ${deferred.length} more past the first ${MAX_VENDORS_PER_CALL} ${verb} not checked: ${deferred.join(', ')}.`;
+}
+
+/** The `deferred_vendors` line for format(); empty when nothing was deferred. */
+export function renderDeferredVendors(deferred: readonly string[]): string[] {
+  if (deferred.length === 0) return [];
+  return [`**Deferred (${deferred.length}, not checked):** ${deferred.join(', ')}`];
+}
+
+const COMPONENT_NAME_DESCRIPTION =
+  'Component name as the status page publishes it — the leaf alone, without its group. Several leaves can share a name (one per region or product); group tells them apart.';
+
+const COMPONENT_GROUP_DESCRIPTION =
+  'Name of the group the status page files this component under — typically the product or region it belongs to — or null when it is not in a group.';
 
 /** Per-vendor result schema shared by devops_status_check and devops_watch_stack. */
 export const VendorResultSchema = z
@@ -60,7 +125,8 @@ export const VendorResultSchema = z
       .array(
         z
           .object({
-            name: z.string().describe('Component name.'),
+            name: z.string().describe(COMPONENT_NAME_DESCRIPTION),
+            group: z.string().nullable().describe(COMPONENT_GROUP_DESCRIPTION),
             status: z
               .enum(['degraded_performance', 'partial_outage', 'major_outage', 'under_maintenance'])
               .describe(
@@ -92,7 +158,11 @@ export const VendorResultSchema = z
               .describe(
                 "ISO 8601 timestamp, with the vendor's UTC offset (Z, +00:00, or a local offset such as -07:00), when the incident started, or null/absent if not set by the vendor.",
               ),
-            latest_update: z.string().describe('Most recent incident_update body text.'),
+            latest_update: z
+              .string()
+              .describe(
+                'Most recent update text, as plain text: HTML markup the vendor published is converted, and any other < is text the vendor wrote.',
+              ),
           })
           .describe('An active incident entry.'),
       )
@@ -118,7 +188,8 @@ export const VendorResultSchema = z
       .array(
         z
           .object({
-            name: z.string().describe('Component name.'),
+            name: z.string().describe(COMPONENT_NAME_DESCRIPTION),
+            group: z.string().nullable().describe(COMPONENT_GROUP_DESCRIPTION),
             status: z.string().describe('Component operational status.'),
             description: z
               .string()
@@ -129,7 +200,7 @@ export const VendorResultSchema = z
       )
       .optional()
       .describe(
-        'Components including operational ones, capped at component_limit per vendor and narrowed by component_filter when given. Present in detailed mode only.',
+        'Components including operational ones, capped at component_limit per vendor and narrowed by component_filter (matched against name and group) when given. Present in detailed mode only.',
       ),
     all_components_total: z
       .number()
@@ -173,6 +244,15 @@ const DEGRADED_STATUS_MARKER: Record<DegradedStatus, string> = {
 };
 
 /**
+ * A component as one string — `Group / Leaf`, or the leaf alone when ungrouped — for the
+ * surfaces with no separate group field: content[] lines and the devops_suggest_action
+ * pre-fill and its reason. Never parsed back: `/` also occurs inside real component names.
+ */
+function qualifiedName(c: { name: string; group: string | null }): string {
+  return c.group === null ? c.name : `${c.group} / ${c.name}`;
+}
+
+/**
  * Render the degraded-component block: a count-led headline with the per-status
  * breakdown, then every component on its own line under its status.
  *
@@ -183,7 +263,7 @@ const DEGRADED_STATUS_MARKER: Record<DegradedStatus, string> = {
  */
 function renderDegradedComponents(components: VendorResult['degraded_components']): string[] {
   const grouped = DEGRADED_STATUS_ORDER.map(
-    (status) => [status, components.filter((c) => c.status === status).map((c) => c.name)] as const,
+    (status) => [status, components.filter((c) => c.status === status).map(qualifiedName)] as const,
   ).filter(([, names]) => names.length > 0);
 
   const lines = [
@@ -193,7 +273,8 @@ function renderDegradedComponents(components: VendorResult['degraded_components'
     lines.push(
       `**${status} (${names.length})${status === 'under_maintenance' ? ' — scheduled window, not an outage' : ''}:**`,
     );
-    for (const name of names) lines.push(`- ${DEGRADED_STATUS_MARKER[status]} ${name}`);
+    for (const name of names)
+      lines.push(`- ${DEGRADED_STATUS_MARKER[status]} ${vendorInline(name)}`);
   }
   return lines;
 }
@@ -212,12 +293,17 @@ const INDICATOR_ICON: Record<VendorResult['indicator'], string> = {
   maintenance: '🛠️',
 };
 
-/** Render a vendor result block for use in format(). */
+/**
+ * Render a vendor result block for use in format(). Every string the status page wrote
+ * — the page name, status description, component names and descriptions, incident and
+ * maintenance fields — is flattened and escaped inline, and each incident's latest update
+ * is quoted beneath it.
+ */
 export function renderVendorBlock(v: VendorResult): string[] {
   const lines: string[] = [];
   const icon = v.error ? '❓' : INDICATOR_ICON[v.indicator];
-  lines.push(`### ${icon} ${v.name} (${v.vendor})`);
-  lines.push(`**Status:** ${v.description} | **Indicator:** ${v.indicator}`);
+  lines.push(`### ${icon} ${vendorInline(v.name)} (${v.vendor})`);
+  lines.push(`**Status:** ${vendorInline(v.description)} | **Indicator:** ${v.indicator}`);
   if (v.error) lines.push(`**Error:** ${v.error}`);
   if (v.degraded_components.length > 0) {
     lines.push(...renderDegradedComponents(v.degraded_components));
@@ -225,15 +311,17 @@ export function renderVendorBlock(v: VendorResult): string[] {
   if (v.active_incidents.length > 0) {
     for (const inc of v.active_incidents) {
       lines.push(
-        `**Incident [${inc.id}]:** ${inc.name} [${inc.impact}/${inc.status}]${inc.started_at ? ` started ${inc.started_at}` : ''}`,
+        `**Incident [${vendorInline(inc.id)}]:** ${vendorInline(inc.name)} [${inc.impact}/${vendorInline(inc.status)}]${inc.started_at ? ` started ${vendorInline(inc.started_at)}` : ''}`,
       );
-      lines.push(`  ${inc.latest_update}`);
+      const quote = vendorQuote(inc.latest_update);
+      // The blank line ends the quote, which would otherwise take in the next line.
+      if (quote.length > 0) lines.push(...quote, '');
     }
   }
   if (v.scheduled_maintenances && v.scheduled_maintenances.length > 0) {
     for (const m of v.scheduled_maintenances) {
       lines.push(
-        `**Maintenance:** ${m.name} [${m.status}] ${m.scheduled_for} → ${m.scheduled_until}`,
+        `**Maintenance:** ${vendorInline(m.name)} [${vendorInline(m.status)}] ${vendorInline(m.scheduled_for)} → ${vendorInline(m.scheduled_until)}`,
       );
     }
   }
@@ -241,7 +329,9 @@ export function renderVendorBlock(v: VendorResult): string[] {
     const total = v.all_components_total ?? v.all_components.length;
     lines.push(`**Components (${v.all_components.length} of ${total}):**`);
     for (const c of v.all_components) {
-      lines.push(`- ${c.name}: ${c.status}${c.description ? ` — ${c.description}` : ''}`);
+      lines.push(
+        `- ${vendorInline(qualifiedName(c))}: ${vendorInline(c.status)}${c.description ? ` — ${vendorInline(c.description)}` : ''}`,
+      );
     }
   }
   lines.push(
@@ -294,7 +384,7 @@ const NextToolSuggestionSchema = z
     args: z
       .record(z.string(), z.unknown())
       .describe(
-        'Ready-to-use devops_suggest_action arguments: vendor (registry slug, or the normalized status page URL for a raw URL), vendor_indicator (only for minor, major, or critical), affected_components (degraded components outside a maintenance window), incident_summary (title of the most recently started open incident rated minor or worse).',
+        'Ready-to-use devops_suggest_action arguments: vendor (registry slug, or the normalized status page URL for a raw URL), vendor_indicator (only for minor, major, or critical), affected_components (degraded components outside a maintenance window, each written "Group / Leaf" when it is in a group), incident_summary (title of the most recently started open incident rated minor or worse).',
       ),
   })
   .describe('A recommended follow-up tool call with pre-filled arguments.');
@@ -389,7 +479,7 @@ export function buildSuggestActionSuggestions(
     );
     const components = result.degraded_components
       .filter((c) => c.status !== 'under_maintenance')
-      .map((c) => c.name);
+      .map(qualifiedName);
 
     /**
      * The indicator is the vendor's overall rating, not each component's — a minor page
@@ -421,14 +511,18 @@ export function buildSuggestActionSuggestions(
   return suggestions;
 }
 
-/** Render `nextToolSuggestions` for format(), in the layout devops_suggest_action uses. Empty when there are none. */
+/**
+ * Render `nextToolSuggestions` for format(), in the layout devops_suggest_action uses. Empty
+ * when there are none. A reason quotes incident and component names, so it is escaped
+ * inline like any vendor text.
+ */
 export function renderNextToolSuggestions(suggestions: readonly NextToolSuggestion[]): string[] {
   if (suggestions.length === 0) return [];
   const lines = ['## Recommended Next Steps', ''];
   for (const s of suggestions) {
     lines.push(
       `### \`${s.toolName}\``,
-      `**Why:** ${s.reason}`,
+      `**Why:** ${vendorInline(s.reason)}`,
       `**Args:** \`${JSON.stringify(s.args)}\``,
       '',
     );
@@ -571,13 +665,20 @@ export type BuiltVendorResult = {
   componentsMatched: number;
   /** Components included in the result. 0 in summary mode. */
   componentsShown: number;
+  /** Components the page publishes, groups excluded — what a filter could have matched. */
+  componentsPublished: number;
 };
 
 /** Build a VendorResult from a Statuspage summary response. */
 export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResult {
   const { vendorInput, url, name, data, cached, mode, componentLimit, componentFilter } = args;
   const now = new Date().toISOString();
-  const degraded = data.components.filter((c) => c.status !== 'operational' && !c.group);
+  // A group is a container, never a component a caller checks; its name labels its leaves.
+  const groupNames = new Map(data.components.filter((c) => c.group).map((c) => [c.id, c.name]));
+  const leaves = data.components
+    .filter((c) => !c.group)
+    .map((c) => ({ component: c, group: groupNames.get(c.group_id ?? '') ?? null }));
+  const degraded = leaves.filter(({ component }) => component.status !== 'operational');
   const activeIncidents = (data.incidents ?? []).filter(
     (i) => i.status !== 'resolved' && i.status !== 'postmortem',
   );
@@ -587,9 +688,10 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
     name: data.page.name || name,
     indicator: data.status.indicator,
     description: data.status.description,
-    degraded_components: degraded.map((c) => ({
-      name: c.name,
-      status: c.status as VendorResult['degraded_components'][number]['status'],
+    degraded_components: degraded.map(({ component, group }) => ({
+      name: component.name,
+      group,
+      status: component.status as DegradedStatus,
     })),
     active_incidents: activeIncidents.map((i) => {
       const updates = [...i.incident_updates].sort(
@@ -610,7 +712,12 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
   };
 
   if (mode === 'summary') {
-    return { result, componentsMatched: 0, componentsShown: 0 };
+    return {
+      result,
+      componentsMatched: 0,
+      componentsShown: 0,
+      componentsPublished: leaves.length,
+    };
   }
 
   result.scheduled_maintenances = (data.scheduled_maintenances ?? []).map((m) => ({
@@ -621,21 +728,45 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
   }));
 
   const filter = componentFilter?.trim().toLowerCase();
-  const matched = data.components.filter(
-    (c) => !c.group && (!filter || c.name.toLowerCase().includes(filter)),
-  );
+  const matched = filter
+    ? leaves.filter(
+        ({ component, group }) =>
+          component.name.toLowerCase().includes(filter) ||
+          (group?.toLowerCase().includes(filter) ?? false),
+      )
+    : leaves;
   const shown = matched.slice(0, componentLimit);
 
-  result.all_components = shown.map((c) => ({
-    name: c.name,
-    status: c.status,
+  result.all_components = shown.map(({ component, group }) => ({
+    name: component.name,
+    group,
+    status: component.status,
     // Pages omit `description` entirely rather than sending null; the output
     // contract promises `string | null`, so normalize instead of widening it.
-    description: c.description ?? null,
+    description: component.description ?? null,
   }));
   result.all_components_total = matched.length;
 
-  return { result, componentsMatched: matched.length, componentsShown: shown.length };
+  return {
+    result,
+    componentsMatched: matched.length,
+    componentsShown: shown.length,
+    componentsPublished: leaves.length,
+  };
+}
+
+/**
+ * The notice for a component_filter that matched no component of one or more checked
+ * vendors. A vendor that errored is left out: it was never checked, and its row says so.
+ */
+function filterMissNotice(filter: string, missed: readonly BuiltVendorResult[]): string {
+  const vendors = missed
+    .map((m) => `${m.result.vendor} (${m.componentsPublished} published)`)
+    .join(', ');
+  return (
+    `component_filter ${JSON.stringify(filter)} matched no component of ${vendors}. ` +
+    'It matches component and group names as a case-insensitive substring; call again without component_filter to list them.'
+  );
 }
 
 /**
@@ -646,11 +777,16 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
  * rejected fetch) into an `error` row, and disclose capped component lists once for
  * the whole batch. They differ only in what they persist and how they shape the
  * response, so the check itself lives here and cannot drift between them.
+ *
+ * `leadNotices` are the caller's own adjustments (deferred vendors, a clamped
+ * component_limit). `notice` is last-wins across enrich calls, so they are composed
+ * here, ahead of the component notices, into the one notice this function writes.
  */
 export async function fetchVendorResults(
   prepared: readonly PreparedVendor[],
   ctx: Context,
   options: ComponentOptions,
+  leadNotices: readonly string[] = [],
 ): Promise<VendorResult[]> {
   const settled = await Promise.allSettled(
     prepared.map(async (p): Promise<BuiltVendorResult> => {
@@ -659,6 +795,7 @@ export async function fetchVendorResults(
           result: vendorErrorResult(p.input, p.name, p.url, p.message),
           componentsMatched: 0,
           componentsShown: 0,
+          componentsPublished: 0,
         };
       }
       const { data, cached } = await fetchVendorSummary(p.target);
@@ -675,18 +812,39 @@ export async function fetchVendorResults(
 
   let componentsMatched = 0;
   let componentsShown = 0;
+  const built: BuiltVendorResult[] = [];
   for (const s of settled) {
     if (s.status !== 'fulfilled') continue;
+    built.push(s.value);
     componentsMatched += s.value.componentsMatched;
     componentsShown += s.value.componentsShown;
   }
-  if (componentsShown < componentsMatched) {
+
+  // `notice` is last-wins across enrich calls, so every reason composes into one string.
+  const notices = [...leadNotices];
+  const truncated = componentsShown < componentsMatched;
+  if (truncated) {
+    // At the maximum there is no higher limit to point at.
+    const raise = options.componentLimit < MAX_COMPONENT_LIMIT ? ', or raise component_limit' : '';
+    notices.push(
+      `${componentsMatched - componentsShown} of ${componentsMatched} components are not shown — component lists are capped at ${options.componentLimit} per vendor. Set component_filter to reach a specific component${raise}.`,
+    );
+  }
+  const filter = options.componentFilter?.trim();
+  if (options.mode === 'detailed' && filter) {
+    const missed = built.filter((b) => b.result.error === undefined && b.componentsMatched === 0);
+    if (missed.length > 0) notices.push(filterMissNotice(filter, missed));
+  }
+
+  if (truncated) {
     ctx.enrich.total(componentsMatched);
     ctx.enrich.truncated({
       shown: componentsShown,
       cap: options.componentLimit,
-      guidance: `${componentsMatched - componentsShown} of ${componentsMatched} components are not shown — component lists are capped at ${options.componentLimit} per vendor. Set component_filter to reach a specific component, or raise component_limit.`,
+      guidance: notices.join(' '),
     });
+  } else if (notices.length > 0) {
+    ctx.enrich.notice(notices.join(' '));
   }
 
   return settled.map((s, i) => {

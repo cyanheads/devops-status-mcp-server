@@ -1,0 +1,2081 @@
+{
+  "page": {
+    "id": "aws",
+    "name": "Amazon Web Services",
+    "time_zone": "Etc/UTC",
+    "updated_at": "",
+    "url": "https://health.aws.amazon.com"
+  },
+  "incidents": [
+    {
+      "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E",
+      "name": "Region Availability — Multiple services (Bahrain)",
+      "impact": "major",
+      "status": "investigating",
+      "created_at": "2026-03-02T05:56:27.000Z",
+      "started_at": "2026-03-02T05:56:27.000Z",
+      "resolved_at": null,
+      "monitoring_at": null,
+      "page_id": "aws",
+      "shortlink": null,
+      "components": [],
+      "incident_updates": [
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u0",
+          "body": "We are investigating increased API error rates in a single Availability Zone (mes1-az2) in the ME-SOUTH-1 Region.",
+          "status": "informational",
+          "created_at": "2026-03-02T05:56:27.000Z",
+          "display_at": "2026-03-02T05:56:27.000Z",
+          "affected_components": [
+            {
+              "code": "",
+              "name": "AWS Resource Groups",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Storage Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CodeCommit",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS WAF",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Container Registry",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Lake Formation",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Reachability Analyzer",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Data Firehose",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Glacier",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Redshift",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Managed Streaming for Apache Kafka",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Detective",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Traffic Mirroring",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Backup",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Transcribe",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Internet Connectivity",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon API Gateway",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Transit Gateway",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Private CA Connector for Active Directory",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Global Accelerator",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Cognito",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Key Management Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "VM Import/Export",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic MapReduce",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Security Token Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Route 53",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Control Tower",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS X-Ray",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Notification Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS VPCE PrivateLink",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Queue Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Certificate Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Macie",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Load Balancing",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Secrets Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CloudTrail",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Management Console",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS NAT Gateway",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Amplify",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Config",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Neptune",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Kinesis Video Streams",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Polly",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Email Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon EventBridge Scheduler",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Step Functions",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Elastic Beanstalk",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Amplify Admin",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon FreeRTOS",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Systems Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Application Migration Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Sign-In",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon DynamoDB",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Outposts",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch Synthetics",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Service Catalog",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Storage Gateway",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Compute Optimizer",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Kinesis Data Streams",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Database Migration Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Firewall Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Network Firewall",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Inspector",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Resource Explorer",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CodeDeploy",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS IAM Identity Center",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Transfer Family",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "EC2 Image Builder",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS License Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Site-to-Site VPN",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Verified Permissions",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CodeBuild",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon ElastiCache",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS End User Messaging",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS AppConfig",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Ground Station",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Console Mobile App",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS AppSync",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Elastic Disaster Recovery",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon MQ",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS App Mesh",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Compute Cloud",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Keyspaces",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Route 53 Private DNS",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CodePipeline",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Relational Database Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Private CA Connector for SCEP",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Fargate",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS DataSync",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Direct Connect",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Serverless Application Repository",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Lambda",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudFront",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Service Quotas",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon SageMaker",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon S3 Replication Time Control",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Network Access Analyzer",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Control Catalog",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Resource Access Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Kubernetes Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Managed Workflows for Apache Airflow",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Athena",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Infrastructure Performance",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Virtual Private Cloud",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CloudShell",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon VPC IP Address Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Fault Injection Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Resilience Hub",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Route 53 Resolver",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Cloud WAN",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Container Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Batch",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon FSx",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch Internet Monitor",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch Application Insights",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Cloud Map",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon EMR Serverless",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon GameLift Streams",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon OpenSearch Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Launch Wizard",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Identity and Access Management Roles Anywhere",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Resource Groups Tagging API",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Cloud9",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic File System",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CloudHSM",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Managed Service for Apache Flink",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Directory Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch RUM",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Security Hub",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Glue",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Auto Scaling",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS IoT Core",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Client VPN",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon GuardDuty",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS IoT Device Management",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Systems Manager for SAP",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Security Incident Response",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "EC2 Serial Console",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon EventBridge",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS IoT Device Defender",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Bedrock",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Private Certificate Authority",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Data Lifecycle Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Well-Architected Tool",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon VPC Lattice",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CloudFormation",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Workflow Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon EC2 Instance Connect",
+              "new_status": "",
+              "old_status": ""
+            }
+          ]
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u1",
+          "body": "We are investigating connectivity and power issues affecting APIs and instances in a single Availability Zone (mes1-az2) in the ME-SOUTH-1 Region due to a localized power issue. Existing instances in this zone will also be affected. Other AWS Services may also be experiencing increased errors and latencies for their workflows, and we are working to route requests away from this affected Availability Zone. We recommend customers make use of other Availability Zones at this time. During this time, we are also experiencing delays in propagating DNS changes for Route53 to pops (Points of Presence) in ME-SOUTH-1.  Targeting new launches using RunInstances in the remaining AZs should succeed. Existing instances in the other AZs are not affected.",
+          "status": "informational",
+          "created_at": "2026-03-02T07:09:03.000Z",
+          "display_at": "2026-03-02T07:09:03.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u2",
+          "body": "We continue to work on a localized power issue affecting a single Availability Zone (mes1-az2) in the ME-SOUTH-1 Region. In the impacted Availability Zone, EC2 Instances, DB Instances, EBS Volumes, and other AWS Services are also experiencing elevated error rates and latencies for some workflows. As part of our recovery effort, we have shifted traffic away from the impacted Availability Zone for most services. We recommend customers utilize one of the other Availability Zones in the ME-SOUTH-1 Region, as existing instances in other AZs remain unaffected by this issue. We are actively working to restore power and connectivity, at which time we will begin recovering affected resources. Currently, we expect recovery to take many hours. We will provide an update by 2:30 AM PST, or sooner if we have additional information to share.",
+          "status": "informational",
+          "created_at": "2026-03-02T09:03:27.000Z",
+          "display_at": "2026-03-02T09:03:27.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u3",
+          "body": "We continue to work toward restoring power in the affected Availability Zone (mes1-az2) in the ME-SOUTH-1 Region. At this time, some AWS services have shifted traffic away from the affected Availability Zone and are seeing recovery for their affected operations and workflows. EC2 Instances, EBS Volumes, and other resources impacted in the affected Availability Zone will require a longer recovery timeline. Power has not yet been restored to the affected Availability Zone. If immediate recovery is required, we recommend customers restore from EBS Snapshots and/or launch replacement resources in one of the unaffected Availability Zones or an alternate Region. In parallel, we are actively working on reducing the error rates and latencies that some customers are experiencing with EC2 APIs. For now, we recommend continuing to retry any failed API requests. We will provide an update by 6:00 AM PST on March 2, or sooner if we have additional information to share.",
+          "status": "informational",
+          "created_at": "2026-03-02T10:41:00.000Z",
+          "display_at": "2026-03-02T10:41:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u4",
+          "body": "We continue to work toward restoring power in the impacted Availability Zone (mes1-az2) in the ME-SOUTH-1 Region. Meanwhile, EC2 instance and networking APIs have been restored for the other Availability Zones. Additionally, we have made improvements to the availability of RDS multi-AZ databases while operating with the impaired Availability Zone. These improvements will help customers create database exports to preserve data, and we recommend customers with databases in the affected Availability Zone consider creating exports as a precautionary measure. EC2 Instances, EBS Volumes, and other resources impacted in the affected Availability Zone will require a longer recovery timeline, as power has not yet been restored. We are expecting recovery to take at least a day, as it requires repair of facilities, cooling and power systems, coordination with local authorities, and careful assessment to ensure the safety of our operators. If immediate recovery is required, we recommend customers restore from EBS Snapshots and/or launch replacement resources in one of the unaffected Availability Zones or an alternate AWS Region. We will provide an update by 11:00 AM PST on March 2, or sooner if we have additional information to share.",
+          "status": "informational",
+          "created_at": "2026-03-02T14:23:19.000Z",
+          "display_at": "2026-03-02T14:23:19.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u5",
+          "body": "We continue to work towards restoring power in the affected Availability Zone (mes1-az2) in the ME-SOUTH-1 Region. We currently expect our recovery efforts to take at least a day. Our current guidance regarding immediate recovery remains unchanged from our previous update. Customers are able to disassociate Elastic IP addresses from resources in the affected Availability Zone and associate those with resources in the unaffected Availability Zones. This can be done by specifying --allow-reassociation when attempting to associate the Elastic IP to the new resource. We will provide you with further updates by 2:00 PM PST or sooner if new information becomes available.",
+          "status": "informational",
+          "created_at": "2026-03-02T18:52:00.000Z",
+          "display_at": "2026-03-02T18:52:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u6",
+          "body": "We continue to work towards restoring power in the affected Availability Zone (mes1-az2) in the ME-SOUTH-1 Region. We have no updated guidance on expected recovery times, and still expect this to take at least a day to fully restore power and connectivity. We continue to advise customers to launch replacement resources in one of the unaffected Availability Zones or an alternate AWS Region. At this time we recommend that customers that are capable of backing up data outside of the region consider doing so. You can view the current status of affected AWS services below. We will provide you with another update by 7:00 PM PST, or sooner if we have additional information to share.",
+          "status": "informational",
+          "created_at": "2026-03-02T22:29:07.000Z",
+          "display_at": "2026-03-02T22:29:07.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u7",
+          "body": "We are providing an update on the ongoing service disruptions affecting the AWS Middle East (UAE) Region (ME-CENTRAL-1) and the AWS Middle East (Bahrain) Region (ME-SOUTH-1). Due to the ongoing conflict in the Middle East, both affected regions have experienced physical impacts to infrastructure as a result of drone strikes. In the UAE, two of our facilities were directly struck, while in Bahrain, a drone strike in close proximity to one of our facilities caused physical impacts to our infrastructure. These strikes have caused structural damage, disrupted power delivery to our infrastructure, and in some cases required fire suppression activities that resulted in additional water damage. We are working closely with local authorities and prioritizing the safety of our personnel throughout our recovery efforts.\n\nIn the ME-CENTRAL-1 (UAE) Region, two of our three Availability Zones (mec1-az2 and mec1-az3) remain significantly impaired. The third Availability Zone (mec1-az1) continues to operate normally, though some services have experienced indirect impact due to dependencies on the affected zones. In the ME-SOUTH-1 (Bahrain) Region, one facility has been impacted. Across both regions, customers are experiencing elevated error rates and degraded availability for services including Amazon EC2, Amazon S3, Amazon DynamoDB, AWS Lambda, Amazon Kinesis, Amazon CloudWatch, Amazon RDS, and the AWS Management Console and CLI. We are working to restore full service availability as quickly as possible, though we expect recovery to be prolonged given the nature of the physical damage involved.\n\nIn parallel with efforts to restore the physical infrastructure at the affected sites, we are pursuing multiple software-based recovery paths that do not depend on the underlying facilities being fully brought back online. For Amazon S3 and Amazon DynamoDB, we are actively working to restore data access and service availability through software mitigations, including deploying updates to enable S3 to operate within the current infrastructure constraints and remediating impaired DynamoDB tables to restore read and write availability for dependent services. Our focus on restoring these foundational services is deliberate, as recovery of Amazon S3 and Amazon DynamoDB will in turn enable a broad range of dependent AWS services to recover. For other affected service APIs, we are deploying targeted software updates to reduce error rates and restore functionality where possible, independent of the physical recovery timeline. We are also working to restore access to the AWS Management Console and CLI through network-level changes that route traffic away from the affected infrastructure. While these software-based mitigations can address many of the service-level impacts, some recovery actions are constrained by the physical state of the affected facilities — meaning that full restoration of certain services will require the underlying infrastructure to be repaired and brought back online. Across all services, our teams are working in parallel on both the physical restoration of the affected facilities and these software-based mitigations, with the goal of restoring as much customer access as possible as quickly as possible, even ahead of full infrastructure recovery. In addition, we are prioritizing the restoration of services and tools that enable customers to back up and migrate their data and applications out of the affected regions.\n\nFinally, even as we work to restore these facilities, the ongoing conflict in the region means that the broader operating environment in the Middle East remains unpredictable. We recommend that customers with workloads running in the Middle East consider taking action now to backup data and potentially migrate your workloads to alternate AWS Regions. We recommend customers exercise their disaster recovery plans, recover from remote backups stored in other regions, and update their applications to direct traffic away from the affected regions. For customers requiring guidance on alternate regions, we recommend considering AWS Regions in the United States, Europe, or Asia Pacific, as appropriate for your latency and data residency requirements.\n\nWe will continue to provide updates as recovery progresses and as the situation evolves. Our next update will be provided by 9:00 PM PST on March 2, 2026, or sooner if new information becomes available.",
+          "status": "informational",
+          "created_at": "2026-03-03T00:22:31.000Z",
+          "display_at": "2026-03-03T00:22:31.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u8",
+          "body": "We continue to work towards restoring power in the affected Availability Zone (mes1-az2) in the ME-SOUTH-1 Region. We have no updated guidance on expected recovery times, and still expect this to take at least a day to fully restore power and connectivity. AWS infrastructure is designed to be highly resilient, but given the uncertainty of the current situation, we encourage our customers to replicate Amazon S3 and critical data from the ME-SOUTH-1 Region to another AWS Region. For customers requiring guidance on alternate regions, we recommend considering AWS Regions in the United States, Europe, or Asia Pacific, as appropriate for your latency and data residency requirements. We will provide another update by March 3 at 3:00 AM PST, or sooner if new information becomes available. \n\nFor more information on Cross-Region Replication, refer [1]. For more information on S3 Batch Replication, see [2]. For a simple script to quickly set up and start S3 Replication, see [3]. If you have questions or concerns, please contact AWS Support [4].\n\n[1] <a href=\"https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html\">https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html</a>\n[2] <a href=\"https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-batch-replication-batch.html\">https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-batch-replication-batch.html</a>\n[3] <a href=\"https://github.com/awslabs/aws-support-tools/blob/master/S3/Setup_Replication/setup_replication.py\">https://github.com/awslabs/aws-support-tools/blob/master/S3/Setup_Replication/setup_replication.py</a>\n[4] <a href=\"https://aws.amazon.com/support\">https://aws.amazon.com/support</a>",
+          "status": "informational",
+          "created_at": "2026-03-03T06:27:00.000Z",
+          "display_at": "2026-03-03T06:27:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u9",
+          "body": "We continue to work toward restoring power in the affected Availability Zone (mes1-az2) in the ME-SOUTH-1 Region. The overall state of the region remains largely unchanged from our previous update. At this time, we have no updated guidance on expected timelines for fully restoring power and connectivity. We are taking all necessary steps to support the recovery process. While progress is being made, significant work remains before full restoration is complete. \n\nGiven the ongoing uncertainty, we encourage customers to replicate their Amazon S3 data and other critical data from the ME-SOUTH-1 Region to another AWS Region, using the guidance provided in our previous update. We will continue to provide updates as recovery progresses and as the situation evolves. Our next update will be provided by 6:00 AM PST on March 3, or sooner if new information becomes available.",
+          "status": "informational",
+          "created_at": "2026-03-03T11:10:38.000Z",
+          "display_at": "2026-03-03T11:10:38.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u10",
+          "body": "Recovery efforts in the affected Availability Zone (mes1-az2) in the ME-SOUTH-1 Region are ongoing, with the situation remaining consistent with our last update. We have no change to expected timelines for fully restoring power and connectivity. While progress is being made, significant work remains before full restoration is complete. We continue to recommend customers launch replacement resources in one of the unaffected Availability Zones or an alternate AWS Region.\n\nGiven the extended nature of this event, we continue to encourage customers to replicate Amazon S3 data and other critical workloads from ME-SOUTH-1 to another AWS Region using the guidance shared previously. We will provide our next update by 12:00 PM PST on March 3, or sooner if conditions change.",
+          "status": "informational",
+          "created_at": "2026-03-03T14:02:57.000Z",
+          "display_at": "2026-03-03T14:02:57.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u11",
+          "body": "We are providing an update on the ongoing service disruptions affecting the AWS Middle East (Bahrain) Region (ME-SOUTH-1). We continue to make progress on recovery efforts across multiple workstreams. With the immediate phase of this event now better understood, we are moving to a more targeted communication model. Going forward, updates will be delivered directly to affected customers through the AWS Personal Health Dashboard. Customers who require assistance with this event are encouraged to contact AWS Support through the AWS Management Console or the AWS Support Center.\n\nWe continue to strongly recommend that customers with workloads running in the Middle East take action now to migrate those workloads to alternate AWS Regions. Customers should enact their disaster recovery plans, recover from remote backups stored in other Regions, and update their applications to direct traffic away from the affected Regions. For customers requiring guidance on alternate regions, we recommend considering AWS Regions in the United States, Europe, or Asia Pacific, as appropriate for your latency and data residency requirements.",
+          "status": "informational",
+          "created_at": "2026-03-03T16:40:00.000Z",
+          "display_at": "2026-03-03T16:40:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u12",
+          "body": "We are providing an update on the ongoing service disruption. The Middle East (Bahrain) Region (ME-SOUTH-1) has suffered damage due to the conflict in the Middle East and is currently unavailable. Customers should recover their resources in other Regions from remote backups. Relevant billing operations are currently suspended while we restore normal operations in this AWS Region. This process is expected to take several months.  ",
+          "status": "disruption",
+          "created_at": "2026-04-30T07:07:11.000Z",
+          "display_at": "2026-04-30T07:07:11.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E-u13",
+          "body": "We are providing an update on the disruption affecting the Middle East (Bahrain) (me-south-1) Region. The damage to our infrastructure spanned multiple Availability Zones and exceeded what our regional and multi-AZ services are designed to withstand. After a thorough assessment, we have determined that we are unable to restore access to the resources and data hosted exclusively in this Region.\n\nWhen the first Availability Zone was damaged in March, we began recommending that customers migrate their workloads to other Regions, and most did so before the Region became unavailable following the disruption of a second Availability Zone in April. Since then, we have supported the remaining customers in re-establishing their operations in alternate Regions, using backups where available or implementing alternative solutions to mitigate the impact of inaccessible data. In parallel, we assessed all affected infrastructure and exhausted every option for restoring data and resources that had not been migrated before the Region became unavailable.\n\nWe remain committed to supporting our customers in Bahrain in the long term and will share a further update in early 2027. We have notified the relevant authorities and continue to work with them toward that goal.",
+          "status": "disruption",
+          "created_at": "2026-09-15T10:22:28.000Z",
+          "display_at": "2026-09-15T10:22:28.000Z",
+          "affected_components": null
+        }
+      ]
+    },
+    {
+      "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5",
+      "name": "Region Availability — Multiple services (UAE)",
+      "impact": "major",
+      "status": "investigating",
+      "created_at": "2026-03-01T12:51:25.000Z",
+      "started_at": "2026-03-01T12:51:25.000Z",
+      "resolved_at": null,
+      "monitoring_at": null,
+      "page_id": "aws",
+      "shortlink": null,
+      "components": [],
+      "incident_updates": [
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u0",
+          "body": "We are investigating issues with AWS services in the ME-CENTRAL-1 Region.",
+          "status": "informational",
+          "created_at": "2026-03-01T12:51:25.000Z",
+          "display_at": "2026-03-01T12:51:25.000Z",
+          "affected_components": [
+            {
+              "code": "",
+              "name": "Amazon CloudWatch Synthetics",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon S3 Replication Time Control",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon VPC Lattice",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS IAM Identity Center",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Relational Database Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Sign-In",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS End User Messaging",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Managed Workflows for Apache Airflow",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Firewall Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Workflow Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS IoT Device Defender",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Traffic Mirroring",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS NAT Gateway",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Managed Service for Prometheus",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Batch",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS DataSync",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Direct Connect",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Global Accelerator",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Secrets Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Launch Wizard",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic MapReduce",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon FSx",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Route 53",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CloudTrail",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Managed Grafana",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Virtual Private Cloud",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Resource Groups",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Verified Access",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Resource Groups Tagging API",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Management Console",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Storage Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CloudHSM",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon OpenSearch Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Console Mobile App",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Quick Suite",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch Application Insights",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CloudShell",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Service Quotas",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Amplify",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Infrastructure Performance",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Transfer Family",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Elastic Beanstalk",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch RUM",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS WAF",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Route 53 Resolver",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon EMR Serverless",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Config",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Container Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Managed Service for Apache Flink",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Glue",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Reachability Analyzer",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Security Incident Response",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Control Catalog",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Systems Manager for SAP",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Route 53 Private DNS",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Kubernetes Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Resource Explorer",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon ElastiCache",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Certificate Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS IoT Device Management",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Neptune",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon DocumentDB",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Step Functions",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Inspector",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Control Tower",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudFront",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Service Catalog",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Internet Connectivity",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Managed Streaming for Apache Kafka",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Lake Formation",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS License Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Outposts",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "VM Import/Export",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Fargate",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Compute Cloud",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Key Management Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Cloud Map",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Security Token Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon WorkSpaces",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS AppConfig",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Client VPN",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Redshift",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Data Firehose",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon VPC IP Address Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Load Balancing",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Data Lifecycle Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon EventBridge Scheduler",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS VPCE PrivateLink",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Lambda",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Queue Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Fault Injection Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon MQ",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Cloud WAN",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "EC2 Serial Console",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Elemental",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Storage Gateway",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon DynamoDB",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Athena",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS AppSync",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Kinesis Data Streams",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Directory Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon EventBridge",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Database Migration Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Cognito",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Resource Access Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon EC2 Instance Connect",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Systems Manager",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "EC2 Image Builder",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Elastic Disaster Recovery",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Glacier",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Transit Gateway",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CloudFormation",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Private Certificate Authority",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Network Firewall",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS IoT Core",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Compute Optimizer",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Private CA Connector for SCEP",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Application Migration Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Verified Permissions",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CodeDeploy",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Identity and Access Management Roles Anywhere",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Bedrock",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Security Hub",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS X-Ray",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Auto Scaling",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Backup",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic Container Registry",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CodeCommit",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Private CA Connector for Active Directory",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon GuardDuty",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon API Gateway",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon SageMaker",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS Site-to-Site VPN",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon CloudWatch Internet Monitor",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Elastic File System",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Email Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "Amazon Simple Notification Service",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CodePipeline",
+              "new_status": "",
+              "old_status": ""
+            },
+            {
+              "code": "",
+              "name": "AWS CodeBuild",
+              "new_status": "",
+              "old_status": ""
+            }
+          ]
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u1",
+          "body": "We are investigating connectivity and power issues affecting APIs and instances in a single Availability Zone (mec1-az2) in the ME-CENTRAL-1 Region due to a localized power issue. Existing instances in this zone will also be affected. Other AWS Services may also be experiencing increased errors and latencies for their workflows, and we are working to route requests away from this affected Availability Zone. We recommend customers make use of other Availability Zones at this time. Targeting new launches using RunInstances in the remaining AZs should succeed. Existing instances in the other AZs are not affected.",
+          "status": "informational",
+          "created_at": "2026-03-01T13:19:12.000Z",
+          "display_at": "2026-03-01T13:19:12.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u2",
+          "body": "We can confirm that a localized power issue has affected a single Availability Zone in the ME-CENTRAL-1 Region (mec1-az2). EC2 Instances, DB Instances, EBS Volumes, and others resources are currently unavailable and will experience connectivity issues at this time. Other AWS Services are also experiencing error rates and latencies for some workflows. We have weighed away traffic for most services at this time. We recommend customers utilize one of the other Availability Zones in the ME-CENTRAL-1 Region at this time, as existing instances in other AZ's remain unaffected by this issue. We are actively working to restore power and connectivity, at which time we will begin to work to recover affected resources. As of this time, we expect recovery is multiple hours away. We will provide an update by 7:15 AM PST, or sooner if we have additional information to share.",
+          "status": "informational",
+          "created_at": "2026-03-01T14:09:00.000Z",
+          "display_at": "2026-03-01T14:09:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u3",
+          "body": "We wanted to provide some additional information on the isolated power issue. At this time, most AWS Services have weighted away from the affected Availability Zone (mec1-az2) and are seeing recovery for their affected operations and workflows. For EC2 Instances, EBS Volumes, and other resources that are impacted in the affected Zone, we will have a longer tail of recovery. At this time, power has not yet been restored to the affected AZ. For now, we recommend continuing to retry any failed API requests. If immediate recovery is required, we recommend customers restore from EBS Snapshots and/or replace affected resources by launching replacement resources in one of the unaffected zones, or an alternate region. As of this time, recovery is still several hours away. We will provide an update by 8:30 AM PST, or sooner if we have additional information to share.",
+          "status": "degradation",
+          "created_at": "2026-03-01T15:09:13.000Z",
+          "display_at": "2026-03-01T15:09:13.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u4",
+          "body": "We continue to work toward restoring power in the affected Availability Zone in the ME-CENTRAL-1 Region (mec1-az2). In parallel, we are actively working on improving error rates and latencies that some customers are observing for EC2 Networking and EC2 Describe APIs. Due to increased demand in the unaffected Availability Zones, customers may experience longer than usual provisioning times or may need to retry requests for certain instance types, or pick an alternative instance type. We will provide an update by 10:30 AM PST, or sooner if we have additional information to share. ",
+          "status": "degradation",
+          "created_at": "2026-03-01T16:59:00.000Z",
+          "display_at": "2026-03-01T16:59:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u5",
+          "body": "We want to provide some additional information on the power issue in a single Availability Zone in the ME-CENTRAL-1 Region. At around 4:30 AM PST, one of our Availability Zones (mec1-az2) was impacted by objects that struck the data center, creating sparks and fire. The fire department shut off power to the facility and generators as they worked to put out the fire. We are still awaiting permission to turn the power back on, and once we have, we will ensure we restore power and connectivity safely. It will take several hours to restore connectivity to the impacted AZ. The other AZs in the region are functioning normally. Customers who were running their applications redundantly across the AZs are not impacted by this event. EC2 Instance launches will continue to be impaired in the impacted AZ. We recommend that customers continue to retry any failed API requests. If immediate recovery of an affected resource (EC2 Instance, EBS Volume, RDS DB Instance, etc.) is required, we recommend restoring from your most recent backup, by launching replacement resources in one of the unaffected zones, or an alternate AWS Region. We will provide an update by 12:30 PM PST, or sooner if we have additional information to share.",
+          "status": "disruption",
+          "created_at": "2026-03-01T17:41:11.000Z",
+          "display_at": "2026-03-01T17:41:11.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u6",
+          "body": "We are aware that some customers are experiencing errors when calling EC2 APIs, specifically networking related APIs (AllocateAddress, AssociateAddress, DescribeRouteTable, DescribeNetworkInterfaces). We are actively working on multiple paths to mitigate these issues. For customers experiencing throttling errors on the AllocateAddress APIs, we recommend retrying any failed API requests. We are deploying a configuration change to mitigate the AssociateAddress API errors and expect recovery in the next few hours. DescribeRouteTable and DescribeNetworkInterfaces API calls without specifying zone, Interface or Instance IDs are expected to fail until we restore the impacted zone. We recommend customers to pass these IDs explicitly in these API requests. For customers that can, we recommend considering using alternate AWS Regions. We will provide another update by 3:30 PM PST, or sooner if we have more to share.",
+          "status": "disruption",
+          "created_at": "2026-03-01T20:14:03.000Z",
+          "display_at": "2026-03-01T20:14:03.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u7",
+          "body": "We are seeing positive signs of recovery for many of the EC2 APIs, such as Describes and AllocateAddress. We recognize that customers are still experiencing errors when attempting to call the AssociateAddress API, and are unable to disassociate addresses from resources that are affected by the underlying power issue. We continue to work on multiple parallel paths to mitigate both of these issues. We recommend continuing to retry requests wherever possible. We expect our current mitigation efforts for these specific issues to complete within the the two to three hours. As we progress with these mitigation efforts, customers will observe higher success rates for these operations. Additionally, we are investigating ways to speed up these specific mitigation efforts, but are ensuring we do so safely. As of this time, power restoration is still several hours away. We will provide another update by 5:30 PM PST, or sooner if we have additional information to share.",
+          "status": "disruption",
+          "created_at": "2026-03-01T22:28:19.000Z",
+          "display_at": "2026-03-01T22:28:19.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u8",
+          "body": "We are seeing significant signs of recovery for AssociateAddress requests, and continue to work toward fully mitigating this issue. This combined with the earlier recovery of the AllocateAddress API means customers can now successfully create and associate new network addresses in the unaffected AZs. Other AWS Services are also now observing sustained improvement as a result of the EC2 Networking APIs recovery. We are now focusing on implementing a change that will allow customers to Disassociate Elastic IP addresses from resources that are impacted by the underlying power issue. We expect this specific mitigation to take another hour to complete. We do not have an ETA for power restoration at this time. For customers that can, we recommend using alternate Availability Zones or other AWS Regions where applicable. We will provide another update by 6:30 PM, or sooner if we have additional information to share.",
+          "status": "disruption",
+          "created_at": "2026-03-02T00:26:41.000Z",
+          "display_at": "2026-03-02T00:26:41.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u9",
+          "body": "We confirm the recovery of the AssociateAddress API requests. We have also applied a change that enables customers to disassociate Elastic IP addresses from resources that are impacted by the underlying power issue. With these mitigations, customers can now successfully create and associate new network addresses in the unaffected AZs as well as re-associate Elastic IPs from resources in the affected zone to resources in the unaffected zones. We still do not have an ETA for power restoration at this time. For customers that can, we recommend using alternate Availability Zones or other AWS Regions where applicable. We will provide another update by 10:00 PM, or sooner if we have additional information to share.",
+          "status": "disruption",
+          "created_at": "2026-03-02T02:01:47.000Z",
+          "display_at": "2026-03-02T02:01:47.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u10",
+          "body": "We are investigating additional connectivity issues and error rates in the ME-CENTRAL-1 Region.",
+          "status": "disruption",
+          "created_at": "2026-03-02T05:59:29.000Z",
+          "display_at": "2026-03-02T05:59:29.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u11",
+          "body": "We can confirm that a localized power issue has affected another Availability Zone in the ME-CENTRAL-1 Region (mec1-az3). Customers are also experiencing increased EC2 APIs and instance launch errors for the remaining zone (mec1-az1). At this point it is not possible to launch new instances in the region, although existing instances should not be affected in mec1-az1. Other AWS Services, such as DynamoDB and S3 are also experiencing significant error rates and latencies. We are actively working to restore power and connectivity, at which time we will begin to work to recover affected resources. As of this time, we expect recovery is multiple hours away. For customers that can, we recommend failing away to another AWS Region at this time. We will provide an update by 12:00 AM PST, or sooner if we have additional information to share.",
+          "status": "disruption",
+          "created_at": "2026-03-02T06:46:00.000Z",
+          "display_at": "2026-03-02T06:46:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u12",
+          "body": "We continue to work on a localized power issue affecting multiple Availability Zones in the ME-CENTRAL-1 Region (mec1-az2 and mec1-az3). Customers are experiencing increased EC2 API errors and instance launch failures across the region, and it is not currently possible to launch new instances; existing instances in mec1-az1 should not be affected. Amazon DynamoDB and Amazon S3 are also experiencing significant error rates and elevated latencies. We are actively working to restore power and connectivity, after which we will begin recovery of affected resources; full recovery is still expected to be many hours away. We recommend that affected customers failover, and backup any critical data, to another AWS Region. We will provide an update by 2:00 AM PST, or sooner if the situation changes.",
+          "status": "disruption",
+          "created_at": "2026-03-02T08:52:00.000Z",
+          "display_at": "2026-03-02T08:52:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u13",
+          "body": "We wanted to provide more information on Amazon S3 given that there are two impaired Availability Zones (mec1-az2 and mec1-az3) in the ME-CENTRAL-1 Region. Amazon S3 is a regional service and designed to withstand the total loss of a single Availability Zone while maintaining S3's durability and availability. When the mec1-az2 AZ was powered off at approximately 4:00 AM PST on Sunday, March 1, S3 continued to operate normally. As the second AZ became impaired, S3 error rates increased. With two Availability Zones significantly impacted, customers are seeing high failure rates for data ingest and egress. We strongly advise customers to update their applications to ingest S3 data to an alternate AWS Region. As soon as practically possible, we will begin the restoration of our two Availability Zones which will include a careful assessment of data health and any repair of storage if necessary.\n\nIn addition, we can confirm that the AWS Management Console and command line interface (CLI) are disrupted by the failure of two Availability Zones. We continue to work towards recovery across all services, and we will provide an update by 6:00 AM PST on March 2, or sooner if we have additional information to share.",
+          "status": "disruption",
+          "created_at": "2026-03-02T10:53:20.000Z",
+          "display_at": "2026-03-02T10:53:20.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u14",
+          "body": "We continue to work towards recovery of the two impaired Availability Zones (mec1-az2 and mec1-az3) in the ME-CENTRAL-1 Region. We are expecting recovery to take at least a day, as it requires repair of facilities, cooling and power systems, coordination with local authorities, and careful assessment to ensure the safety of our operators. EC2, Amazon DynamoDB and other AWS Services continue to experience significant error rates and elevated latencies.\nWe recommend customers enact their disaster recovery plans and recover from remote backups into alternate AWS Regions, ideally in Europe. Further, we strongly advise customers to update their applications to ingest S3 data to an alternate AWS Region. We will provide an update by 11:00 AM PST on March 2, or sooner if we have additional information to share.",
+          "status": "disruption",
+          "created_at": "2026-03-02T14:22:03.000Z",
+          "display_at": "2026-03-02T14:22:03.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u15",
+          "body": "We continue to work towards recovery of the two impaired Availability Zones (mec1-az2 and mec1-az3) in the ME-CENTRAL-1 Region. The impact is causing elevated errors rates for both the Management Console and CLI. Our current expectation is that recovery will take at least a day to complete. We continue to recommend customers enact their disaster recovery plans and recover from remote backups into alternate AWS Regions. We will continue to provide periodic updates on recovery efforts. Our next update will be by 2:00 PM PST or sooner if new information becomes available.",
+          "status": "disruption",
+          "created_at": "2026-03-02T17:59:49.000Z",
+          "display_at": "2026-03-02T17:59:49.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u16",
+          "body": "We continue to work towards recovery of the two impaired Availability Zones (mec1-az2 and mec1-az3) in the ME-CENTRAL-1 Region. We have partially restored access to the AWS Management Console, however, some pages will continue to load unsuccessfully until we have recovered core services and power. In parallel to the power and recovery efforts, we are working to restore access to tools and utilities to allow customers to backup and migrate their data. We have no updated guidance on expected recovery times, and still expect this to take at least a day to fully restore power and connectivity. We continue advising customers enact their disaster recovery plans and recover from remote backups into alternate AWS Regions. We will provide you with another update by 6:00 PM PST, or sooner if new information becomes available.",
+          "status": "disruption",
+          "created_at": "2026-03-02T21:36:10.000Z",
+          "display_at": "2026-03-02T21:36:10.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u17",
+          "body": "We are providing an update on the ongoing service disruptions affecting the AWS Middle East (UAE) Region (ME-CENTRAL-1) and the AWS Middle East (Bahrain) Region (ME-SOUTH-1). Due to the ongoing conflict in the Middle East, both affected regions have experienced physical impacts to infrastructure as a result of drone strikes. In the UAE, two of our facilities were directly struck, while in Bahrain, a drone strike in close proximity to one of our facilities caused physical impacts to our infrastructure. These strikes have caused structural damage, disrupted power delivery to our infrastructure, and in some cases required fire suppression activities that resulted in additional water damage. We are working closely with local authorities and prioritizing the safety of our personnel throughout our recovery efforts.\n\nIn the ME-CENTRAL-1 (UAE) Region, two of our three Availability Zones (mec1-az2 and mec1-az3) remain significantly impaired. The third Availability Zone (mec1-az1) continues to operate normally, though some services have experienced indirect impact due to dependencies on the affected zones. In the ME-SOUTH-1 (Bahrain) Region, one facility has been impacted. Across both regions, customers are experiencing elevated error rates and degraded availability for services including Amazon EC2, Amazon S3, Amazon DynamoDB, AWS Lambda, Amazon Kinesis, Amazon CloudWatch, Amazon RDS, and the AWS Management Console and CLI. We are working to restore full service availability as quickly as possible, though we expect recovery to be prolonged given the nature of the physical damage involved.\n\nIn parallel with efforts to restore the physical infrastructure at the affected sites, we are pursuing multiple software-based recovery paths that do not depend on the underlying facilities being fully brought back online. For Amazon S3 and Amazon DynamoDB, we are actively working to restore data access and service availability through software mitigations, including deploying updates to enable S3 to operate within the current infrastructure constraints and remediating impaired DynamoDB tables to restore read and write availability for dependent services. Our focus on restoring these foundational services is deliberate, as recovery of Amazon S3 and Amazon DynamoDB will in turn enable a broad range of dependent AWS services to recover. For other affected service APIs, we are deploying targeted software updates to reduce error rates and restore functionality where possible, independent of the physical recovery timeline. We are also working to restore access to the AWS Management Console and CLI through network-level changes that route traffic away from the affected infrastructure. While these software-based mitigations can address many of the service-level impacts, some recovery actions are constrained by the physical state of the affected facilities — meaning that full restoration of certain services will require the underlying infrastructure to be repaired and brought back online. Across all services, our teams are working in parallel on both the physical restoration of the affected facilities and these software-based mitigations, with the goal of restoring as much customer access as possible as quickly as possible, even ahead of full infrastructure recovery. In addition, we are prioritizing the restoration of services and tools that enable customers to back up and migrate their data and applications out of the affected regions.\n\nFinally, even as we work to restore these facilities, the ongoing conflict in the region means that the broader operating environment in the Middle East remains unpredictable. We recommend that customers with workloads running in the Middle East consider taking action now to backup data and potentially migrate your workloads to alternate AWS Regions. We recommend customers exercise their disaster recovery plans, recover from remote backups stored in other regions, and update their applications to direct traffic away from the affected regions. For customers requiring guidance on alternate regions, we recommend considering AWS Regions in the United States, Europe, or Asia Pacific, as appropriate for your latency and data residency requirements.\n\nWe will continue to provide updates as recovery progresses and as the situation evolves. Our next update will be provided by 9:00 PM PST on March 2, 2026, or sooner if new information becomes available.",
+          "status": "disruption",
+          "created_at": "2026-03-03T00:19:48.000Z",
+          "display_at": "2026-03-03T00:19:48.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u18",
+          "body": "We continue to work towards recovery of the two impaired Availability Zones (mec1-az2 and mec1-az3) in the ME-CENTRAL-1 Region with a focus on restoring functionality to foundational services. Since our last update we have made incremental progress in recovering the DynamoDB control plane which will not be visible to external customers but are required for the restoration of service. Similarly we have made progress with the S3 control plane. The recovery of these foundational services, when complete, will enable a broad range of dependent AWS services to recover. We still estimate that the recovery time is at least a day before we are able to fully restore power and connectivity. We will provide you with another update by March 3 2:00 AM PST, or sooner if new information becomes available.",
+          "status": "disruption",
+          "created_at": "2026-03-03T05:13:38.000Z",
+          "display_at": "2026-03-03T05:13:38.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u19",
+          "body": "We are providing an update on the ongoing service disruptions affecting the AWS Middle East (UAE) Region (ME-CENTRAL-1). The overall state of the region remains largely unchanged from our previous update. We continue to work closely with local authorities and are prioritizing the safety of our personnel throughout our recovery efforts. Teams continue to assess the damage to the affected facilities and are working to restore infrastructure impacted by the event.\n\nWith respect to Amazon S3, we are seeing improvement in PUT and LIST availability. We continue to work on improving GET error rates, but full recovery will be dependent on restoring the affected infrastructure, which our teams continue to work toward.\n\nFor Amazon DynamoDB, error rates remain elevated and our teams continue to focus on recovery efforts. We have not yet seen meaningful improvement in DynamoDB availability, but expect conditions to improve over the coming hours as recovery work progresses.\n\nAmazon EC2 instance launches remain throttled in the ME-CENTRAL-1 Region. We will begin relaxing these throttles as soon as we have fully recovered our foundational services and have sufficient capacity to support new launches safely.\n\nThe AWS Management Console is now operational, though customers may continue to experience errors on certain pages and operations as the underlying services work through their recovery. We recommend customers continue to retry requests where possible.\n\nAWS Lambda, Amazon Kinesis, Amazon CloudWatch, Amazon RDS, and a number of other AWS services that were impacted by this event remain degraded. The availability of these services is dependent on the recovery of our foundational services — primarily Amazon S3 and Amazon DynamoDB — and we expect to see improvement across these services as that recovery progresses.\n\nFinally, even as we work to restore these facilities, the ongoing conflict in the region means that the broader operating environment in the Middle East remains unpredictable. We strongly recommend that customers with workloads running in the Middle East take action now to migrate those workloads to alternate AWS Regions. Customers should enact their disaster recovery plans, recover from remote backups stored in other regions, and update their applications to direct traffic away from the affected regions. For customers requiring guidance on alternate regions, we recommend considering AWS Regions in the United States, Europe, or Asia Pacific, as appropriate for your latency and data residency requirements.\n\nWe will continue to provide updates as recovery progresses and as the situation evolves. Our next update will be provided by 5:00 AM PST on March 3, or sooner if new information becomes available.",
+          "status": "disruption",
+          "created_at": "2026-03-03T09:04:00.000Z",
+          "display_at": "2026-03-03T09:04:00.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u20",
+          "body": "We are providing an update on the ongoing service disruptions affecting the AWS Middle East (UAE) Region (ME-CENTRAL-1). The overall state of the region remains largely unchanged, though our teams continue to make progress on recovery efforts across multiple workstreams. \n\nFor Amazon S3, we are seeing continued improvement in PUT and LIST availability. Newly written objects are now able to be successfully retrieved, and we continue to work on reducing GET error rates for objects written prior to the event. Full recovery of GET operations for pre-existing data remains dependent on restoring the affected infrastructure. For Amazon DynamoDB, error rates remain elevated and our teams continue to focus on recovery; we expect to see improvement over the coming hours. As these foundational services recover, dependent services — including AWS Lambda, Amazon Kinesis, Amazon CloudWatch, and Amazon RDS will follow. Amazon EC2 instance launches remain throttled in the ME-CENTRAL-1 Region and will be relaxed as foundational service recovery and capacity allow. \n\nThe AWS Management Console is operational, though customers may continue to experience errors on certain pages as underlying services work through their recovery. We recommend that customers continue to retry requests where possible. \n\nWe strongly recommend that customers with workloads running in the Middle East take action now to migrate those workloads to alternate AWS Regions. Customers should enact their disaster recovery plans, recover from remote backups stored in other Regions, and update their applications to direct traffic away from the affected Regions. For customers requiring guidance on alternate regions, we recommend considering AWS Regions in the United States, Europe, or Asia Pacific, as appropriate for your latency and data residency requirements. \n\nWe will provide another update by March 3 at 10:00 AM PST, or sooner if new information becomes available. ",
+          "status": "disruption",
+          "created_at": "2026-03-03T12:58:14.000Z",
+          "display_at": "2026-03-03T12:58:14.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u21",
+          "body": "We are providing an update on the ongoing service disruptions affecting the AWS Middle East (UAE) Region (ME-CENTRAL-1). We continue to make progress on recovery efforts across multiple workstreams.\n\nFor Amazon S3, we are seeing continued improvement in PUT and LIST availability. Newly written objects are now able to be successfully retrieved, and we continue to work on reducing GET error rates for objects written prior to the event. Full recovery of GET operations for pre-existing data remains dependent on restoring the affected infrastructure. For Amazon DynamoDB, error rates remain elevated and our teams continue to focus on recovery; we expect to see improvement over the coming hours. As these foundational services recover, dependent services — including AWS Lambda, Amazon Kinesis, Amazon CloudWatch, and Amazon RDS — will follow. Amazon EC2 instance launches remain throttled in the ME-CENTRAL-1 Region and will be relaxed as foundational service recovery and capacity allow. The AWS Management Console is operational, though customers may continue to experience errors on certain pages as underlying services work through their recovery.\n\nWith the immediate phase of this event now better understood, we are moving to a more targeted communication model. Going forward, updates will be delivered directly to affected customers through the AWS Personal Health Dashboard. Customers who require assistance with this event are encouraged to contact AWS Support through the AWS Management Console or the AWS Support Center.\n\nWe continue to strongly recommend that customers with workloads running in the Middle East take action now to migrate those workloads to alternate AWS Regions. Customers should enact their disaster recovery plans, recover from remote backups stored in other Regions, and update their applications to direct traffic away from the affected Regions. For customers requiring guidance on alternate regions, we recommend considering AWS Regions in the United States, Europe, or Asia Pacific, as appropriate for your latency and data residency requirements.",
+          "status": "disruption",
+          "created_at": "2026-03-03T16:14:45.000Z",
+          "display_at": "2026-03-03T16:14:45.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u22",
+          "body": "We are providing an update on the ongoing service disruption. The Middle East (UAE) Region (ME-CENTRAL-1) has suffered damage as a result of the conflict in the Middle East and is currently unable to reliably support customer applications. While some workloads continue to function normally, we strongly recommend customers migrate all accessible resources to other Regions and restore inaccessible resources from remote backups as soon as possible. Relevant billing operations are currently suspended while we restore normal operations in this AWS Region. This process is expected to take several months. ",
+          "status": "disruption",
+          "created_at": "2026-04-30T07:25:54.000Z",
+          "display_at": "2026-04-30T07:25:54.000Z",
+          "affected_components": null
+        },
+        {
+          "id": "arn:aws:health:me-central-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_5E6B8_EF2498889B5-u23",
+          "body": "We are providing an update on the disruption affecting the Middle East (UAE) (me-central-1) Region. After a thorough assessment, we have determined that we are unable to restore access to the resources and data hosted exclusively in the mec1-az2 Availability Zone. We continue to work on recovering regional resources, as well as zonal resources hosted in the other affected Availability Zones (mec1-az1 and mec1-az3).\n\nSince the disruption began in March, most customers have been able to re-establish their operations in other Regions by restoring backups or copying data that remained accessible. AWS Support remains available to help customers who need assistance moving their applications to alternate Regions.\n\nWe remain committed to supporting our customers in the UAE. We are working on replacing the affected infrastructure and will provide an update on the restoration of our services in the coming months. We have notified the relevant authorities and continue to work with them toward that goal.",
+          "status": "disruption",
+          "created_at": "2026-09-15T10:27:10.000Z",
+          "display_at": "2026-09-15T10:27:10.000Z",
+          "affected_components": null
+        }
+      ]
+    }
+  ]
+}

@@ -68,16 +68,20 @@ vi.mock('@/services/statuspage/statuspage-service.js', () => {
   const mockFetchIncidents = vi.fn();
   const mockFetchScheduledMaintenances = vi.fn();
   const mockFetchHistory = vi.fn();
+  // Read only for an entry scoped to part of a shared page, for its component table.
+  const mockFetchSummary = vi.fn();
   return {
     getStatuspageService: () => ({
       fetchIncidents: mockFetchIncidents,
       fetchScheduledMaintenances: mockFetchScheduledMaintenances,
       fetchHistory: mockFetchHistory,
+      fetchSummary: mockFetchSummary,
     }),
     initStatuspageService: vi.fn(),
     _mockFetchIncidents: mockFetchIncidents,
     _mockFetchScheduledMaintenances: mockFetchScheduledMaintenances,
     _mockFetchHistory: mockFetchHistory,
+    _mockFetchSummary: mockFetchSummary,
   };
 });
 
@@ -164,13 +168,18 @@ async function useRealStatuspageService() {
     typeof import('@/services/statuspage/statuspage-service.js')
   >('@/services/statuspage/statuspage-service.js');
   const real = new actual.StatuspageService();
-  const { _mockFetchIncidents, _mockFetchScheduledMaintenances, _mockFetchHistory } = (await import(
-    '@/services/statuspage/statuspage-service.js'
-  )) as unknown as {
+  const {
+    _mockFetchIncidents,
+    _mockFetchScheduledMaintenances,
+    _mockFetchHistory,
+    _mockFetchSummary,
+  } = (await import('@/services/statuspage/statuspage-service.js')) as unknown as {
     _mockFetchIncidents: ReturnType<typeof vi.fn>;
     _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
     _mockFetchHistory: ReturnType<typeof vi.fn>;
+    _mockFetchSummary: ReturnType<typeof vi.fn>;
   };
+  _mockFetchSummary.mockImplementation((url: string) => real.fetchSummary(url));
   _mockFetchIncidents.mockImplementation((url: string) => real.fetchIncidents(url));
   _mockFetchScheduledMaintenances.mockImplementation((url: string) =>
     real.fetchScheduledMaintenances(url),
@@ -1231,11 +1240,96 @@ describe('devopsGetIncidents', () => {
         '**Resolved:** 2025-01-01T10:00:00Z (120 min)',
         '**Components:** API',
         '**Updates (1):**',
-        '- [2025-01-01T10:00:00Z] resolved: All clear.',
+        // The body is vendor text, quoted inside its list item (#63).
+        '- [2025-01-01T10:00:00Z] resolved:',
+        '  > All clear.',
+        '',
         '[Incident page](https://stspg.io/001)',
         '',
       ].join('\n'),
     );
+  });
+
+  /**
+   * Vendor text reaches content[] as data: `<` and an entity-starting `&` are escaped,
+   * inline values cannot break their line, and a multi-line body stays inside a quote
+   * nested in its list item. structuredContent keeps every string as the vendor wrote it.
+   */
+  describe('vendor text in content[] (#63)', () => {
+    const multiLine = [
+      'Summary line with a bound (<1%) and <FUNCTIONALITY IMPACTED> & &amp; text.',
+      '',
+      '## 2. Impact',
+      '',
+      '- Active customer accounts experienced errors',
+      '<script>alert(1)</script>',
+    ].join('\n');
+
+    function result() {
+      return {
+        vendor: 'example',
+        name: 'Example',
+        incidents: [
+          {
+            id: 'inc-lt',
+            name: 'Errors on <API>\n## Forged heading',
+            impact: 'major' as const,
+            status: 'monitoring',
+            created_at: '2026-10-01T00:00:00Z',
+            started_at: null,
+            resolved_at: null,
+            scheduled_for: '2026-10-02T00:00:00Z',
+            scheduled_until: '2026-10-02T01:00:00Z',
+            duration_minutes: null,
+            shortlink: 'https://stspg.io/lt',
+            affected_components: ['SMS <US>', 'Debugger & Alarms\r\nForged'],
+            updates: [
+              { status: 'identified', body: multiLine, created_at: '2026-10-01T00:05:00Z' },
+              { status: 'monitoring', body: '', created_at: '2026-10-01T00:10:00Z' },
+            ],
+            source: 'api' as const,
+          },
+        ],
+        total_returned: 1,
+        statuspage_url: 'https://status.example.com',
+      };
+    }
+
+    it('escapes `<` and entity-starting `&`, flattens inline names, quotes every body line', () => {
+      const text = (devopsGetIncidents.format!(result())[0] as { text: string }).text;
+      const lines = text.split('\n');
+
+      expect(lines).toContain('### ⚠️ Errors on &lt;API> ## Forged heading `inc-lt`');
+      expect(lines).toContain('**Components:** SMS &lt;US>, Debugger & Alarms Forged');
+      expect(lines).toContain('**Scheduled:** 2026-10-02T00:00:00Z → 2026-10-02T01:00:00Z');
+      const start = lines.indexOf('- [2026-10-01T00:05:00Z] identified:');
+      expect(lines.slice(start, start + 8)).toEqual([
+        '- [2026-10-01T00:05:00Z] identified:',
+        '  > Summary line with a bound (&lt;1%) and &lt;FUNCTIONALITY IMPACTED> & &amp;amp; text.',
+        '  >',
+        '  > ## 2. Impact',
+        '  >',
+        '  > - Active customer accounts experienced errors',
+        '  > &lt;script>alert(1)&lt;/script>',
+        // An empty body renders no quote at all.
+        '- [2026-10-01T00:10:00Z] monitoring:',
+      ]);
+      // No vendor line starts a heading, list, or HTML block of its own.
+      expect(lines.filter((l) => /^## /.test(l))).toEqual(['## Example (example) — 1 incidents']);
+      expect(text).not.toMatch(/<(?:script|API|US|FUNCTIONALITY)/);
+      // The quote ends before the incident link, so the link is not read into it.
+      expect(lines.slice(-3)).toEqual(['', '[Incident page](https://stspg.io/lt)', '']);
+    });
+
+    it('leaves structuredContent unescaped — the output schema parses the strings as written', () => {
+      const parsed = devopsGetIncidents.output.parse(result());
+      expect(parsed.incidents[0]!.updates[0]!.body).toBe(multiLine);
+      expect(parsed.incidents[0]!.name).toBe('Errors on <API>\n## Forged heading');
+      expect(parsed.incidents[0]!.affected_components).toEqual([
+        'SMS <US>',
+        'Debugger & Alarms\r\nForged',
+      ]);
+    });
   });
 
   /**
@@ -1323,7 +1417,10 @@ describe('devopsGetIncidents', () => {
         '**Impact:** minor | **Status:** investigating | **Source:** api | **Created:** 2026-07-23T16:29:09.000Z',
       );
       expect(text).toContain('**Components:** API Management, Application Gateway,');
-      expect(text).toContain('- [2026-07-23T16:29:09.000Z] investigating: We are investigating');
+      // The body is quoted under its update line (#63).
+      expect(text).toContain(
+        '- [2026-07-23T16:29:09.000Z] investigating:\n  > We are investigating',
+      );
       expect(text).not.toContain('[Incident page]');
     });
 
@@ -1583,10 +1680,20 @@ describe('devopsGetIncidents', () => {
         shortlink: 'https://www.githubstatus.com/incidents/zq3c1jst2vkq',
         affected_components: [],
         updates: [
-          { status: 'resolved', body: raw.message, created_at: '2026-07-23T09:39:00.000Z' },
+          {
+            status: 'resolved',
+            // The archive message is HTML (`<br />` pairs); it arrives as plain text (#63).
+            body: [
+              'On July 23, 2026, between 07:08 and 09:39 UTC, several services experienced delays: 8% of actions workflow runs experienced an average run start delay of 10 minutes, 5% of webhook deliveries exceeded SLO, and code scanning, repos, notifications, issues and pull requests experienced increased latency over the life of the incident.',
+              'The root cause of the incident was a node of our background job processing system which did not recover after entering scheduled host maintenance. The incident was mitigated by identifying the problematic shard and restoring its correct state, after which queue backlogs drained and services recovered.',
+              'To speed mitigation, we have added monitors for nodes in this unhealthy state after maintenance operations. To prevent future recurrence, we are adapting our lifecycle automation to verify host rejoin after a scheduled reboot.',
+            ].join('\n'),
+            created_at: '2026-07-23T09:39:00.000Z',
+          },
         ],
         source: 'history',
       });
+      expect(raw.message).toContain('<br /><br />');
     });
 
     it('twilio, all: walks four quarters and merges history under both v2 lists', async () => {
@@ -1685,6 +1792,75 @@ describe('devopsGetIncidents', () => {
       expect(firstText).toContain('**Status:** unknown');
     });
 
+    /**
+     * sendgrid reads Twilio's page scoped to SendGrid's components (#54). The recorded
+     * Twilio summary carries the component table; the recorded 50-record feed has its
+     * components stripped, so one record is given SendGrid's SMTP leaf.
+     */
+    describe('sendgrid (scoped to its components on the Twilio page)', () => {
+      const twilioSummary = () =>
+        JSON.parse(
+          readFileSync(
+            new URL(
+              '../../../services/status-adapters/fixtures/statuspage-twilio-summary.json',
+              import.meta.url,
+            ),
+            'utf-8',
+          ),
+        ) as { components: Array<{ id: string; name: string }> };
+      type Feed = { incidents: Array<{ id: string; components: unknown[] }> };
+
+      function routeSendgrid(feed: Feed) {
+        http.route(
+          { match: `${TWILIO}/api/v2/summary.json`, respond: () => Response.json(twilioSummary()) },
+          { match: `${TWILIO}/api/v2/incidents.json`, respond: () => Response.json(feed) },
+          {
+            match: `${TWILIO}/api/v2/scheduled-maintenances.json`,
+            respond: json('twilio-scheduled-maintenances.json'),
+          },
+        );
+      }
+
+      it('keeps only records touching a SendGrid component, reads no archive, and still discloses the ceiling', async () => {
+        const feed = fixture('twilio-incidents.json') as Feed;
+        const smtp = twilioSummary().components.find((c) => c.name === 'SMTP')!;
+        feed.incidents[3] = { ...feed.incidents[3]!, components: [smtp] };
+        routeSendgrid(feed);
+
+        const { result, structured } = await call({
+          vendor: 'sendgrid',
+          filter: 'all',
+          since: '2026-01-01',
+          limit: 50,
+        });
+
+        expect(historyRequests()).toEqual([]);
+        expect(result.name).toBe('SendGrid');
+        expect(result.incidents.map((i) => [i.id, i.source])).toEqual([
+          [feed.incidents[3]!.id, 'api'],
+        ]);
+        // Twilio's unfiltered feed returned 50 records, which is its ceiling.
+        expect(structured.upstreamCeiling).toBe(50);
+        expect(structured.notice).toContain('returns at most 50 incidents per fetch');
+      });
+
+      it('returns nothing when no record touches a SendGrid component, and says why', async () => {
+        routeSendgrid(fixture('twilio-incidents.json') as Feed);
+
+        const { result, structured } = await call({
+          vendor: 'sendgrid',
+          filter: 'resolved',
+          since: '2026-01-01',
+          limit: 50,
+        });
+
+        expect(historyRequests()).toEqual([]);
+        expect(result.incidents).toEqual([]);
+        expect(structured.upstreamCeiling).toBe(50);
+        expect(structured.notice).toContain('returns at most 50 incidents per fetch');
+      });
+    });
+
     it('an offset past the merged list names the valid range', async () => {
       routeTwilio();
       const { result, structured } = await call({
@@ -1764,7 +1940,11 @@ describe('devopsGetIncidents', () => {
       });
 
       expect(historyRequests()).toEqual([]);
-      expect(result.total_returned).toBe(50);
+      // All 50 v2 incidents are kept; the response size budget ends the page sooner (#58).
+      expect(structured.totalCount).toBe(50);
+      expect(result.total_returned).toBeGreaterThan(0);
+      expect(result.total_returned).toBeLessThan(50);
+      expect(structured.nextOffset).toBe(result.total_returned);
       expect(result.incidents.every((i) => i.source === 'api')).toBe(true);
       expect(structured.upstreamCeiling).toBe(50);
       expect(structured.notice).toContain('HTTP 500');
@@ -1860,7 +2040,9 @@ describe('devopsGetIncidents', () => {
 
     /**
      * status.sendgrid.com 302s every history URL to status.twilio.com/history.json,
-     * dropping ?page=, so page 2 arrives as page 1 again.
+     * dropping ?page=, so page 2 arrives as page 1 again. The registry's sendgrid entry
+     * now reads Twilio's page directly (#54), so the redirecting host is reached as a
+     * raw URL.
      */
     it('a redirect that drops the page parameter never presents page 1 as an older quarter', async () => {
       const base = 'https://status.sendgrid.com';
@@ -1888,7 +2070,7 @@ describe('devopsGetIncidents', () => {
       );
 
       const { result, structured } = await call({
-        vendor: 'sendgrid',
+        vendor: base,
         filter: 'all',
         since: '2026-01-01',
         limit: 50,
@@ -1946,7 +2128,11 @@ describe('devopsGetIncidents', () => {
       // 2025-09-25 is four quarters back: five pages reach it, plus a page of slack at
       // each end for a page zone on either side of UTC.
       expect(historyRequests()).toEqual([1, 2, 3, 4, 5, 6, 7].map((p) => historyPage(base, p)));
-      expect(result.total_returned).toBe(50);
+      // All 50 v2 incidents are kept; the response size budget ends the page sooner (#58).
+      expect(structured.totalCount).toBe(50);
+      expect(result.total_returned).toBeGreaterThan(0);
+      expect(result.total_returned).toBeLessThan(50);
+      expect(structured.nextOffset).toBe(result.total_returned);
       expect(result.incidents.every((i) => i.source === 'api')).toBe(true);
       expect(structured.upstreamCeiling).toBe(50);
       expect(structured.notice).toContain('2035-04-01');
@@ -1992,20 +2178,30 @@ describe('devopsGetIncidents', () => {
           ),
       });
 
-      const { result, structured } = await call({
-        vendor: 'gcp',
-        filter: 'all',
-        since: '2026-06-01',
-      });
+      // These GCP incidents run to tens of kilobytes each, so the response size budget
+      // splits them across pages (#58); every page is walked by nextOffset.
+      const args = { vendor: 'gcp', filter: 'all', since: '2026-06-01' };
+      const pages = [await call(args)];
+      for (let next = pages[0]!.structured.nextOffset; next !== undefined; ) {
+        const page = await call({ ...args, offset: next });
+        pages.push(page);
+        next = page.structured.nextOffset;
+      }
+      const incidents = pages.flatMap((p) => p.result.incidents);
 
-      expect(requested()).toEqual(['https://status.cloud.google.com/incidents.json']);
-      expect(result.incidents.map((i) => i.id)).toEqual([
+      expect(new Set(requested())).toEqual(
+        new Set(['https://status.cloud.google.com/incidents.json']),
+      );
+      expect(incidents.map((i) => i.id)).toEqual([
         '3BvH3LVGcupoYqV6F4Nw',
         'T8gmtofFSTGT5tbhyciF',
         '5fGQt4VbkDnr3Yp8PXPr',
       ]);
-      expect(result.incidents.every((i) => i.source === 'api')).toBe(true);
-      expect(structured.notice).toBeUndefined();
+      expect(incidents.every((i) => i.source === 'api')).toBe(true);
+      // Paging is the only thing any page explains: no history read, so no gap.
+      for (const { structured } of pages) {
+        expect(structured.notice ?? '').not.toMatch(/history archive/);
+      }
     });
 
     it('a floor that leaves nothing says so and points at an earlier since', async () => {
@@ -2060,7 +2256,11 @@ describe('devopsGetIncidents', () => {
       });
 
       expect(historyRequests()).toEqual([]);
-      expect(result.total_returned).toBe(50);
+      // All 50 v2 incidents are kept; the response size budget ends the page sooner (#58).
+      expect(structured.totalCount).toBe(50);
+      expect(result.total_returned).toBeGreaterThan(0);
+      expect(result.total_returned).toBeLessThan(50);
+      expect(structured.nextOffset).toBe(result.total_returned);
       expect(structured.upstreamCeiling).toBe(50);
       expect(structured.notice).toContain('time zone');
       expect(structured.notice).toContain('2026-01-01');
@@ -2092,6 +2292,193 @@ describe('devopsGetIncidents', () => {
       expect(structured.notice).toContain('not a recognized zone');
     });
 
+    /**
+     * The 24-month floor bounds how far back the history archive is read, never which
+     * records the live feeds return are kept (#69, #71). GitHub's maintenance list keeps
+     * completed windows back years — this capture reaches 2018 — and the floor on this
+     * clock is 2024-09-25.
+     */
+    describe('the 24-month history-archive floor', () => {
+      /** Live capture of GitHub's scheduled-maintenances list, taken 2026-10-14. */
+      const MAINTENANCES = 'github-scheduled-maintenances-20261014.json';
+      /** Quarter start of history page `page`, counting back from page 1's 2026-07-01. */
+      const quarterStart = (page: number) => {
+        const quarter = 2026 * 4 + 2 - (page - 1);
+        const month = String((quarter % 4) * 3 + 1).padStart(2, '0');
+        return `${Math.floor(quarter / 4)}-${month}-01T00:00:00Z`;
+      };
+
+      /**
+       * GitHub with the full maintenance capture. History pages 1–5 are recorded; pages
+       * 6–9 (2025-04-01 back to 2024-07-01) are quarters with no records, so the walk
+       * reaches the floor at page 9.
+       */
+      function routeGithubBeyondFloor(
+        pages: Record<number, (req: Request) => Response | Promise<Response>> = {},
+      ) {
+        http.route(
+          { match: `${GITHUB}/api/v2/incidents.json`, respond: json('github-incidents.json') },
+          { match: `${GITHUB}/api/v2/scheduled-maintenances.json`, respond: json(MAINTENANCES) },
+        );
+        for (let page = 1; page <= 9; page++) {
+          http.route({
+            match: historyPage(GITHUB, page),
+            respond:
+              pages[page] ??
+              (page <= 5
+                ? json(`github-history-p${page}.json`)
+                : () => Response.json({ start_time: quarterStart(page), months: [] })),
+          });
+        }
+      }
+
+      /** Every page of a call, walked by nextOffset. */
+      async function walkPages(args: Record<string, unknown>) {
+        const pages = [await call(args)];
+        for (let next = pages[0]!.structured.nextOffset; next !== undefined; ) {
+          const page = await call({ ...args, offset: next });
+          pages.push(page);
+          next = page.structured.nextOffset;
+        }
+        return pages;
+      }
+
+      it('an until older than the floor keeps the maintenances that started on or before it', async () => {
+        routeGithubBeyondFloor();
+        const result = await runToolContract(devopsGetIncidents, {
+          vendor: 'github',
+          until: '2023-01-01',
+          limit: 50,
+        });
+
+        expect(result.isError).toBeFalsy();
+        // until alone reads no archive.
+        expect(historyRequests()).toEqual([]);
+        const structured = result.structuredContent as {
+          incidents: { id: string; name: string; impact: string; scheduled_for: string | null }[];
+          notice?: string;
+        };
+        const ids = structured.incidents.map((i) => i.id);
+        expect(ids).toContain('lpslbfcw2czs');
+        expect(structured.incidents.find((i) => i.id === 'lpslbfcw2czs')).toMatchObject({
+          name: 'GitHub Importer Maintenance',
+          impact: 'maintenance',
+          scheduled_for: '2022-10-27T15:00:00.000Z',
+        });
+        // Nothing after the until: the 2023-02-08 window and every v2 incident are out.
+        expect(ids).not.toContain('53t2nlxs8016');
+        expect(
+          structured.incidents.every(
+            (i) => Date.parse(i.scheduled_for ?? '') < Date.parse('2023-01-02T00:00:00Z'),
+          ),
+        ).toBe(true);
+        expect(structured.notice ?? '').not.toMatch(/months back|read back to/);
+        const content = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+        expect(content).toContain('GitHub Importer Maintenance');
+      });
+
+      it('an until before since is rejected as sent, even when both are older than the floor', async () => {
+        for (const [since, until] of [
+          ['2026-09-01', '2023-01-01'],
+          ['2023-06-01', '2022-01-01'],
+        ]) {
+          http.reset();
+          const result = await runToolContract(devopsGetIncidents, {
+            vendor: 'github',
+            since,
+            until,
+          });
+
+          expect(result.isError).toBe(true);
+          expect(result.structuredContent).toMatchObject({
+            error: {
+              code: JsonRpcErrorCode.ValidationError,
+              data: { reason: 'invalid_until' },
+              message: expect.stringContaining(`until ${until} is before since ${since}`),
+            },
+          });
+          expect(http.calls).toHaveLength(0);
+        }
+      });
+
+      it('a since older than the floor filters by that since and reads the archive to the floor', async () => {
+        routeGithubBeyondFloor();
+        const args = { vendor: 'github', filter: 'all' as const, since: '2022-01-01', limit: 50 };
+        const pages = await walkPages(args);
+        const all = pages.flatMap((p) => p.result.incidents);
+        const ids = all.map((i) => i.id);
+
+        // One walk per call, each stopping at the quarter that holds the 2024-09-25 floor.
+        expect(historyRequests().slice(0, 9)).toEqual(
+          [1, 2, 3, 4, 5, 6, 7, 8, 9].map((p) => historyPage(GITHUB, p)),
+        );
+        expect(historyRequests()).toHaveLength(9 * pages.length);
+        // Maintenance windows from 2022 are kept; the ones before since are not.
+        expect(ids).toContain('lpslbfcw2czs');
+        expect(ids).toContain('flf8c4lvch31');
+        expect(ids).not.toContain('6gpzw3mdnkwj');
+        // Archive records past the v2 ceiling are merged in as before (page 5, July 2025).
+        expect(ids).toContain('x7gtw6r3x2s1');
+        expect(new Set(ids).size).toBe(ids.length);
+        // The archive reached its floor, so the v2 ceiling no longer bounds the result.
+        expect(pages[0]!.structured.upstreamCeiling).toBeUndefined();
+
+        const notice =
+          'since 2022-01-01 is past the 24-month history-archive floor; the archive was read back to 2024-07-01, so incidents that started before that appear only where the status API still returns them.';
+        for (const { structured } of pages) expect(structured.notice).toContain(notice);
+        const contract = await runToolContract(devopsGetIncidents, args);
+        const content = contract.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+        expect(content.split(notice)).toHaveLength(2);
+      });
+
+      it('names the floor and how far the walk got when it stops short of the floor', async () => {
+        routeGithubBeyondFloor({ 3: () => Response.json({ months: 'unavailable' }) });
+        const { structured } = await call({
+          vendor: 'github',
+          filter: 'resolved',
+          since: '2022-01-01',
+          limit: 1,
+        });
+
+        expect(historyRequests()).toEqual([1, 2, 3].map((p) => historyPage(GITHUB, p)));
+        expect(structured.notice).toContain(
+          'since 2022-01-01 is past the 24-month history-archive floor; the archive is read back to 2024-09-25 at most',
+        );
+        expect(structured.notice).toContain(
+          'The GitHub history archive was read back to 2026-04-01, not to 2024-09-25',
+        );
+        // The archive stopped short, so the v2 ceiling still bounds the result.
+        expect(structured.upstreamCeiling).toBe(50);
+      });
+
+      it('an empty range older than the floor says the archive does not reach it', async () => {
+        routeGithubBeyondFloor();
+        const until = await call({ vendor: 'github', filter: 'resolved', until: '2023-01-01' });
+        expect(until.result.total_returned).toBe(0);
+        expect(until.structured.notice).toContain(
+          'No incidents matching filter "resolved" for GitHub started on or before 2023-01-01: all 50 matches started after it.',
+        );
+        expect(until.structured.notice).toContain(
+          "The status page's history archive is read back 24 months at most, to 2024-09-25, so since cannot reach incidents that started on or before 2023-01-01.",
+        );
+        expect(until.structured.notice).not.toContain('Add since');
+
+        http.reset();
+        routeGithubBeyondFloor();
+        const range = await call({
+          vendor: 'github',
+          filter: 'resolved',
+          since: '2022-01-01',
+          until: '2023-01-01',
+        });
+        expect(range.result.total_returned).toBe(0);
+        expect(range.structured.notice).toContain('started between 2022-01-01 and 2023-01-01; ');
+        expect(range.structured.notice).toContain(
+          'The history archive is read back to 2024-09-25 at most, so before that date only records the status API still returns are reachable.',
+        );
+      });
+    });
+
     describe('since validation', () => {
       it.each(['active', 'scheduled'] as const)(
         'rejects since with filter %s before any request',
@@ -2117,24 +2504,84 @@ describe('devopsGetIncidents', () => {
         },
       );
 
-      it('rejects a since more than 24 months back, naming the earliest accepted date', async () => {
-        const ctx = createMockContext({ errors: devopsGetIncidents.errors });
-        const err = await Promise.resolve(
-          devopsGetIncidents.handler(
-            devopsGetIncidents.input.parse({
-              vendor: 'github',
-              filter: 'all',
-              since: '2024-09-24',
-            }),
-            ctx,
-          ),
-        ).catch((e: unknown) => e);
+      /** GCP incidents either side of the 24-month floor, which is 2024-09-25 on this clock. */
+      function routeGcpAroundFloor() {
+        const incident = (id: string, begin: string) => ({
+          id,
+          external_desc: `Cloud Run errors ${id}`,
+          begin,
+          end: begin.replace('T10', 'T11'),
+          severity: 'medium',
+          updates: [],
+          affected_products: [],
+        });
+        http.route({
+          match: 'https://status.cloud.google.com/incidents.json',
+          respond: () =>
+            Response.json([
+              incident('recent', '2026-09-20T10:00:00+00:00'),
+              incident('after-floor', '2024-10-01T10:00:00+00:00'),
+              incident('before-floor', '2024-09-20T10:00:00+00:00'),
+            ]),
+        });
+      }
 
-        expect((err as McpError).code).toBe(JsonRpcErrorCode.ValidationError);
-        expect((err as McpError).data).toMatchObject({ reason: 'invalid_since' });
-        expect((err as McpError).message).toContain('24 months');
-        expect((err as McpError).message).toContain('2024-09-25');
-        expect(http.calls).toHaveLength(0);
+      it('keeps a record older than the floor when since reaches it, on a backend with no archive (#69)', async () => {
+        routeGcpAroundFloor();
+        const result = await runToolContract(devopsGetIncidents, {
+          vendor: 'gcp',
+          filter: 'all',
+          since: '2024-03-25',
+        });
+
+        expect(result.isError).toBeFalsy();
+        const structured = result.structuredContent as {
+          incidents: { id: string }[];
+          notice?: string;
+        };
+        // The floor bounds the archive walk only, and this backend has no archive.
+        expect(structured.incidents.map((i) => i.id)).toEqual([
+          'recent',
+          'after-floor',
+          'before-floor',
+        ]);
+        expect(structured.notice).toBeUndefined();
+      });
+
+      it('filters an until older than the floor like any until (#69)', async () => {
+        routeGcpAroundFloor();
+        const { result, structured } = await call({
+          vendor: 'gcp',
+          filter: 'all',
+          since: '2024-03-25',
+          until: '2024-09-21',
+        });
+
+        expect(result.incidents.map((i) => i.id)).toEqual(['before-floor']);
+        expect(structured.notice).toBeUndefined();
+      });
+
+      it('explains a range older than the floor that left nothing, on a backend with no archive (#69)', async () => {
+        routeGcpAroundFloor();
+        const result = await runToolContract(devopsGetIncidents, {
+          vendor: 'gcp',
+          since: '2024-03-01',
+          until: '2024-09-01',
+        });
+
+        expect(result.isError).toBeFalsy();
+        expect(result.structuredContent).toMatchObject({
+          incidents: [],
+          total_returned: 0,
+          notice:
+            'No incidents matching filter "all" for Google Cloud started between 2024-03-01 and 2024-09-01; 3 later matches were left out by until. Widen the range, or omit since and until for the most recent incidents regardless of date.',
+        });
+      });
+
+      it('no longer declares a 24-month rejection for since (#69)', () => {
+        const entry = devopsGetIncidents.errors?.find((e) => e.reason === 'invalid_since');
+        expect(entry?.when).toContain('"active" or "scheduled"');
+        expect(entry?.when).not.toContain('24 months');
       });
 
       it('accepts a since exactly 24 months back', async () => {
@@ -2156,6 +2603,271 @@ describe('devopsGetIncidents', () => {
           expect(parsed.error?.issues.every((i) => i.path[0] === 'since')).toBe(true);
         },
       );
+    });
+
+    /**
+     * match and until narrow the matches before offset/limit, so the paging fields and
+     * the offset guidance count the narrowed set (#71). The word reading itself is
+     * pinned in tests/utils/word-match.test.ts; these prove the wiring.
+     */
+    describe('match and until (#71)', () => {
+      const text = (content: Array<{ type: string; text?: string }>) =>
+        content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+
+      it('keeps only September incidents with "actions" in the title or components, paging the narrowed set', async () => {
+        routeGithub();
+        const args = {
+          vendor: 'github',
+          since: '2026-09-01',
+          until: '2026-09-30',
+          match: 'actions',
+          limit: 1,
+        };
+        const first = await call(args);
+
+        // kzh5j0mt7qwc matches on its title, 0rn90wk115q9 on its Actions component.
+        expect(first.result.incidents.map((i) => i.id)).toEqual(['kzh5j0mt7qwc']);
+        expect(first.structured).toMatchObject({
+          truncated: true,
+          shown: 1,
+          cap: 1,
+          totalCount: 2,
+          nextOffset: 1,
+        });
+        const second = await call({ ...args, offset: first.structured.nextOffset });
+        expect(second.result.incidents.map((i) => i.id)).toEqual(['0rn90wk115q9']);
+        expect(second.result.incidents[0]!.affected_components).toContain('Actions');
+        expect(second.structured.nextOffset).toBeUndefined();
+
+        const past = await call({ ...args, offset: 2 });
+        expect(past.result.total_returned).toBe(0);
+        expect(past.structured.notice).toContain(
+          'filter "all" (since 2026-09-01, until 2026-09-30) with match "actions" matched 2 incidents',
+        );
+        expect(past.structured.notice).toContain('0–1');
+      });
+
+      it('matches an update-level component name word by word', async () => {
+        routeTwilio();
+        const { result } = await call({
+          vendor: 'twilio',
+          filter: 'resolved',
+          match: 'sms long code',
+        });
+
+        const component = result.incidents.find((i) => i.id === '5hgmnkdyd1pl');
+        // The title carries "SMS" only; "long" and "code" come from the component.
+        expect(component?.name).toBe('SMS Delivery Failures from Twilio to Multiple Countries');
+        expect(component?.affected_components).toContain(
+          'CARRIER NETWORK - SMS Long Code, North America',
+        );
+        expect(result.incidents.map((i) => i.id).sort()).toEqual(
+          ['5hgmnkdyd1pl', 'krkfwmsqnf4q', 'pcgzl5svjhkv', 'tnhtkwkxbyst', 'z6d582w9kh93'].sort(),
+        );
+        // No history archive without since.
+        expect(historyRequests()).toEqual([]);
+      });
+
+      it('matches a history-archive record on its title', async () => {
+        routeGithub();
+        const { result } = await call({
+          vendor: 'github',
+          filter: 'resolved',
+          since: '2026-07-01',
+          match: 'Hosted-Runners',
+        });
+
+        expect(result.incidents).toEqual([
+          expect.objectContaining({
+            id: '20frdtvv3yg6',
+            name: 'Disruption with actions hosted runners',
+            source: 'history',
+            affected_components: [],
+          }),
+        ]);
+      });
+
+      it('returns the one day when until equals since', async () => {
+        routeGithub();
+        const { result } = await call({
+          vendor: 'github',
+          since: '2026-09-15',
+          until: '2026-09-15',
+        });
+
+        expect(result.incidents.map((i) => i.id)).toEqual(['bk7zgdcq7s9t', 'qwdwmtqghpk5']);
+      });
+
+      it('until alone reads no history archive and points at since when it left nothing', async () => {
+        routeGithub();
+        const result = await runToolContract(devopsGetIncidents, {
+          vendor: 'github',
+          filter: 'resolved',
+          until: '2026-07-01',
+        });
+
+        expect(historyRequests()).toEqual([]);
+        expect(result.isError).toBeFalsy();
+        const notice =
+          'No incidents matching filter "resolved" for GitHub started on or before 2026-07-01: all 50 matches started after it. ' +
+          "Add since (up to 24 months back) to also read the status page's history archive, which reaches incidents older than the ones its status API returns.";
+        // The feed's own 50-record ceiling still bounds what until could see, so it follows.
+        expect(result.structuredContent).toMatchObject({
+          incidents: [],
+          notice: expect.stringMatching(/^No incidents matching .* returns at most 50 incidents/),
+        });
+        expect((result.structuredContent as { notice: string }).notice.startsWith(notice)).toBe(
+          true,
+        );
+        expect(text(result.content).split(notice)).toHaveLength(2);
+      });
+
+      it('until alone on a vendor with no archive says the feed holds nothing older', async () => {
+        http.route({
+          match: 'https://status.cloud.google.com/incidents.json',
+          respond: () =>
+            Response.json([
+              {
+                id: 'gcp-1',
+                external_desc: 'Cloud Run errors',
+                begin: '2026-09-20T10:00:00+00:00',
+                end: '2026-09-20T11:00:00+00:00',
+                severity: 'medium',
+                updates: [],
+                affected_products: [],
+              },
+            ]),
+        });
+        const { structured } = await call({ vendor: 'gcp', until: '2026-09-01' });
+
+        expect(structured.notice).toContain(
+          'started on or before 2026-09-01: all 1 match started after it.',
+        );
+        expect(structured.notice).toContain('returns nothing older that this tool can read');
+        expect(structured.notice).not.toContain('Add since');
+      });
+
+      it('names since and until separately when the range left nothing', async () => {
+        routeGithub();
+        const { result, structured } = await call({
+          vendor: 'github',
+          filter: 'resolved',
+          since: '2026-09-25',
+          until: '2026-09-25',
+        });
+
+        expect(result.total_returned).toBe(0);
+        expect(structured.notice).toMatch(
+          /^No incidents matching filter "resolved" for GitHub started between 2026-09-25 and 2026-09-25; \d+ earlier matches were left out by since\. Widen the range/,
+        );
+      });
+
+      it('says match emptied the result, with the count it removed, on both surfaces', async () => {
+        routeGithub();
+        const result = await runToolContract(devopsGetIncidents, {
+          vendor: 'github',
+          filter: 'resolved',
+          since: '2026-09-01',
+          match: 'Quantum Teleporter',
+        });
+
+        // 13 September v2 incidents start on or after the floor; no archive-only record does.
+        const notice =
+          '13 incidents for GitHub matched filter "resolved" (since 2026-09-01), but none has every word of "quantum teleporter" in its title or affected components. ' +
+          'Use fewer or broader words, or omit match. History-archive records, and vendors that publish no components, match on title only.';
+        expect(result.structuredContent).toMatchObject({ incidents: [], notice });
+        expect(text(result.content).split(notice)).toHaveLength(2);
+      });
+
+      it('reads a blank match and until as unset, and rejects a match with no letter or digit', async () => {
+        routeGithub();
+        const { result } = await call({
+          vendor: 'github',
+          filter: 'resolved',
+          match: ' ',
+          until: '',
+        });
+        expect(result.total_returned).toBe(20);
+        expect(historyRequests()).toEqual([]);
+
+        const parsed = devopsGetIncidents.input.safeParse({ vendor: 'github', match: '--/--' });
+        expect(parsed.success).toBe(false);
+        expect(parsed.error?.issues.map((i) => i.path[0])).toEqual(['match']);
+      });
+
+      describe('until validation', () => {
+        it.each(['active', 'scheduled'] as const)(
+          'rejects until with filter %s before any request',
+          async (filter) => {
+            const result = await runToolContract(devopsGetIncidents, {
+              vendor: 'github',
+              filter,
+              until: '2026-09-01',
+            });
+
+            expect(result.isError).toBe(true);
+            expect(result.structuredContent).toMatchObject({
+              error: {
+                code: JsonRpcErrorCode.ValidationError,
+                message: expect.stringContaining(`"${filter}"`),
+                data: {
+                  reason: 'invalid_until',
+                  recovery: { hint: expect.stringContaining('on or after since') },
+                },
+              },
+            });
+            expect(http.calls).toHaveLength(0);
+          },
+        );
+
+        it('rejects an until before since before any request', async () => {
+          const result = await runToolContract(devopsGetIncidents, {
+            vendor: 'github',
+            since: '2026-09-02',
+            until: '2026-09-01',
+          });
+
+          expect(result.isError).toBe(true);
+          expect(result.structuredContent).toMatchObject({
+            error: {
+              data: { reason: 'invalid_until' },
+              message: expect.stringContaining('until 2026-09-01 is before since 2026-09-02'),
+            },
+          });
+          expect(http.calls).toHaveLength(0);
+        });
+
+        it('reads the feeds for an until more than 24 months back, and names the floor when it left nothing', async () => {
+          routeGithub();
+          const result = await runToolContract(devopsGetIncidents, {
+            vendor: 'github',
+            until: '2024-09-24',
+          });
+
+          expect(result.isError).toBeFalsy();
+          expect(historyRequests()).toEqual([]);
+          // The recorded maintenance list starts in 2025, so nothing here started that early.
+          const notice =
+            'No incidents matching filter "all" for GitHub started on or before 2024-09-24: all 53 matches started after it. ' +
+            "The status page's history archive is read back 24 months at most, to 2024-09-25, so since cannot reach incidents that started on or before 2024-09-24.";
+          expect(result.structuredContent).toMatchObject({ incidents: [], total_returned: 0 });
+          expect((result.structuredContent as { notice: string }).notice.startsWith(notice)).toBe(
+            true,
+          );
+          expect(text(result.content)).toContain('No incidents matched this filter.');
+          expect(text(result.content).split(notice)).toHaveLength(2);
+        });
+
+        it.each(['2025-13-01', '09/25/2025', '2025-9-1', '2026-09-01T00:00:00Z'])(
+          'rejects the malformed date %s at the schema',
+          (until) => {
+            const parsed = devopsGetIncidents.input.safeParse({ vendor: 'github', until });
+            expect(parsed.success).toBe(false);
+            expect(parsed.error?.issues.map((i) => i.code)).not.toContain('unrecognized_keys');
+            expect(parsed.error?.issues.every((i) => i.path[0] === 'until')).toBe(true);
+          },
+        );
+      });
     });
   });
 
@@ -2275,6 +2987,438 @@ describe('devopsGetIncidents', () => {
         expect(surface).not.toContain('Try filter');
         expect(surface).not.toMatch(/"all"|"resolved"|"scheduled"|"active"/);
       }
+    });
+  });
+
+  /**
+   * Each surface is held to 64,000 bytes, measured as the caller receives it: the
+   * serialized structuredContent and the content[] text format() renders, vendor text
+   * escaped (#58). The heavy pages are the circleci, gcp, and aws captures from
+   * 2026-10-14, re-expressed as the Statuspage feed shape every adapter normalizes to.
+   */
+  describe('response size budget (#58)', () => {
+    const BUDGET = 64_000;
+    type Feed = StatuspageIncidentsResponse & {
+      scheduled_maintenances?: StatuspageIncidentsResponse['incidents'];
+    };
+    type Incident = StatuspageIncidentsResponse['incidents'][number];
+    type Payload = {
+      incidents: Array<{
+        id: string;
+        updates: { body: string; created_at: string }[];
+        affected_components: string[];
+        updates_omitted?: number;
+      }>;
+      total_returned: number;
+      truncated?: boolean;
+      shown?: number;
+      cap?: number;
+      totalCount?: number;
+      nextOffset?: number;
+      notice?: string;
+    };
+
+    const heavy = (vendor: string) =>
+      JSON.parse(
+        readFileSync(
+          new URL(`./fixtures/incidents-heavy-${vendor}.json`, import.meta.url),
+          'utf-8',
+        ),
+      ) as Feed;
+
+    async function serve(feed: Feed) {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({
+        data: { page: feed.page, incidents: feed.incidents },
+        cached: false,
+      });
+      _mockFetchScheduledMaintenances.mockResolvedValue({
+        data: { page: feed.page, scheduled_maintenances: feed.scheduled_maintenances ?? [] },
+        cached: false,
+      });
+    }
+
+    /** One call through the production contract, with each surface's size as received. */
+    async function call(args: Record<string, unknown>) {
+      const result = await runToolContract(devopsGetIncidents, args as never);
+      expect(result.isError).toBeFalsy();
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
+      return {
+        payload: result.structuredContent as Payload,
+        text,
+        structuredBytes: Buffer.byteLength(JSON.stringify(result.structuredContent)),
+        contentBytes: Buffer.byteLength(text),
+      };
+    }
+
+    /** Every page from `offset` 0 on, walked by nextOffset. */
+    async function walk(args: Record<string, unknown>) {
+      const pages = [await call(args)];
+      for (let next = pages[0]!.payload.nextOffset; next !== undefined; ) {
+        const page = await call({ ...args, offset: next });
+        pages.push(page);
+        next = page.payload.nextOffset;
+      }
+      return pages;
+    }
+
+    /** The order the tool lists a feed in at filter "all": newest first across both lists. */
+    const listed = (feed: Feed) =>
+      [...feed.incidents, ...(feed.scheduled_maintenances ?? [])]
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+        .map((i) => i.id);
+
+    it.each(['circleci', 'gcp'])(
+      'holds a recorded %s page at limit 50 to the budget on both surfaces',
+      async (capture) => {
+        const feed = heavy(capture);
+        await serve(feed);
+        const page = await call({ vendor: 'circleci', limit: 50 });
+
+        expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+        expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+        const { payload } = page;
+        expect(payload.truncated).toBe(true);
+        expect(payload.shown).toBe(payload.total_returned);
+        expect(payload.shown).toBeGreaterThan(0);
+        expect(payload.shown).toBeLessThan(50);
+        expect(payload.incidents.map((i) => i.id)).toEqual(listed(feed).slice(0, payload.shown));
+        expect(payload.cap).toBe(50);
+        expect(payload.nextOffset).toBe(payload.shown);
+        expect(payload.notice).toContain(
+          `Showing incidents 1–${payload.shown} of ${listed(feed).length}; this page stopped at the 64,000-byte response size budget short of limit 50.`,
+        );
+        expect(payload.notice).toContain(`offset: ${payload.shown}`);
+        // Whole incidents only: nothing on a page is trimmed while another follows it.
+        expect(payload.incidents.every((i) => i.updates_omitted === undefined)).toBe(true);
+      },
+    );
+
+    it('holds the recorded aws page at limit 50 to the budget', async () => {
+      const { fetchAwsIncidents } = await import('@/services/status-adapters/aws-adapter.js');
+      const feed = heavy('aws');
+      vi.mocked(fetchAwsIncidents).mockResolvedValue({ data: feed, cached: false });
+      try {
+        const page = await call({ vendor: 'aws', limit: 50 });
+
+        expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+        expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+        // 140-odd affected services per event count toward the budget but are never cut.
+        const byId = new Map(feed.incidents.map((i) => [i.id, i]));
+        for (const inc of page.payload.incidents) {
+          const source = byId.get(inc.id)!;
+          const components = source.incident_updates[0]!.affected_components!.map((c) => c.name);
+          expect(inc.affected_components).toEqual(components);
+        }
+        expect(page.payload.nextOffset).toBe(page.payload.shown);
+      } finally {
+        vi.mocked(fetchAwsIncidents).mockReset();
+      }
+    });
+
+    it.each(['circleci', 'gcp'])(
+      'pages a recorded %s feed by nextOffset with no repeat and no skip',
+      async (capture) => {
+        const feed = heavy(capture);
+        await serve(feed);
+        const pages = await walk({ vendor: 'circleci', limit: 50, offset: 0 });
+
+        expect(pages.length).toBeGreaterThan(1);
+        for (const page of pages) {
+          expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+          expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+        }
+        expect(pages.flatMap((p) => p.payload.incidents.map((i) => i.id))).toEqual(listed(feed));
+      },
+    );
+
+    it('a cut page starting past 0 continues at offset + shown', async () => {
+      const feed = heavy('circleci');
+      await serve(feed);
+      const { payload } = await call({ vendor: 'circleci', limit: 50, offset: 5 });
+
+      expect(payload.shown).toBeGreaterThan(0);
+      expect(payload.shown).toBeLessThan(50);
+      expect(payload.incidents.map((i) => i.id)).toEqual(listed(feed).slice(5, 5 + payload.shown!));
+      expect(payload.nextOffset).toBe(5 + payload.shown!);
+      expect(payload.notice).toContain(`Showing incidents 6–${5 + payload.shown!} of 50;`);
+    });
+
+    /** Bodies of `<` render four times larger in content[] (`&lt;`), `"` twice in JSON. */
+    it.each([
+      ['<', 'content[]'],
+      ['"', 'structuredContent'],
+    ])('measures escaped vendor text: bodies of %s weigh most in %s', async (char) => {
+      const base = RESOLVED_INCIDENT.incidents[0]!;
+      const incidents = Array.from({ length: 50 }, (_, n) => ({
+        ...base,
+        id: `inc-${n}`,
+        created_at: new Date(Date.UTC(2026, 8, 30) - n * 3_600_000).toISOString(),
+        incident_updates: [{ ...base.incident_updates[0]!, body: char.repeat(2_500) }],
+      }));
+      await serve({ ...RESOLVED_INCIDENT, incidents, scheduled_maintenances: [] });
+
+      const pages = await walk({ vendor: 'circleci', limit: 50 });
+      for (const page of pages) {
+        expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+        expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+      }
+      expect(pages.flatMap((p) => p.payload.incidents.map((i) => i.id))).toEqual(
+        incidents.map((i) => i.id),
+      );
+    });
+
+    /** Pages that fill to within a few hundred bytes of the edge still fit with every field set. */
+    it.each([1_190, 1_227, 1_264, 1_301])(
+      'stays within the budget at the edge (bodies of %i bytes)',
+      async (size) => {
+        const base = RESOLVED_INCIDENT.incidents[0]!;
+        const incidents = Array.from({ length: 50 }, (_, n) => ({
+          ...base,
+          id: `inc-${n}`,
+          created_at: new Date(Date.UTC(2026, 8, 30) - n * 3_600_000).toISOString(),
+          incident_updates: [{ ...base.incident_updates[0]!, body: 'x'.repeat(size + n) }],
+        }));
+        await serve({ ...RESOLVED_INCIDENT, incidents, scheduled_maintenances: [] });
+
+        // The 50-record feed is at its ceiling, so upstreamCeiling and its notice ride along too.
+        const page = await call({ vendor: 'circleci', limit: 50, offset: 0 });
+        expect(page.payload.notice).toContain('returns at most 50 incidents');
+        expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+        expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+        expect(page.structuredBytes).toBeGreaterThan(BUDGET - 4_000);
+      },
+    );
+
+    describe('an incident over the budget on its own', () => {
+      /** The largest circleci incident's 27 updates, repeated past 120 KB with later timestamps. */
+      function oversized(): Incident {
+        const feed = heavy('circleci');
+        const source = feed.incidents.find((i) => i.id === '6cfhhlr4rmm0')!;
+        const updates: Incident['incident_updates'] = [];
+        for (let round = 0; JSON.stringify(updates).length < 120_000; round++) {
+          for (const [n, u] of source.incident_updates.entries()) {
+            updates.push({
+              ...u,
+              id: `u-${round}-${n}`,
+              created_at: new Date(Date.parse(u.created_at) + round * 86_400_000).toISOString(),
+              affected_components: round === 0 ? u.affected_components : null,
+            });
+          }
+        }
+        return { ...source, incident_updates: updates };
+      }
+
+      const small = {
+        ...RESOLVED_INCIDENT.incidents[0]!,
+        id: 'inc-after',
+        created_at: '2020-01-01T00:00:00Z',
+      };
+
+      it('returns alone with its newest updates, counting the oldest it left out', async () => {
+        const big = oversized();
+        const total = big.incident_updates.length;
+        await serve({ ...RESOLVED_INCIDENT, incidents: [big, small], scheduled_maintenances: [] });
+
+        const page = await call({ vendor: 'circleci', limit: 20 });
+
+        expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+        expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+        const [inc] = page.payload.incidents;
+        expect(page.payload.incidents).toHaveLength(1);
+        const kept = inc!.updates.length;
+        expect(kept).toBeGreaterThan(0);
+        expect(inc!.updates_omitted).toBe(total - kept);
+        // The newest updates, oldest first, ending at the newest the vendor published.
+        const newest = [...big.incident_updates]
+          .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
+          .slice(total - kept)
+          .map((u) => u.created_at);
+        expect(inc!.updates.map((u) => u.created_at)).toEqual(newest);
+        // Components count toward the budget but stay whole.
+        expect(inc!.affected_components).toEqual(
+          big.incident_updates[0]!.affected_components!.map((c) => c.name),
+        );
+        expect(page.text).toContain(
+          `**Updates (${kept} of ${total}, ${total - kept} oldest omitted):**`,
+        );
+
+        // The incident after it is the next page, and both notices share one string.
+        expect(page.payload).toMatchObject({ truncated: true, shown: 1, cap: 20, nextOffset: 1 });
+        expect(page.payload.notice).toContain('Showing incidents 1–1 of 2;');
+        expect(page.payload.notice).toContain(
+          `its ${total - kept} oldest updates were left out (updates_omitted). Call again with the same arguments plus offset: 0, limit: 1, full_updates: true to read every update.`,
+        );
+        expect(page.text.split(page.payload.notice!)).toHaveLength(2);
+        const next = await call({ vendor: 'circleci', limit: 20, offset: 1 });
+        expect(next.payload.incidents.map((i) => i.id)).toEqual(['inc-after']);
+      });
+
+      it('returns every update with full_updates: true, as the notice says', async () => {
+        const big = oversized();
+        await serve({ ...RESOLVED_INCIDENT, incidents: [big, small], scheduled_maintenances: [] });
+
+        // The recipe the trim notice prints, run verbatim: same arguments plus these three.
+        const args = { vendor: 'circleci', limit: 20 };
+        const page = await call({ ...args, offset: 0, limit: 1, full_updates: true });
+
+        const [inc] = page.payload.incidents;
+        expect(inc!.updates).toHaveLength(big.incident_updates.length);
+        expect(inc!.updates_omitted).toBeUndefined();
+        expect(page.text).toContain(`**Updates (${big.incident_updates.length}):**`);
+        // The caller asked for the whole record, so the budget no longer bounds it.
+        expect(page.structuredBytes).toBeGreaterThan(BUDGET);
+        expect(page.payload.notice).not.toContain('updates_omitted');
+      });
+    });
+
+    it('leaves a page under the budget as it was, with no updates_omitted', async () => {
+      await serve({ ...RESOLVED_INCIDENT, scheduled_maintenances: [] });
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor: 'circleci', filter: 'resolved' }),
+        ctx,
+      );
+
+      expect(result.incidents).toHaveLength(1);
+      expect(Object.keys(result.incidents[0]!)).not.toContain('updates_omitted');
+      expect(getEnrichment(ctx)).toEqual({});
+      const text = (devopsGetIncidents.format!(result)[0] as { text: string }).text;
+      expect(text).toContain('**Updates (2):**');
+    });
+
+    it('composes the budget notice with the ceiling and history-gap notices', async () => {
+      const feed = fixture('github-incidents.json') as Feed & { page: { time_zone?: string } };
+      delete feed.page.time_zone;
+      await serve(feed);
+
+      const { payload, structuredBytes, contentBytes, text } = await call({
+        vendor: 'github',
+        filter: 'resolved',
+        since: '2026-01-01',
+        limit: 50,
+      });
+
+      expect(structuredBytes).toBeLessThanOrEqual(BUDGET);
+      expect(contentBytes).toBeLessThanOrEqual(BUDGET);
+      expect(payload.notice).toMatch(
+        /^Showing incidents 1–\d+ of 50; this page stopped at the 64,000-byte response size budget short of limit 50\. .*returns at most 50 incidents per fetch.*names no page time zone/,
+      );
+      expect(text.split(payload.notice!)).toHaveLength(2);
+    });
+
+    it('holds a clamped limit to the budget on both surfaces, its notice included (#69)', async () => {
+      await serve(heavy('circleci'));
+      const page = await call({ vendor: 'circleci', limit: 500 });
+
+      expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+      expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+      const { payload } = page;
+      expect(payload.cap).toBe(50);
+      expect(payload.notice).toContain('short of limit 50.');
+      expect(payload.notice).toContain('limit 500 is past the maximum of 50; 50 was used.');
+      expect(page.text.split(payload.notice!)).toHaveLength(2);
+    });
+  });
+
+  describe('limit clamp (#69)', () => {
+    /**
+     * 60 small records, newest first as `inc-1`…`inc-60`, so paging — not the size budget —
+     * ends a page: 45 incidents (under the feed's own 50-incident ceiling, so no ceiling
+     * notice) and 15 older maintenance windows, merged under filter "all".
+     */
+    const record = (n: number) => ({
+      ...RESOLVED_INCIDENT.incidents[0]!,
+      id: `inc-${n}`,
+      created_at: new Date(Date.UTC(2026, 8, 1) - n * 3_600_000).toISOString(),
+    });
+    const items = (from: number, to: number) =>
+      Array.from({ length: to - from + 1 }, (_, i) => record(from + i));
+
+    async function call(args: Record<string, unknown>) {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({
+        data: { ...RESOLVED_INCIDENT, incidents: items(1, 45) },
+        cached: false,
+      });
+      _mockFetchScheduledMaintenances.mockResolvedValue({
+        data: { ...EMPTY_SCHEDULED, scheduled_maintenances: items(46, 60) },
+        cached: false,
+      });
+      const result = await runToolContract(devopsGetIncidents, {
+        vendor: 'github',
+        filter: 'all',
+        ...args,
+      } as never);
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      return {
+        result,
+        text,
+        payload: result.structuredContent as {
+          incidents: { id: string }[];
+          total_returned: number;
+          truncated?: boolean;
+          cap?: number;
+          totalCount?: number;
+          nextOffset?: number;
+          notice?: string;
+        },
+      };
+    }
+
+    const LIMIT_NOTICE = 'limit 51 is past the maximum of 50; 50 was used.';
+
+    it('serves limit 51 as 50, paging from the effective value', async () => {
+      const { result, payload, text } = await call({ limit: 51 });
+
+      expect(result.isError).toBeFalsy();
+      expect(payload.total_returned).toBe(50);
+      expect(payload.incidents.at(-1)!.id).toBe('inc-50');
+      expect(payload).toMatchObject({ truncated: true, cap: 50, totalCount: 60, nextOffset: 50 });
+      expect(payload.notice).toBe(
+        `Showing incidents 1–50 of 60. Call again with offset: 50 for the next page, or narrow with filter, since, until, or match. ${LIMIT_NOTICE}`,
+      );
+      expect(text.split(LIMIT_NOTICE)).toHaveLength(2);
+    });
+
+    it('serves the last page at the effective limit with only the clamp to explain', async () => {
+      const { payload } = await call({ limit: 51, offset: 50 });
+
+      expect(payload.incidents.map((i) => i.id)).toEqual(
+        Array.from({ length: 10 }, (_, i) => `inc-${51 + i}`),
+      );
+      expect(payload.truncated).toBeUndefined();
+      expect(payload.notice).toBe(LIMIT_NOTICE);
+    });
+
+    it('serves limit 50 unchanged, with no clamp notice', async () => {
+      const { payload } = await call({ limit: 50 });
+
+      expect(payload.total_returned).toBe(50);
+      expect(payload).toMatchObject({ truncated: true, cap: 50, totalCount: 60, nextOffset: 50 });
+      expect(payload.notice).toBe(
+        'Showing incidents 1–50 of 60. Call again with offset: 50 for the next page, or narrow with filter, since, until, or match.',
+      );
+    });
+
+    it('keeps rejecting a limit under 1', async () => {
+      const { result } = await call({ limit: 0 });
+      expect(result.isError).toBe(true);
+    });
+
+    it('states the clamp in the limit description', () => {
+      const description = devopsGetIncidents.input.shape.limit.description ?? '';
+      expect(description).toContain('A value over 50 is served as 50,');
     });
   });
 });

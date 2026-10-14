@@ -1,25 +1,48 @@
 /**
- * @fileoverview Tool to check health of a named vendor stack, persisted via ctx.state.
+ * @fileoverview Tool to check health of a named vendor stack, persisted via ctx.state where
+ * the tenant identifies the caller.
  * @module mcp-server/tools/definitions/devops-watch-stack.tool
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
+import { config } from '@cyanheads/mcp-ts-core/config';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { clampMax } from '@/utils/input-bounds.js';
 import type { PreparedVendorFailure, VendorResult } from './devops-vendor-result.js';
 import {
   buildSuggestActionSuggestions,
   DEFAULT_COMPONENT_LIMIT,
+  deferredVendorsSentence,
   fetchVendorResults,
   MAX_COMPONENT_LIMIT,
+  MAX_VENDORS_INPUT,
+  MAX_VENDORS_PER_CALL,
   NextToolSuggestionsSchema,
   prepareVendors,
+  renderDeferredVendors,
   renderNextToolSuggestions,
   renderVendorBlock,
+  splitVendors,
   summarizeVendorResults,
   VendorResultSchema,
 } from './devops-vendor-result.js';
 
 const STACK_STATE_PREFIX = 'stack/';
+
+/**
+ * Whether this deployment saves stacks: only where the `ctx.state` tenant identifies
+ * the caller — stdio (one user per process) or HTTP with `jwt`/`oauth` (tenant from
+ * the token). HTTP with `MCP_AUTH_MODE=none` runs every caller as tenant `default`, so
+ * a stack saved there would be shared by all of them; the tool then reads and writes
+ * no state. This mirrors the framework's own rule for assigning tenant `default`;
+ * `ctx.tenantId === 'default'` alone cannot tell that case from stdio.
+ */
+export function stacksPersist(): boolean {
+  return config.mcpTransportType === 'stdio' || config.mcpAuthMode !== 'none';
+}
+
+const NOT_PERSISTED_NOTICE =
+  'This deployment does not save stacks because callers are not authenticated — pass vendors on every call.';
 
 /**
  * The stack name is concatenated into a `ctx.state` key, and the framework's storage
@@ -72,8 +95,9 @@ const HEALTH_ICON: Record<StackHealth, string> = {
 
 export const devopsWatchStack = tool('devops_watch_stack', {
   description:
-    'Check the health of a named vendor stack — a saved list of vendors representing your infrastructure dependencies. On the first call, provide vendors to define the stack; subsequent calls can omit vendors to reuse the persisted list. Returns a unified health snapshot with an aggregate rollup plus per-vendor detail. A vendor that cannot be resolved or reached is reported in its own row and left out of the saved stack, so one bad entry never discards the sweep. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions. Ideal for morning status checks or pre-deploy sweeps. Multiple stacks can coexist (e.g., "production", "staging").',
-  // Not read-only: providing `vendors` persists the stack list via ctx.state.set.
+    'Check the health of a named vendor stack — a saved list of vendors representing your infrastructure dependencies. On the first call, provide vendors to define the stack; subsequent calls can omit vendors to reuse the saved list. Stacks are saved per authenticated caller, or per local server process; a shared deployment that does not authenticate callers saves nothing, so there vendors is required on every call and the response says so. Up to 20 vendors are saved per stack and checked per call; use several stack names for a larger set. Returns a unified health snapshot with an aggregate rollup plus per-vendor detail. A vendor that cannot be resolved or reached is reported in its own row and left out of the saved stack, so one bad entry never discards the sweep. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions. Ideal for morning status checks or pre-deploy sweeps. Multiple stacks can coexist (e.g., "production", "staging").',
+  // Not read-only: providing `vendors` persists the stack list via ctx.state.set
+  // wherever stacksPersist() holds.
   // Not destructive: the only write is an upsert of the caller-named stack key.
   // Idempotent: repeating a call with the same arguments re-saves the same list.
   annotations: {
@@ -88,9 +112,10 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .array(
         z.string().describe('A vendor slug (e.g., "github") or raw Atlassian Statuspage base URL.'),
       )
+      .max(MAX_VENDORS_INPUT)
       .optional()
       .describe(
-        'Vendor slugs (e.g., "github", "aws") or raw Atlassian Statuspage base URLs. When provided, saves this list as the stack. When omitted, uses the previously saved list for stack_name.',
+        'Vendor slugs (e.g., "github", "aws") or raw Atlassian Statuspage base URLs. When provided, saves this list as the stack where stacks are saved; a list longer than 20 is then rejected and nothing is saved. When omitted, uses the previously saved list for stack_name; required on every call on a deployment that does not authenticate callers, which saves no stacks — there the first 20 are checked and the rest return in deferred_vendors. Lists longer than 100 are rejected.',
       ),
     stack_name: z
       .string()
@@ -111,16 +136,15 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .string()
       .optional()
       .describe(
-        'Case-insensitive substring matched against component names in detailed mode (e.g., "api" to check just the API components). Applied before component_limit, so it is the way to reach a component that the cap would otherwise omit. Ignored in summary mode.',
+        'Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_limit, so it is the way to reach a component that the cap would otherwise omit. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.',
       ),
     component_limit: z
       .number()
       .int()
       .min(1)
-      .max(MAX_COMPONENT_LIMIT)
       .default(DEFAULT_COMPONENT_LIMIT)
       .describe(
-        'Maximum components returned per vendor in detailed mode (1-500). Large status pages publish hundreds of components, so a full stack at a high limit returns a very large response; narrow with component_filter instead where possible.',
+        `Maximum components returned per vendor in detailed mode, at least 1. A value above ${MAX_COMPONENT_LIMIT} is reduced to ${MAX_COMPONENT_LIMIT}, and notice says so. Large status pages publish hundreds of components, so a full stack at a high limit returns a very large response; narrow with component_filter instead where possible.`,
       ),
   }),
 
@@ -133,7 +157,9 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       ),
     summary: z
       .object({
-        total: z.number().describe('Total vendors in the stack.'),
+        total: z
+          .number()
+          .describe('Total vendors checked on this call — never counts deferred_vendors.'),
         operational: z.number().describe('Vendors with indicator = none and no error.'),
         degraded: z.number().describe('Vendors with indicator = minor or major.'),
         down: z.number().describe('Vendors with indicator = critical.'),
@@ -151,11 +177,18 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .describe(
         'Aggregate health counts across all checked vendors. Buckets partition the stack: operational + degraded + down + maintenance + unavailable = total.',
       ),
-    vendors: z.array(VendorResultSchema).describe('Per-vendor status results.'),
+    vendors: z
+      .array(VendorResultSchema)
+      .describe('Per-vendor status results for the vendors checked, in stack order.'),
+    deferred_vendors: z
+      .array(z.string().describe('A vendor entry exactly as provided or saved.'))
+      .describe(
+        'Entries past the first 20, verbatim and in order, that were not checked on this call: the rest of a passed vendors list on a deployment that saves no stacks, or of a saved stack holding more than 20. Resend them in another call. Empty when every entry was checked.',
+      ),
     stack_persisted: z
       .boolean()
       .describe(
-        'True when the vendor list was saved to state on this call. Only the vendors that resolved are saved — see omitted_vendors.',
+        'True when the vendor list was saved on this call. Only the vendors that resolved are saved — see omitted_vendors. Always false on a deployment that does not authenticate callers, which saves no stacks (persistence_notice says so).',
       ),
     omitted_vendors: z
       .array(z.string().describe('A vendor entry that cannot be part of a usable stack.'))
@@ -167,8 +200,9 @@ export const devopsWatchStack = tool('devops_watch_stack', {
   }),
 
   enrichment: {
-    // Populated only via ctx.enrich when a component list is actually capped —
-    // all fields must be optional so uncapped results pass the effective-output parse.
+    // Populated only via ctx.enrich when a component list is actually capped, when
+    // component_filter matched nothing for a vendor, or when stacks are not saved — all
+    // fields must be optional so a plain result passes the effective-output parse.
     truncated: z
       .boolean()
       .optional()
@@ -193,8 +227,18 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .string()
       .optional()
       .describe(
-        'Plain-language explanation of the capped component lists — how many components were omitted and how to reach them (component_filter to target one, component_limit to raise the cap). Present only when truncated.',
+        'Plain-language explanation of what this call left out or adjusted: vendors past the first 20 (listed in deferred_vendors), a component_limit above 500 reduced to 500, and in detailed mode how many components the cap omitted and how to reach them (component_filter to target one, or component_limit to raise a cap below 500), and which checked vendors component_filter matched no component of, with how many each publishes. Present only when one of these applies.',
       ),
+    persistence_notice: z
+      .string()
+      .optional()
+      .describe(
+        'Present when this deployment saves no stacks because callers are not authenticated: nothing was saved, and vendors must be passed on every call.',
+      ),
+  },
+
+  enrichmentTrailer: {
+    persistence_notice: { render: (notice) => `> ${notice}` },
   },
 
   errors: [
@@ -203,6 +247,25 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       code: JsonRpcErrorCode.NotFound,
       when: 'No vendors provided and no saved stack found for stack_name.',
       recovery: 'Provide a vendors list to define the stack. It will be saved for future calls.',
+    },
+    {
+      reason: 'vendors_required',
+      code: JsonRpcErrorCode.ValidationError,
+      when: 'No vendors provided on a deployment that saves no stacks because callers are not authenticated',
+      recovery:
+        'Pass the vendors list on every call — this deployment does not save stacks between calls.',
+    },
+    /**
+     * Saving the first 20 of a longer list would store a stack the caller didn't ask
+     * for, so a save over the cap rejects whole. Where nothing is saved the call is a
+     * read, and the same list is checked 20 at a time with the rest deferred instead.
+     */
+    {
+      reason: 'stack_too_large',
+      code: JsonRpcErrorCode.ValidationError,
+      when: 'More than 20 vendors were provided on a deployment that saves stacks, so nothing was saved',
+      recovery:
+        'Pass at most 20 vendors per stack, and save a larger set under several stack_name values.',
     },
     {
       reason: 'vendor_not_found',
@@ -220,19 +283,32 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     },
     /**
      * Both entries fire only when nothing in the stack is checkable, which is also
-     * the only case that skips the state write — a stack with no usable vendor is
-     * never saved. A partially-resolvable list saves its resolvable subset and
-     * reports the rest in omitted_vendors.
+     * the only case that skips the state write where stacks persist — a stack with no
+     * usable vendor is never saved. A partially-resolvable list saves its resolvable
+     * subset and reports the rest in omitted_vendors.
      */
   ],
 
   async handler(input, ctx) {
     const stateKey = `${STACK_STATE_PREFIX}${input.stack_name}`;
     const provided = input.vendors ?? [];
+    const persist = stacksPersist();
     let vendorList: string[];
+
+    if (persist && provided.length > MAX_VENDORS_PER_CALL) {
+      throw ctx.fail(
+        'stack_too_large',
+        `${provided.length} vendors were provided for "${input.stack_name}"; a saved stack holds at most ${MAX_VENDORS_PER_CALL}. Nothing was saved.`,
+      );
+    }
 
     if (provided.length > 0) {
       vendorList = provided;
+    } else if (!persist) {
+      throw ctx.fail(
+        'vendors_required',
+        `No vendors provided for "${input.stack_name}", and this deployment does not save stacks.`,
+      );
     } else {
       const saved = await ctx.state.get<string[]>(stateKey);
       if (!saved || saved.length === 0) {
@@ -244,25 +320,43 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       vendorList = saved;
     }
 
-    const prepared = await prepareVendors(vendorList);
+    // A save over the cap was rejected above, so only a read reaches here with more than 20.
+    const batch = splitVendors(vendorList);
+    const componentLimit = clampMax('component_limit', input.component_limit, MAX_COMPONENT_LIMIT);
+    const prepared = await prepareVendors(batch.served);
 
     // Nothing in the stack is checkable — degrade to the typed contract rather than
-    // a stack of error rows, and write nothing. The message names every failure.
+    // a stack of error rows, and write nothing. The message names every failure,
+    // and any deferred entries, which an error response has no field for.
     const failures = prepared.filter((p): p is PreparedVendorFailure => !p.ok);
     if (failures.length === prepared.length) {
       const first = failures[0] as PreparedVendorFailure;
       throw ctx.fail(
         first.reason,
-        `No vendor in "${input.stack_name}" could be checked. ${failures.map((f) => f.message).join(' ')}`,
+        `No vendor in "${input.stack_name}" could be checked. ${failures.map((f) => f.message).join(' ')}${deferredVendorsSentence(batch.deferred)}`,
       );
     }
+
+    const leadNotices: string[] = [];
+    if (batch.notice) {
+      leadNotices.push(batch.notice);
+      // Resending the rest as vendors would overwrite the saved stack, so say how to keep it whole.
+      if (provided.length === 0) {
+        leadNotices.push(
+          `The saved stack "${input.stack_name}" holds ${vendorList.length} vendors; save them under several stack names of at most ${MAX_VENDORS_PER_CALL} each to sweep every one.`,
+        );
+      }
+    }
+    if (componentLimit.notice) leadNotices.push(componentLimit.notice);
 
     // Save only what resolved: persisting an unresolvable slug would put a permanent
     // error row in every future sweep of this stack. omitted_vendors names the drops
     // so the caller knows the saved stack is smaller than what they passed.
     const omittedVendors = failures.map((f) => f.input);
     let stackPersisted = false;
-    if (provided.length > 0) {
+    if (!persist) {
+      ctx.enrich({ persistence_notice: NOT_PERSISTED_NOTICE });
+    } else if (provided.length > 0) {
       await ctx.state.set(
         stateKey,
         prepared.filter((p) => p.ok).map((p) => p.input),
@@ -270,11 +364,16 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       stackPersisted = true;
     }
 
-    const vendors = await fetchVendorResults(prepared, ctx, {
-      mode: input.mode,
-      componentLimit: input.component_limit,
-      componentFilter: input.component_filter,
-    });
+    const vendors = await fetchVendorResults(
+      prepared,
+      ctx,
+      {
+        mode: input.mode,
+        componentLimit: componentLimit.value,
+        componentFilter: input.component_filter,
+      },
+      leadNotices,
+    );
 
     const summary = summarizeVendorResults(vendors);
     const health = computeStackHealth(vendors);
@@ -283,6 +382,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       health,
       vendors: vendors.length,
       omitted: omittedVendors.length,
+      deferred: batch.deferred.length,
     });
 
     return {
@@ -290,6 +390,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       health,
       summary,
       vendors,
+      deferred_vendors: batch.deferred,
       stack_persisted: stackPersisted,
       omitted_vendors: omittedVendors,
       checked_at: new Date().toISOString(),
@@ -308,7 +409,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         `**Unusable entries:** ${result.omitted_vendors.join(', ')} — left out when the stack is saved; see the error on each below.`,
       );
     }
-    lines.push('');
+    lines.push(...renderDeferredVendors(result.deferred_vendors), '');
     for (const v of result.vendors) {
       lines.push(...renderVendorBlock(v), '');
     }

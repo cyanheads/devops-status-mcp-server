@@ -18,9 +18,22 @@ const ServerConfigSchema = z.object({
     .describe('Vendor status API request timeout (all backends) in milliseconds.'),
   certTimeoutMs: z.coerce
     .number()
+    .int()
+    .min(1_000)
+    .max(15_000)
     .default(5_000)
-    .describe('TLS handshake timeout per domain in milliseconds.'),
-  dnsTimeoutMs: z.coerce.number().default(3_000).describe('DNS query timeout in milliseconds.'),
+    .describe(
+      'Default devops_check_certs timeout_ms, in milliseconds (1000-15000, the range the tool serves).',
+    ),
+  dnsTimeoutMs: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(10_000)
+    .default(3_000)
+    .describe(
+      'Default devops_check_dns timeout_ms, in milliseconds (1000-10000, the range the tool serves).',
+    ),
   allowPrivateTargets: z
     .enum(['true', 'false'])
     .default('false')
@@ -54,4 +67,17 @@ export function getServerConfig(): ServerConfig {
     disableActiveProbes: 'DEVOPS_STATUS_DISABLE_ACTIVE_PROBES',
   });
   return _config;
+}
+
+/**
+ * Reads only `DEVOPS_STATUS_DISABLE_ACTIVE_PROBES`, never throwing — an invalid value
+ * reads as `false`. The entry point needs this flag at import to decide the tool list,
+ * before `createApp()` can report a bad env var through its startup banner; the full
+ * `getServerConfig()` parse runs in `setup()` and rejects the invalid value there.
+ */
+export function readDisableActiveProbes(): boolean {
+  const parsed = ServerConfigSchema.shape.disableActiveProbes.safeParse(
+    process.env.DEVOPS_STATUS_DISABLE_ACTIVE_PROBES,
+  );
+  return parsed.success && parsed.data;
 }

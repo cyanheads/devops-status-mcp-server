@@ -5,23 +5,28 @@
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { clampMax } from '@/utils/input-bounds.js';
 import type { PreparedVendorFailure } from './devops-vendor-result.js';
 import {
   buildSuggestActionSuggestions,
   DEFAULT_COMPONENT_LIMIT,
+  deferredVendorsSentence,
   fetchVendorResults,
   MAX_COMPONENT_LIMIT,
+  MAX_VENDORS_INPUT,
   NextToolSuggestionsSchema,
   prepareVendors,
+  renderDeferredVendors,
   renderNextToolSuggestions,
   renderVendorBlock,
+  splitVendors,
   summarizeVendorResults,
   VendorResultSchema,
 } from './devops-vendor-result.js';
 
 export const devopsStatusCheck = tool('devops_status_check', {
   description:
-    'Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., "github", "aws", "gcp", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served by each vendor\'s native status API (Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Firehydrant) and normalized to one shape. Returns per-vendor operational indicator (none = all clear, minor, major, critical, maintenance = scheduled window), degraded components, and active incidents. Use mode: "detailed" for component lists and maintenance windows, narrowed with component_filter and bounded by component_limit. Batch-friendly — pass a list to check your full stack in one call; a vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions.',
+    'Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., "github", "aws", "gcp", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served by each vendor\'s native status API (Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Azure DevOps status, Firehydrant) and normalized to one shape. Returns per-vendor operational indicator (none = all clear, minor, major, critical, maintenance = scheduled window), degraded components, and active incidents. Use mode: "detailed" for component lists and maintenance windows, narrowed with component_filter and bounded by component_limit. Batch-friendly — pass a list to check your full stack in one call; up to 20 vendors are checked per call, and any past the 20th come back in deferred_vendors to resend. A vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -33,9 +38,9 @@ export const devopsStatusCheck = tool('devops_status_check', {
           .describe('A vendor slug (e.g., "github") or raw Atlassian Statuspage base URL.'),
       )
       .min(1)
-      .max(20)
+      .max(MAX_VENDORS_INPUT)
       .describe(
-        'Vendor slugs from the built-in registry (e.g., "github", "aws") or raw Atlassian Statuspage base URLs (non-Statuspage backends are supported via registry slugs only). Mix freely. Use devops_list_vendors to discover available slugs.',
+        'Vendor slugs from the built-in registry (e.g., "github", "aws") or raw Atlassian Statuspage base URLs (non-Statuspage backends are supported via registry slugs only). Mix freely. Use devops_list_vendors to discover available slugs. The first 20 are checked, in the order given; entries past the 20th are returned unchecked in deferred_vendors to resend in another call. Lists longer than 100 are rejected.',
       ),
     mode: z
       .enum(['summary', 'detailed'])
@@ -47,26 +52,34 @@ export const devopsStatusCheck = tool('devops_status_check', {
       .string()
       .optional()
       .describe(
-        'Case-insensitive substring matched against component names in detailed mode (e.g., "api" to check just the API components). Applied before component_limit, so it is the way to reach a component that the cap would otherwise omit. Ignored in summary mode.',
+        'Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_limit, so it is the way to reach a component that the cap would otherwise omit. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.',
       ),
     component_limit: z
       .number()
       .int()
       .min(1)
-      .max(MAX_COMPONENT_LIMIT)
       .default(DEFAULT_COMPONENT_LIMIT)
       .describe(
-        'Maximum components returned per vendor in detailed mode (1-500). Large status pages publish hundreds of components, so a multi-vendor batch at a high limit returns a very large response; narrow with component_filter instead where possible.',
+        `Maximum components returned per vendor in detailed mode, at least 1. A value above ${MAX_COMPONENT_LIMIT} is reduced to ${MAX_COMPONENT_LIMIT}, and notice says so. Large status pages publish hundreds of components, so a multi-vendor batch at a high limit returns a very large response; narrow with component_filter instead where possible.`,
       ),
   }),
 
   output: z.object({
     results: z
       .array(VendorResultSchema)
-      .describe('Per-vendor status results in the same order as the input vendors list.'),
+      .describe(
+        'Per-vendor status results for the vendors checked, in the same order as the input vendors list.',
+      ),
+    deferred_vendors: z
+      .array(z.string().describe('A vendor entry exactly as provided.'))
+      .describe(
+        'Entries past the first 20 in vendors, verbatim and in input order. They were not checked; resend them in another call. Empty when every entry was checked.',
+      ),
     summary: z
       .object({
-        total: z.number().describe('Total number of vendors checked.'),
+        total: z
+          .number()
+          .describe('Total number of vendors checked — never counts deferred_vendors.'),
         operational: z.number().describe('Vendors with indicator = none and no error.'),
         degraded: z.number().describe('Vendors with indicator = minor or major.'),
         down: z.number().describe('Vendors with indicator = critical.'),
@@ -88,8 +101,9 @@ export const devopsStatusCheck = tool('devops_status_check', {
   }),
 
   enrichment: {
-    // Populated only via ctx.enrich when a component list is actually capped —
-    // all fields must be optional so uncapped results pass the effective-output parse.
+    // Populated only via ctx.enrich when a component list is actually capped, or when
+    // component_filter matched nothing for a vendor — all fields must be optional so a
+    // plain result passes the effective-output parse.
     truncated: z
       .boolean()
       .optional()
@@ -114,7 +128,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
       .string()
       .optional()
       .describe(
-        'Plain-language explanation of the capped component lists — how many components were omitted and how to reach them (component_filter to target one, component_limit to raise the cap). Present only when truncated.',
+        'Plain-language explanation of what this call left out or adjusted: vendors past the first 20 (listed in deferred_vendors), a component_limit above 500 reduced to 500, and in detailed mode how many components the cap omitted and how to reach them (component_filter to target one, or component_limit to raise a cap below 500), and which checked vendors component_filter matched no component of, with how many each publishes. Present only when one of these applies.',
       ),
   },
 
@@ -122,14 +136,14 @@ export const devopsStatusCheck = tool('devops_status_check', {
     {
       reason: 'vendor_not_found',
       code: JsonRpcErrorCode.NotFound,
-      when: 'No requested vendor could be checked and the first failure was a slug that matches no registry entry and is not a valid URL.',
+      when: 'No requested vendor among the first 20 could be checked and the first failure was a slug that matches no registry entry and is not a valid URL.',
       recovery:
         'Call devops_list_vendors to browse available slugs, or pass a full Statuspage base URL (e.g., "https://www.githubstatus.com").',
     },
     {
       reason: 'target_blocked',
       code: JsonRpcErrorCode.ValidationError,
-      when: 'No requested vendor could be checked and the first failure was a raw URL resolving to a private, loopback, or cloud-metadata address.',
+      when: 'No requested vendor among the first 20 could be checked and the first failure was a raw URL resolving to a private, loopback, or cloud-metadata address.',
       recovery:
         'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
     },
@@ -149,36 +163,50 @@ export const devopsStatusCheck = tool('devops_status_check', {
   ],
 
   async handler(input, ctx) {
-    const prepared = await prepareVendors(input.vendors);
+    const batch = splitVendors(input.vendors);
+    const componentLimit = clampMax('component_limit', input.component_limit, MAX_COMPONENT_LIMIT);
+    const prepared = await prepareVendors(batch.served);
 
     // Nothing to return — degrade to the typed contract rather than a batch of
-    // error rows. The message names every failure so one round trip fixes them all.
+    // error rows. The message names every failure so one round trip fixes them all,
+    // and any deferred entries, which an error response has no field for.
     const failures = prepared.filter((p): p is PreparedVendorFailure => !p.ok);
     if (failures.length === prepared.length) {
       const first = failures[0] as PreparedVendorFailure;
+      const scope = batch.deferred.length > 0 ? 'first ' : '';
       throw ctx.fail(
         first.reason,
-        `None of the ${prepared.length} requested vendors could be checked. ${failures.map((f) => f.message).join(' ')}`,
+        `None of the ${scope}${prepared.length} requested vendors could be checked. ${failures.map((f) => f.message).join(' ')}${deferredVendorsSentence(batch.deferred)}`,
       );
     }
 
-    const results = await fetchVendorResults(prepared, ctx, {
-      mode: input.mode,
-      componentLimit: input.component_limit,
-      componentFilter: input.component_filter,
-    });
+    const results = await fetchVendorResults(
+      prepared,
+      ctx,
+      {
+        mode: input.mode,
+        componentLimit: componentLimit.value,
+        componentFilter: input.component_filter,
+      },
+      [batch.notice, componentLimit.notice].filter((n) => n !== undefined),
+    );
 
     const summary = summarizeVendorResults(results);
     const nextToolSuggestions = buildSuggestActionSuggestions(prepared, results);
 
-    ctx.log.info('Status check completed', { vendors: input.vendors.length, ...summary });
-    return { results, summary, nextToolSuggestions };
+    ctx.log.info('Status check completed', {
+      vendors: input.vendors.length,
+      deferred: batch.deferred.length,
+      ...summary,
+    });
+    return { results, deferred_vendors: batch.deferred, summary, nextToolSuggestions };
   },
 
   format: (result) => {
     const lines: string[] = [
       `## Stack Health — ${result.summary.total} vendors checked`,
       `✅ ${result.summary.operational} operational  ⚠️ ${result.summary.degraded} degraded  🔴 ${result.summary.down} down  🛠️ ${result.summary.maintenance} maintenance  ❓ ${result.summary.unavailable} unavailable`,
+      ...renderDeferredVendors(result.deferred_vendors),
       '',
     ];
     for (const v of result.results) {

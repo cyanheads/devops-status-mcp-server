@@ -8,6 +8,7 @@ import { tool, z } from '@cyanheads/mcp-ts-core';
 import { getServerConfig } from '@/config/server-config.js';
 import type { VendorCategory } from '@/data/vendor-registry.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
+import { vendorInline, vendorQuote } from '@/utils/vendor-markdown.js';
 
 /**
  * Playbook templates reference the active-probe tools via placeholder tokens.
@@ -302,7 +303,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
       .string()
       .min(1)
       .describe(
-        'Vendor slug or display name (e.g., "cloudflare", "github"). Used to tailor category-specific guidance (CDN outage vs. CI/CD outage vs. auth provider outage).',
+        'Vendor slug, display name, or raw status page URL (e.g., "cloudflare", "Amazon Web Services"). Used to tailor category-specific guidance (CDN outage vs. CI/CD outage vs. auth provider outage). A name that matches no registry vendor gets a devops_list_vendors search as its first follow-up instead of an incidents call.',
       ),
     incident_summary: z
       .string()
@@ -314,7 +315,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
       .array(z.string())
       .optional()
       .describe(
-        'Component names affected (from devops_status_check degraded_components or devops_get_incidents affected_components). Used to tailor suggestions to the impacted subsystem.',
+        'Component names affected (from devops_status_check degraded_components or devops_get_incidents affected_components). Values pre-filled by devops_status_check read "Group / Leaf" for a component the status page files under a group. Used to tailor suggestions to the impacted subsystem.',
       ),
     your_domain: z
       .string()
@@ -368,7 +369,9 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
           .object({
             toolName: z
               .string()
-              .describe('Tool to call next (e.g., "devops_check_dns", "devops_check_certs").'),
+              .describe(
+                'Tool to call next (e.g., "devops_get_incidents", "devops_list_vendors", "devops_check_dns").',
+              ),
             reason: z.string().describe('Why this step is recommended given the incident context.'),
             args: z
               .record(z.string(), z.unknown())
@@ -416,17 +419,27 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
       args: Record<string, unknown>;
     }> = [];
 
-    // Always suggest checking incidents
-    suggestions.push({
-      toolName: 'devops_get_incidents',
-      reason:
-        'Get full incident timeline with all investigator updates and affected component history.',
-      args: {
-        vendor: entry?.slug ?? input.vendor,
-        filter: 'active',
-        limit: 5,
-      },
-    });
+    // devops_get_incidents accepts only a registry slug or a raw URL. Anything else would
+    // fail there, so it gets a registry search that surfaces the slug instead.
+    const vendor = input.vendor.trim();
+    if (entry || /^https?:\/\//i.test(vendor)) {
+      suggestions.push({
+        toolName: 'devops_get_incidents',
+        reason:
+          'Get full incident timeline with all investigator updates and affected component history.',
+        args: {
+          vendor: entry?.slug ?? vendor,
+          filter: 'active',
+          limit: 5,
+        },
+      });
+    } else {
+      suggestions.push({
+        toolName: 'devops_list_vendors',
+        reason: `"${vendor}" is not a registry slug or display name — search the registry for its slug, then call devops_get_incidents with it.`,
+        args: { query: vendor },
+      });
+    }
 
     // When incident context identifies a subsystem, re-check the vendor in detailed
     // mode so the agent can watch that specific component return to operational.
@@ -509,7 +522,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
 
   format: (result) => {
     const lines: string[] = [
-      `## Incident Response: ${result.vendor}`,
+      `## Incident Response: ${vendorInline(result.vendor.trim())}`,
       result.vendor_category ? `**Category:** ${result.vendor_category}` : '',
       '',
       result.guidance,
@@ -520,18 +533,18 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
     ];
     for (const s of result.nextToolSuggestions) {
       lines.push(`### \`${s.toolName}\``);
-      lines.push(`**Why:** ${s.reason}`);
+      lines.push(`**Why:** ${vendorInline(s.reason)}`);
       lines.push(`**Args:** \`${JSON.stringify(s.args)}\``);
       lines.push('');
     }
     if (result.diagnostics_summary.incident_snippet) {
       lines.push('---');
       lines.push('**Incident context:**');
-      lines.push(`> ${result.diagnostics_summary.incident_snippet}`);
+      lines.push(...vendorQuote(result.diagnostics_summary.incident_snippet));
     }
     if (result.diagnostics_summary.affected_components.length > 0) {
       lines.push(
-        `**Affected components:** ${result.diagnostics_summary.affected_components.join(', ')}`,
+        `**Affected components:** ${result.diagnostics_summary.affected_components.map(vendorInline).join(', ')}`,
       );
     }
     lines.push(

@@ -563,9 +563,12 @@ describe('devopsStatusCheck', () => {
     it('marks a scheduled maintenance window apart from a genuine outage', async () => {
       const { text } = await renderDegradedFleet();
       expect(text).toContain('**under_maintenance (20) — scheduled window, not an outage:**');
-      expect(text).toContain('- 🛠️ Edge Maint 01');
-      expect(text).toContain('- 🔴 Edge Major 1');
-      expect(text).toContain('- ⚠️ Edge Partial 01');
+      // Every fleet component sits in the "Edge Network" group, which leads each line (#62).
+      expect(text).toContain('- 🛠️ Edge Network / Edge Maint 01');
+      expect(text).toContain('- 🔴 Edge Network / Edge Major 1');
+      expect(text).toContain('- ⚠️ Edge Network / Edge Partial 01');
+      expect(text).toContain('**major_outage (2):**');
+      expect(text).toContain('**partial_outage (26):**');
       // Worst first, scheduled last.
       expect(text.indexOf('**major_outage (2)')).toBeLessThan(
         text.indexOf('**partial_outage (26)'),
@@ -1466,7 +1469,7 @@ describe('devopsStatusCheck', () => {
         expect(aws!.indicator).toBe('major');
         expect(aws!.description).toBe('1 open event on the AWS Health Dashboard');
         expect(aws!.degraded_components).toEqual([
-          { name: 'Amazon S3 (N. Virginia)', status: 'partial_outage' },
+          { name: 'Amazon S3 (N. Virginia)', group: null, status: 'partial_outage' },
         ]);
         expect(aws!.active_incidents.map((i) => i.id)).toEqual(['open-arn']);
         expect(structured.nextToolSuggestions.map((s) => s.args)).toEqual([
@@ -1501,6 +1504,831 @@ describe('devopsStatusCheck', () => {
         });
         expect(structured.nextToolSuggestions).toEqual([]);
         expect(rendered(call)).toContain('### ✅ Amazon Web Services (aws)');
+      });
+
+      it('slack: latest_update is plain text in structuredContent and a quote in content[] (#63)', async () => {
+        http.route({
+          match: 'https://status.slack.com/api/v2.0.0/current',
+          respond: () =>
+            Response.json({
+              status: 'active',
+              date_updated: '2026-10-13T17:23:07-07:00',
+              active_incidents: [
+                {
+                  id: 1999,
+                  title: 'Trouble <loading> messages',
+                  type: 'incident',
+                  status: 'active',
+                  date_created: '2026-10-13T16:00:00-07:00',
+                  notes: [
+                    {
+                      date_created: '2026-10-13T17:23:07-07:00',
+                      body: '<p>Some users (&lt;1%) may see <FUNCTIONALITY IMPACTED>.&nbsp;</p><p>## Not a heading</p><p>See <a href="https://slack.com/help">the Help Center</a>.</p>',
+                    },
+                  ],
+                },
+              ],
+            }),
+        });
+
+        const call = await runToolContract(devopsStatusCheck, { vendors: ['slack'] });
+
+        const structured = call.structuredContent as {
+          results: Array<{ active_incidents: Array<{ name: string; latest_update: string }> }>;
+        };
+        expect(structured.results[0]!.active_incidents).toMatchObject([
+          {
+            name: 'Trouble <loading> messages',
+            latest_update: [
+              'Some users (<1%) may see <FUNCTIONALITY IMPACTED>.',
+              '## Not a heading',
+              'See the Help Center (https://slack.com/help).',
+            ].join('\n'),
+          },
+        ]);
+
+        const lines = rendered(call).split('\n');
+        const at = lines.findIndex((l) => l.startsWith('**Incident [1999]:**'));
+        expect(lines.slice(at, at + 5)).toEqual([
+          '**Incident [1999]:** Trouble &lt;loading> messages [minor/investigating] started 2026-10-13T16:00:00-07:00',
+          '  > Some users (&lt;1%) may see &lt;FUNCTIONALITY IMPACTED>.',
+          '  > ## Not a heading',
+          '  > See the Help Center (https://slack.com/help).',
+          '',
+        ]);
+        expect(lines.filter((l) => l.startsWith('## '))).toEqual([
+          '## Stack Health — 1 vendors checked',
+          '## Recommended Next Steps',
+        ]);
+      });
+    });
+  });
+
+  /**
+   * Live captures (2026-10-14) of grouped Statuspage pages, where the group tells leaves
+   * apart: auth0's one degraded leaf is "Other", and digitalocean publishes "NYC1" under
+   * ten groups. The Status.io (neon) and AWS feeds run through their real adapters.
+   */
+  describe('component groups (#62)', () => {
+    const http = createFetchMock();
+    const fixturePath = (name: string) =>
+      new URL(`../../../services/status-adapters/fixtures/${name}`, import.meta.url);
+    const capture = (name: string) =>
+      JSON.parse(readFileSync(fixturePath(name), 'utf-8')) as StatuspageSummaryResponse;
+    const AUTH0_GROUP = 'Auth0 US-3 (PREVIEW) DEPRECATED';
+    const PUBLISHED_HINT =
+      'It matches component and group names as a case-insensitive substring; call again without component_filter to list them.';
+
+    type GroupedResult = {
+      results: Array<{
+        degraded_components: Array<{ name: string; group: string | null; status: string }>;
+        all_components?: Array<{ name: string; group: string | null; status: string }>;
+        all_components_total?: number;
+      }>;
+      nextToolSuggestions: Array<{ reason: string; args: Record<string, unknown> }>;
+      notice?: string;
+      truncated?: boolean;
+      totalCount?: number;
+    };
+
+    async function servePages(pages: Record<string, StatuspageSummaryResponse>) {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const registry = getVendorRegistryService();
+      const byUrl = new Map(
+        Object.entries(pages).map(([slug, data]) => [
+          registry.getBySlug(slug)!.statuspage_url,
+          data,
+        ]),
+      );
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockImplementation((url: string) => {
+        const data = byUrl.get(url);
+        return data
+          ? Promise.resolve({ data, cached: false })
+          : Promise.reject(new Error(`No page served for ${url}`));
+      });
+    }
+
+    async function check(args: {
+      vendors: string[];
+      mode?: 'summary' | 'detailed';
+      component_filter?: string;
+      component_limit?: number;
+    }) {
+      const call = await runToolContract(devopsStatusCheck, args);
+      expect(call.isError).toBeFalsy();
+      const text = call.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      return { structured: call.structuredContent as GroupedResult, text };
+    }
+
+    beforeEach(() => {
+      http.reset();
+      http.install();
+    });
+
+    afterEach(() => {
+      http.restore();
+    });
+
+    it('carries the group of a degraded component and qualifies it in the pre-fill', async () => {
+      await servePages({ auth0: capture('statuspage-auth0-summary.json') });
+      const { structured, text } = await check({ vendors: ['auth0'] });
+
+      expect(structured.results[0]!.degraded_components).toEqual([
+        { name: 'Other', group: AUTH0_GROUP, status: 'partial_outage' },
+      ]);
+      expect(structured.nextToolSuggestions).toEqual([
+        {
+          toolName: 'devops_suggest_action',
+          reason: `auth0 reports minor (degraded performance) overall; affected components: ${AUTH0_GROUP} / Other.`,
+          args: {
+            vendor: 'auth0',
+            vendor_indicator: 'minor',
+            affected_components: [`${AUTH0_GROUP} / Other`],
+          },
+        },
+      ]);
+      const args = structured.nextToolSuggestions[0]!.args;
+      expect(devopsSuggestAction.input.parse(args)).toMatchObject(args);
+      expect(text).toContain(`- ⚠️ ${AUTH0_GROUP} / Other`);
+    });
+
+    it('component_filter matches a group name, reaching every leaf under it', async () => {
+      const page = capture('statuspage-digitalocean-summary.json');
+      const dropletsId = page.components.find((c) => c.group && c.name === 'Droplets')!.id;
+      const dropletLeaves = page.components
+        .filter((c) => c.group_id === dropletsId)
+        .map((c) => c.name);
+      expect(dropletLeaves.length).toBeGreaterThan(10);
+      await servePages({ digitalocean: page });
+
+      const { structured, text } = await check({
+        vendors: ['digitalocean'],
+        mode: 'detailed',
+        component_filter: 'droplets',
+      });
+
+      const [result] = structured.results;
+      expect(
+        result!.all_components!.filter((c) => c.group === 'Droplets').map((c) => c.name),
+      ).toEqual(dropletLeaves);
+      for (const c of result!.all_components!) {
+        expect(`${c.group ?? ''} ${c.name}`.toLowerCase()).toContain('droplets');
+      }
+      expect(result!.all_components_total).toBe(result!.all_components!.length);
+      expect(structured.notice).toBeUndefined();
+      expect(text).toContain('- Droplets / NYC1: operational');
+    });
+
+    it('tells same-named leaves apart by group', async () => {
+      await servePages({ digitalocean: capture('statuspage-digitalocean-summary.json') });
+      const { structured } = await check({
+        vendors: ['digitalocean'],
+        mode: 'detailed',
+        component_filter: 'nyc1',
+      });
+
+      const components = structured.results[0]!.all_components!;
+      expect(components).toHaveLength(10);
+      expect(components.every((c) => c.name === 'NYC1')).toBe(true);
+      expect(new Set(components.map((c) => c.group)).size).toBe(10);
+      expect(components.map((c) => c.group)).toContain('Droplets');
+    });
+
+    it('gives an ungrouped component group null and never lists a group itself', async () => {
+      await servePages({
+        github: page('GitHub', 'minor', [
+          { ...component('Edge', 'partial_outage', true), id: 'grp-edge' },
+          { ...component('Lisbon', 'partial_outage'), group_id: 'grp-edge' },
+          component('API', 'degraded_performance'),
+        ]),
+      });
+      const { structured, text } = await check({ vendors: ['github'], mode: 'detailed' });
+
+      const [result] = structured.results;
+      expect(result!.degraded_components).toEqual([
+        { name: 'Lisbon', group: 'Edge', status: 'partial_outage' },
+        { name: 'API', group: null, status: 'degraded_performance' },
+      ]);
+      expect(result!.all_components!.map((c) => [c.name, c.group])).toEqual([
+        ['Lisbon', 'Edge'],
+        ['API', null],
+      ]);
+      expect(text).toContain('- ⚠️ API');
+      expect(text).not.toContain('/ API');
+    });
+
+    it('escapes a group name in content[] like any vendor text, and keeps it raw in structuredContent', async () => {
+      await servePages({
+        github: page('GitHub', 'minor', [
+          { ...component('Core <EU>\n- forged', 'partial_outage', true), id: 'grp-x' },
+          { ...component('API', 'partial_outage'), group_id: 'grp-x' },
+        ]),
+      });
+      const { structured, text } = await check({ vendors: ['github'] });
+
+      expect(structured.results[0]!.degraded_components[0]!.group).toBe('Core <EU>\n- forged');
+      expect(text.split('\n')).toContain('- ⚠️ Core &lt;EU> - forged / API');
+    });
+
+    it('notices a filter that matched nothing for a checked vendor, on both surfaces', async () => {
+      await servePages({ digitalocean: capture('statuspage-digitalocean-summary.json') });
+      const { structured, text } = await check({
+        vendors: ['digitalocean'],
+        mode: 'detailed',
+        component_filter: 'zzz-none',
+      });
+
+      const expected = `component_filter "zzz-none" matched no component of digitalocean (239 published). ${PUBLISHED_HINT}`;
+      expect(structured.notice).toBe(expected);
+      expect(structured.results[0]!.all_components_total).toBe(0);
+      expect(structured.truncated).toBeUndefined();
+      expect(text).toContain(expected);
+    });
+
+    it('names only the vendor a filter missed', async () => {
+      await servePages({
+        digitalocean: capture('statuspage-digitalocean-summary.json'),
+        auth0: capture('statuspage-auth0-summary.json'),
+      });
+      const { structured } = await check({
+        vendors: ['digitalocean', 'auth0'],
+        mode: 'detailed',
+        component_filter: 'droplets',
+      });
+
+      expect(structured.notice).toBe(
+        `component_filter "droplets" matched no component of auth0 (181 published). ${PUBLISHED_HINT}`,
+      );
+    });
+
+    it('lists every vendor a filter missed, comma-separated, skipping one that errored', async () => {
+      await servePages({
+        digitalocean: capture('statuspage-digitalocean-summary.json'),
+        auth0: capture('statuspage-auth0-summary.json'),
+      });
+      const { structured } = await check({
+        vendors: ['digitalocean', 'auth0', 'github'],
+        mode: 'detailed',
+        component_filter: 'zzz',
+      });
+
+      expect(structured.notice).toBe(
+        `component_filter "zzz" matched no component of digitalocean (239 published), auth0 (181 published). ${PUBLISHED_HINT}`,
+      );
+    });
+
+    it('joins the filter notice with the truncation notice', async () => {
+      await servePages({
+        digitalocean: capture('statuspage-digitalocean-summary.json'),
+        auth0: capture('statuspage-auth0-summary.json'),
+      });
+      const { structured } = await check({
+        vendors: ['digitalocean', 'auth0'],
+        mode: 'detailed',
+        component_filter: 'droplets',
+        component_limit: 5,
+      });
+
+      const matched = structured.totalCount!;
+      expect(matched).toBeGreaterThan(5);
+      expect(structured.truncated).toBe(true);
+      expect(structured.notice).toBe(
+        `${matched - 5} of ${matched} components are not shown — component lists are capped at 5 per vendor. Set component_filter to reach a specific component, or raise component_limit. component_filter "droplets" matched no component of auth0 (181 published). ${PUBLISHED_HINT}`,
+      );
+    });
+
+    it('emits no filter notice in summary mode, where the filter is ignored', async () => {
+      await servePages({ digitalocean: capture('statuspage-digitalocean-summary.json') });
+      const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+      await devopsStatusCheck.handler(
+        devopsStatusCheck.input.parse({ vendors: ['digitalocean'], component_filter: 'zzz' }),
+        ctx,
+      );
+      expect(getEnrichment(ctx)).toEqual({});
+    });
+
+    it('neon: a degraded region container is its own entry under its component', async () => {
+      const raw = JSON.parse(readFileSync(fixturePath('statusio-neon.json'), 'utf-8')) as {
+        result: {
+          status: Array<{ name: string; containers: Array<{ name: string; status_code: number }> }>;
+        };
+      };
+      const connectivity = raw.result.status.find((c) => c.name === 'Database Connectivity')!;
+      connectivity.containers.find((k) => k.name === 'AWS us-east-2')!.status_code = 400;
+      http.route({
+        match: 'https://status-api.hostedstatus.com/1.0/status/6878fc85709daa75be6c7e3c',
+        respond: () => Response.json(raw),
+      });
+
+      const { structured, text } = await check({ vendors: ['neon'], mode: 'detailed' });
+
+      const [result] = structured.results;
+      expect(result!.degraded_components).toEqual([
+        { name: 'AWS us-east-2', group: 'Database Connectivity', status: 'partial_outage' },
+      ]);
+      expect(result!.all_components_total).toBe(96);
+      expect(text).toContain('- ⚠️ Database Connectivity / AWS us-east-2');
+    });
+
+    it('aws: a component carries its region code, and component_filter reaches it', async () => {
+      http.route({
+        match: 'https://health.aws.amazon.com/public/currentevents',
+        respond: () => new Response(readFileSync(fixturePath('aws-currentevents.utf16be.bin'))),
+      });
+
+      const { structured } = await check({
+        vendors: ['aws'],
+        mode: 'detailed',
+        component_filter: 'me-central-1',
+      });
+
+      const [result] = structured.results;
+      expect(result!.all_components!.map((c) => [c.name, c.group])).toEqual([
+        ['Multiple services (UAE, me-central-1)', null],
+      ]);
+      expect(result!.degraded_components.map((c) => c.name)).toEqual([
+        'Multiple services (UAE, me-central-1)',
+        'Multiple services (Bahrain, me-south-1)',
+      ]);
+      expect(structured.nextToolSuggestions[0]!.args.affected_components).toEqual([
+        'Multiple services (UAE, me-central-1)',
+        'Multiple services (Bahrain, me-south-1)',
+      ]);
+      expect(structured.notice).toBeUndefined();
+    });
+  });
+
+  /**
+   * sendgrid reads Twilio's page scoped to SendGrid's components (#54). The capture
+   * (2026-10-14) reads minor on degraded CARRIER NETWORK leaves with seven open carrier
+   * incidents, none of them SendGrid's.
+   */
+  describe('sendgrid on the shared Twilio page (#54)', () => {
+    const twilioCapture = () =>
+      JSON.parse(
+        readFileSync(
+          new URL(
+            '../../../services/status-adapters/fixtures/statuspage-twilio-summary.json',
+            import.meta.url,
+          ),
+          'utf-8',
+        ),
+      ) as StatuspageSummaryResponse;
+
+    async function serveTwilio(data: StatuspageSummaryResponse) {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const twilioUrl = getVendorRegistryService().getBySlug('twilio')!.statuspage_url;
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockImplementation((url: string) =>
+        url === twilioUrl
+          ? Promise.resolve({ data, cached: false })
+          : Promise.reject(new Error(`No page served for ${url}`)),
+      );
+    }
+
+    /** An open incident shaped like the capture's, touching the named components. */
+    function openOn(page: StatuspageSummaryResponse, name: string, componentNames: string[]) {
+      return {
+        ...page.incidents![0]!,
+        id: `i-${name}`,
+        name,
+        impact: 'major' as const,
+        status: 'investigating',
+        started_at: '2026-10-14T10:00:00-07:00',
+        components: componentNames.map((n) => page.components.find((c) => c.name === n)!),
+      };
+    }
+
+    it('reports only SendGrid components and incidents, rated by them alone', async () => {
+      await serveTwilio(twilioCapture());
+      const call = await runToolContract(devopsStatusCheck, {
+        vendors: ['sendgrid', 'twilio'],
+        mode: 'detailed',
+      });
+
+      const structured = call.structuredContent as {
+        results: Array<{
+          name: string;
+          indicator: string;
+          degraded_components: unknown[];
+          active_incidents: unknown[];
+          all_components_total: number;
+          scheduled_maintenances: unknown[];
+        }>;
+        nextToolSuggestions: Array<{ args: Record<string, unknown> }>;
+      };
+      const [sendgrid, twilio] = structured.results;
+      expect(sendgrid).toMatchObject({
+        name: 'SendGrid',
+        indicator: 'none',
+        degraded_components: [],
+        active_incidents: [],
+        all_components_total: 13,
+      });
+      expect(sendgrid!.scheduled_maintenances).toHaveLength(4);
+      // The twilio entry still reads the whole page.
+      expect(twilio).toMatchObject({ name: 'Twilio', indicator: 'minor' });
+      expect(twilio!.active_incidents).toHaveLength(7);
+      expect(structured.nextToolSuggestions.map((s) => s.args.vendor)).toEqual(['twilio']);
+    });
+
+    it('keeps an SMTP incident and drops a carrier-only one, in the suggestion too', async () => {
+      const page = twilioCapture();
+      page.incidents = [
+        openOn(page, 'Carrier delays', ['SMS, Latin America']),
+        openOn(page, 'SMTP connection errors', ['SMTP']),
+      ];
+      await serveTwilio(page);
+
+      const call = await runToolContract(devopsStatusCheck, { vendors: ['sendgrid'] });
+
+      const structured = call.structuredContent as {
+        results: Array<{ indicator: string; active_incidents: Array<{ name: string }> }>;
+        nextToolSuggestions: Array<{ reason: string; args: Record<string, unknown> }>;
+      };
+      expect(structured.results[0]!.indicator).toBe('major');
+      expect(structured.results[0]!.active_incidents.map((i) => i.name)).toEqual([
+        'SMTP connection errors',
+      ]);
+      expect(structured.nextToolSuggestions).toEqual([
+        {
+          toolName: 'devops_suggest_action',
+          reason: 'sendgrid reports major (partial outage) overall.',
+          args: {
+            vendor: 'sendgrid',
+            vendor_indicator: 'major',
+            incident_summary: 'SMTP connection errors',
+          },
+        },
+      ]);
+    });
+  });
+
+  /**
+   * Over-cap inputs (#69): the first 20 vendors are checked and the rest come back in
+   * deferred_vendors; a component_limit above 500 is clamped to 500. Each adjustment is
+   * named in the one `notice`, alongside the component notices the check composes.
+   */
+  describe('input bounds (#69)', () => {
+    /** Twenty-one Statuspage-backed registry slugs, each fetched through the mocked service. */
+    const SLUGS = [
+      'digitalocean',
+      'linode',
+      'cloudflare',
+      'akamai',
+      'github',
+      'npm',
+      'vercel',
+      'netlify',
+      'render',
+      'fly-io',
+      'circleci',
+      'travis-ci',
+      'snyk',
+      'atlassian',
+      'figma',
+      'launchdarkly',
+      'mongodb-atlas',
+      'planetscale',
+      'supabase',
+      'elastic',
+      'influxdb',
+    ];
+    const DEFERRAL_21 =
+      'Only the first 20 of 21 vendors were checked (20 per call); resend the 1 in deferred_vendors in another call.';
+
+    type BoundsResult = {
+      results: Array<{ vendor: string; all_components?: unknown[] }>;
+      summary: { total: number; operational: number; unavailable: number };
+      deferred_vendors: string[];
+      notice?: string;
+      truncated?: boolean;
+      cap?: number;
+      shown?: number;
+    };
+
+    async function mockSummary() {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      _mockFetchSummary.mockReset();
+      return _mockFetchSummary;
+    }
+
+    async function call(args: Record<string, unknown>) {
+      // Over-cap arguments are the point, so they skip the input type.
+      const result = await runToolContract(devopsStatusCheck, args as never);
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      return { result, structured: result.structuredContent as BoundsResult, text };
+    }
+
+    it('checks the first 20 of 21 vendors and returns the 21st in deferred_vendors', async () => {
+      const fetchSummary = await mockSummary();
+      fetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
+
+      const { result, structured, text } = await call({ vendors: SLUGS });
+
+      expect(result.isError).toBeFalsy();
+      expect(structured.results.map((r) => r.vendor)).toEqual(SLUGS.slice(0, 20));
+      expect(structured.deferred_vendors).toEqual(['influxdb']);
+      // The deferred vendor is never resolved or fetched.
+      expect(fetchSummary).toHaveBeenCalledTimes(20);
+      // Every count describes the served vendors.
+      expect(structured.summary).toMatchObject({ total: 20, operational: 20, unavailable: 0 });
+      expect(structured.notice).toBe(DEFERRAL_21);
+
+      expect(text).toContain('## Stack Health — 20 vendors checked');
+      expect(text).toContain('**Deferred (1, not checked):** influxdb');
+      expect(text).toContain(DEFERRAL_21);
+    });
+
+    it('returns deferred entries verbatim and in input order', async () => {
+      const fetchSummary = await mockSummary();
+      fetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
+      const tail = ['GitHub', ' https://status.example.test/ ', 'nope-vendor', 'github'];
+
+      const { structured } = await call({ vendors: [...SLUGS.slice(0, 20), ...tail] });
+
+      expect(structured.deferred_vendors).toEqual(tail);
+      expect(structured.notice).toBe(
+        'Only the first 20 of 24 vendors were checked (20 per call); resend the 4 in deferred_vendors in another call.',
+      );
+    });
+
+    it('accepts 100 vendors, checking 20 and deferring 80', async () => {
+      const fetchSummary = await mockSummary();
+      fetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
+      const vendors = Array.from({ length: 100 }, (_, i) => SLUGS[i % SLUGS.length]!);
+
+      const { result, structured } = await call({ vendors });
+
+      expect(result.isError).toBeFalsy();
+      expect(structured.results).toHaveLength(20);
+      expect(structured.deferred_vendors).toEqual(vendors.slice(20));
+      expect(structured.notice).toBe(
+        'Only the first 20 of 100 vendors were checked (20 per call); resend the 80 in deferred_vendors in another call.',
+      );
+    });
+
+    it('rejects more than 100 vendors, naming 100', async () => {
+      const fetchSummary = await mockSummary();
+      const vendors = Array.from({ length: 101 }, (_, i) => SLUGS[i % SLUGS.length]!);
+
+      const { result, text } = await call({ vendors });
+
+      expect(result.isError).toBe(true);
+      expect(text).toMatch(/vendors\b.*<=100 items/);
+      expect(fetchSummary).not.toHaveBeenCalled();
+    });
+
+    it('checks exactly 20 vendors with an empty deferred_vendors and no notice', async () => {
+      const fetchSummary = await mockSummary();
+      fetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
+
+      const { structured, text } = await call({ vendors: SLUGS.slice(0, 20) });
+
+      expect(structured.results).toHaveLength(20);
+      expect(structured.deferred_vendors).toEqual([]);
+      expect(structured.notice).toBeUndefined();
+      expect(text).not.toContain('Deferred');
+      expect(text).not.toContain('Only the first');
+    });
+
+    it('a call at every cap returns the same fields as before plus an empty deferred_vendors', async () => {
+      const fetchSummary = await mockSummary();
+      fetchSummary.mockResolvedValue({ data: pageWithComponents(500), cached: false });
+
+      const { structured, text } = await call({
+        vendors: SLUGS.slice(0, 20),
+        mode: 'detailed',
+        component_limit: 500,
+      });
+
+      expect(Object.keys(structured).sort()).toEqual([
+        'deferred_vendors',
+        'nextToolSuggestions',
+        'results',
+        'summary',
+      ]);
+      expect(structured.deferred_vendors).toEqual([]);
+      expect(structured.results[0]!.all_components).toHaveLength(500);
+      expect(text).not.toContain('Deferred');
+      expect(text).not.toContain('component_limit');
+    });
+
+    it('clamps component_limit above 500 to 500 and says so on both surfaces', async () => {
+      const fetchSummary = await mockSummary();
+      fetchSummary.mockResolvedValue({ data: pageWithComponents(510), cached: false });
+
+      const { result, structured, text } = await call({
+        vendors: ['github'],
+        mode: 'detailed',
+        component_limit: 501,
+      });
+
+      expect(result.isError).toBeFalsy();
+      expect(structured.results[0]!.all_components).toHaveLength(500);
+      expect(structured).toMatchObject({ truncated: true, shown: 500, cap: 500 });
+      const clamp = 'component_limit 501 is past the maximum of 500; 500 was used.';
+      // The cap cannot be raised past 500, so the truncation guidance points at the filter only.
+      expect(structured.notice).toBe(
+        `${clamp} 10 of 510 components are not shown — component lists are capped at 500 per vendor. Set component_filter to reach a specific component.`,
+      );
+      expect(text).toContain(clamp);
+      expect(text).not.toContain('raise component_limit');
+    });
+
+    it('clamps without a truncation notice when the page fits under 500', async () => {
+      const fetchSummary = await mockSummary();
+      fetchSummary.mockResolvedValue({ data: pageWithComponents(120), cached: false });
+
+      const { structured } = await call({
+        vendors: ['github'],
+        mode: 'detailed',
+        component_limit: 100_000,
+      });
+
+      expect(structured.results[0]!.all_components).toHaveLength(120);
+      expect(structured.truncated).toBeUndefined();
+      expect(structured.notice).toBe(
+        'component_limit 100000 is past the maximum of 500; 500 was used.',
+      );
+    });
+
+    it('still rejects component_limit below 1', () => {
+      expect(
+        devopsStatusCheck.input.safeParse({ vendors: ['github'], component_limit: 0 }).success,
+      ).toBe(false);
+    });
+
+    it('composes the deferral, clamp, truncation, and filter-miss notices into one', async () => {
+      const fetchSummary = await mockSummary();
+      const githubUrl = getVendorRegistryService().getBySlug('github')!.statuspage_url;
+      fetchSummary.mockImplementation((url: string) =>
+        Promise.resolve({
+          data: url === githubUrl ? pageWithComponents(510) : ALL_OPERATIONAL,
+          cached: false,
+        }),
+      );
+
+      const lead = ['github', 'npm', 'influxdb'];
+      const { structured, text } = await call({
+        vendors: [...lead, ...SLUGS.filter((s) => !lead.includes(s))],
+        mode: 'detailed',
+        component_filter: 'component',
+        component_limit: 600,
+      });
+
+      const notice = structured.notice ?? '';
+      const parts = [
+        'Only the first 20 of 21 vendors were checked (20 per call); resend the 1 in deferred_vendors in another call.',
+        'component_limit 600 is past the maximum of 500; 500 was used.',
+        '10 of 510 components are not shown — component lists are capped at 500 per vendor.',
+        'component_filter "component" matched no component of npm (1 published), influxdb (1 published)',
+      ];
+      for (const part of parts) {
+        expect(notice).toContain(part);
+        expect(text).toContain(part);
+      }
+      // One notice, in that order.
+      const at = parts.map((p) => notice.indexOf(p));
+      expect(at).toEqual([...at].sort((a, b) => a - b));
+      expect(structured.truncated).toBe(true);
+    });
+
+    it('names the deferred entries when none of the checked vendors resolves', async () => {
+      await mockSummary();
+      const vendors = [...Array.from({ length: 20 }, (_, i) => `nope-${i}`), 'github'];
+
+      const { result, structured, text } = await call({ vendors });
+
+      expect(result.isError).toBe(true);
+      expect(structured).toMatchObject({ error: { data: { reason: 'vendor_not_found' } } });
+      expect(text).toContain('None of the first 20 requested vendors could be checked.');
+      expect(text).toContain('1 more past the first 20 was not checked: github.');
+    });
+  });
+
+  /**
+   * renderVendorBlock is shared with devops_watch_stack, so this pins both tools: every
+   * string a status page wrote is escaped and flattened, and nothing in it can open a
+   * heading, list item, or HTML block of its own.
+   */
+  describe('vendor text in content[] (#63)', () => {
+    const vendor = {
+      vendor: 'example',
+      name: 'Example <Status>\n## Forged',
+      indicator: 'major' as const,
+      description: 'Partial outage &amp; <b>degraded</b>',
+      degraded_components: [
+        { name: 'SMS <US>\n- forged item', group: null, status: 'partial_outage' as const },
+      ],
+      active_incidents: [
+        {
+          id: 'inc<1>',
+          name: 'Errors on <API>',
+          impact: 'major' as const,
+          status: 'identified',
+          started_at: '2026-10-01T00:00:00Z',
+          latest_update: 'First line (<1%).\n\n# Heading inside\n- list inside',
+        },
+        {
+          id: 'inc-2',
+          name: 'No update yet',
+          impact: 'minor' as const,
+          status: 'investigating',
+          started_at: null,
+          latest_update: '',
+        },
+      ],
+      scheduled_maintenances: [
+        {
+          name: 'DB <maintenance>\r\nwindow',
+          scheduled_for: '2026-10-02T00:00:00Z',
+          scheduled_until: '2026-10-02T01:00:00Z',
+          status: 'scheduled',
+        },
+      ],
+      all_components: [
+        {
+          name: 'API & Webhooks',
+          group: null,
+          status: 'partial_outage',
+          description: 'Serves <REST>\nand &#x3C;GraphQL>',
+        },
+      ],
+      all_components_total: 1,
+      cached: false,
+      checked_at: '2026-10-01T00:00:00.000Z',
+      statuspage_url: 'https://status.example.com',
+    };
+    const result = {
+      results: [vendor],
+      deferred_vendors: [],
+      summary: { total: 1, operational: 0, degraded: 1, down: 0, maintenance: 0, unavailable: 0 },
+      nextToolSuggestions: [
+        {
+          toolName: 'devops_suggest_action',
+          reason: 'example reports major overall but has an open incident: "Errors on <API>".',
+          args: { vendor: 'example', incident_summary: 'Errors on <API>' },
+        },
+      ],
+    };
+
+    it('escapes and flattens every vendor field, and quotes latest_update', () => {
+      const text = (devopsStatusCheck.format!(result)[0] as { text: string }).text;
+      const lines = text.split('\n');
+
+      expect(lines).toContain('### ⚠️ Example &lt;Status> ## Forged (example)');
+      expect(lines).toContain(
+        '**Status:** Partial outage &amp;amp; &lt;b>degraded&lt;/b> | **Indicator:** major',
+      );
+      expect(lines).toContain('- ⚠️ SMS &lt;US> - forged item');
+      const at = lines.indexOf(
+        '**Incident [inc&lt;1>]:** Errors on &lt;API> [major/identified] started 2026-10-01T00:00:00Z',
+      );
+      expect(lines.slice(at + 1, at + 7)).toEqual([
+        '  > First line (&lt;1%).',
+        '  >',
+        '  > # Heading inside',
+        '  > - list inside',
+        '',
+        // An empty update renders no quote.
+        '**Incident [inc-2]:** No update yet [minor/investigating]',
+      ]);
+      expect(lines).toContain(
+        '**Maintenance:** DB &lt;maintenance> window [scheduled] 2026-10-02T00:00:00Z → 2026-10-02T01:00:00Z',
+      );
+      expect(lines).toContain(
+        '- API & Webhooks: partial_outage — Serves &lt;REST> and &amp;#x3C;GraphQL>',
+      );
+      expect(lines).toContain(
+        '**Why:** example reports major overall but has an open incident: "Errors on &lt;API>".',
+      );
+      // The args stay a verbatim code span — a client copies them as JSON.
+      expect(lines).toContain(
+        `**Args:** \`${JSON.stringify({ vendor: 'example', incident_summary: 'Errors on <API>' })}\``,
+      );
+      expect(lines.filter((l) => /^#{1,2} /.test(l))).toEqual([
+        '## Stack Health — 1 vendors checked',
+        '## Recommended Next Steps',
+      ]);
+    });
+
+    it('leaves structuredContent unescaped', () => {
+      const parsed = devopsStatusCheck.output.parse(result);
+      expect(parsed.results[0]).toMatchObject({
+        name: 'Example <Status>\n## Forged',
+        description: 'Partial outage &amp; <b>degraded</b>',
+        active_incidents: [
+          { latest_update: 'First line (<1%).\n\n# Heading inside\n- list inside' },
+          { latest_update: '' },
+        ],
       });
     });
   });

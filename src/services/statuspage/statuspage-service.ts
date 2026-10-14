@@ -8,8 +8,10 @@ import type { z } from '@cyanheads/mcp-ts-core';
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
+import { htmlToText } from '@/utils/html-to-text.js';
 import type {
   StatuspageHistoryResponse,
+  StatuspageIncident,
   StatuspageIncidentsResponse,
   StatuspageScheduledMaintenancesResponse,
   StatuspageSummaryResponse,
@@ -25,13 +27,16 @@ import {
  * Fetch one Statuspage endpoint, gating the decoded body against `schema`
  * before it is cached or returned. The gate runs inside the fetch's parse step so
  * a non-conforming payload is never cached, and it returns the original body so
- * unknown vendor fields survive. `kind` names the endpoint in the rejection.
+ * unknown vendor fields survive. `toPlainText` then converts the body's update text
+ * in place, so it is converted once per fetch and cached converted. `kind` names the
+ * endpoint in the rejection.
  */
 async function fetchEndpoint<T>(
   baseUrl: string,
   path: string,
   schema: z.ZodType,
   kind: string,
+  toPlainText: (body: T) => void,
 ): Promise<{ data: T; cached: boolean }> {
   const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
   const url = `${baseUrl}${path}`;
@@ -44,8 +49,16 @@ async function fetchEndpoint<T>(
         { reason: 'statuspage_unavailable', url },
       );
     }
+    toPlainText(body as T);
     return body as T;
   });
+}
+
+/** Render every update body of `incidents` — HTML on many pages — as plain text, in place. */
+function convertUpdateBodies(incidents: readonly StatuspageIncident[] | undefined): void {
+  for (const incident of incidents ?? []) {
+    for (const update of incident.incident_updates) update.body = htmlToText(update.body);
+  }
 }
 
 export class StatuspageService {
@@ -55,6 +68,10 @@ export class StatuspageService {
       '/api/v2/summary.json',
       StatuspageSummaryResponseSchema,
       'summary',
+      (body) => {
+        convertUpdateBodies(body.incidents);
+        convertUpdateBodies(body.scheduled_maintenances);
+      },
     );
   }
 
@@ -64,6 +81,7 @@ export class StatuspageService {
       '/api/v2/incidents.json',
       StatuspageIncidentsResponseSchema,
       'incidents',
+      (body) => convertUpdateBodies(body.incidents),
     );
   }
 
@@ -75,13 +93,15 @@ export class StatuspageService {
       '/api/v2/scheduled-maintenances.json',
       StatuspageScheduledMaintenancesResponseSchema,
       'scheduled maintenances',
+      (body) => convertUpdateBodies(body.scheduled_maintenances),
     );
   }
 
   /**
    * One page of the quarterly history archive the status page renders its
    * "Incident History" view from. Undocumented and served per host: some pages
-   * answer 404, and a redirecting host may drop `?page=`.
+   * answer 404, and a redirecting host may drop `?page=`. Each record's `message`
+   * carries the same markup as a v2 update body and is converted the same way.
    */
   fetchHistory(
     baseUrl: string,
@@ -92,6 +112,11 @@ export class StatuspageService {
       `/history.json?page=${page}`,
       StatuspageHistoryResponseSchema,
       'history',
+      (body) => {
+        for (const month of body.months) {
+          for (const record of month.incidents) record.message = htmlToText(record.message);
+        }
+      },
     );
   }
 }

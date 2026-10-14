@@ -21,10 +21,17 @@ export type VendorApiType =
   | 'aws'
   | 'gcp'
   | 'azure'
+  | 'azure-devops'
   | 'firehydrant';
 
 interface VendorEntryBase {
   category: VendorCategory;
+  /**
+   * Set when the vendor publishes on a status page it shares with other products: only
+   * components whose name, or whose group's name, starts with this prefix belong to it,
+   * and the entry reports those components and the records that touch them.
+   */
+  component_scope_prefix?: string;
   /** Display name (e.g., "GitHub", "Cloudflare"). */
   name: string;
   /** Canonical identifier used in tool inputs (e.g., "github", "cloudflare"). */
@@ -46,7 +53,7 @@ export type VendorEntry =
     });
 
 /**
- * 52-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
+ * 53-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
  * every other api_type is served through a native-API adapter
  * (src/services/status-adapters/) that normalizes into the Statuspage shapes.
  * Probe every entry for drift with `bun run verify:registry`.
@@ -122,6 +129,14 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     category: 'dev-platform',
     statuspage_url: 'https://www.githubstatus.com',
     api_type: 'statuspage',
+  },
+  {
+    slug: 'azure-devops',
+    name: 'Azure DevOps',
+    category: 'dev-platform',
+    // Separate portal from the azure entry — adapter reads its Health REST API and _rss feed.
+    statuspage_url: 'https://status.dev.azure.com',
+    api_type: 'azure-devops',
   },
   {
     slug: 'npm',
@@ -301,8 +316,11 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     slug: 'sendgrid',
     name: 'SendGrid',
     category: 'comms',
-    statuspage_url: 'https://status.sendgrid.com',
+    // status.sendgrid.com redirects here; SendGrid is the SendGrid-named components and
+    // groups on Twilio's page.
+    statuspage_url: 'https://status.twilio.com',
     api_type: 'statuspage',
+    component_scope_prefix: 'SendGrid',
   },
   {
     slug: 'mailgun',

@@ -88,6 +88,30 @@ describe('mapAwsSummary', () => {
     expect(summary.scheduled_maintenances).toHaveLength(0);
   });
 
+  it('names each component with the region code its event arn carries (#62)', () => {
+    const summary = mapAwsSummary(liveEvents(), AWS);
+    expect(summary.components.map((c) => c.name)).toEqual([
+      'Multiple services (UAE, me-central-1)',
+      'Multiple services (Bahrain, me-south-1)',
+    ]);
+  });
+
+  it('keeps the name unchanged when the arn carries no region (#62)', () => {
+    const cases: Array<string | undefined> = [
+      undefined,
+      'open-arn',
+      'arn:aws:health:::event/MULTIPLE_SERVICES/X',
+    ];
+    for (const arn of cases) {
+      const { arn: _drop, ...rest } = OPEN_EVENT;
+      const event: AwsEvent = arn === undefined ? rest : { ...rest, arn };
+      expect(
+        mapAwsSummary([event], AWS).components.map((c) => c.name),
+        String(arn),
+      ).toEqual(['Amazon S3 (N. Virginia)']);
+    }
+  });
+
   it('maps an empty feed to indicator none', () => {
     const summary = mapAwsSummary([], AWS);
     expect(summary.status.indicator).toBe('none');
@@ -237,6 +261,31 @@ describe('mapAwsEvent', () => {
     expect(inc.impact).toBe('minor'); // unknown status — conservative default
     expect(inc.created_at).toBe('');
     expect(inc.incident_updates).toHaveLength(0);
+  });
+
+  it('renders a recorded log message that links its references as plain text (#63)', () => {
+    const event = liveEvents().find((e) =>
+      e.event_log?.some((entry) => entry.message?.includes('<a href=')),
+    )!;
+    const bodies = mapAwsEvent(event, AWS).incident_updates.map((u) => u.body);
+    expect(bodies.some((b) => b.includes('<a'))).toBe(false);
+    // Each link's text is its URL, so it renders as the URL alone.
+    const linked = bodies.find((b) => b.includes('[4] '))!;
+    expect(linked.split('\n').slice(-4)).toEqual([
+      '[1] https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html',
+      '[2] https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-batch-replication-batch.html',
+      '[3] https://github.com/awslabs/aws-support-tools/blob/master/S3/Setup_Replication/setup_replication.py',
+      '[4] https://aws.amazon.com/support',
+    ]);
+  });
+
+  it('keeps a plain-text log message byte-identical, blank lines included (#63)', () => {
+    const message = 'First paragraph.\n\nSecond paragraph, latency <1 minute.';
+    const inc = mapAwsEvent(
+      { ...OPEN_EVENT, event_log: [{ status: 3, message, timestamp: 1772050000 }] },
+      AWS,
+    );
+    expect(inc.incident_updates[0]!.body).toBe(message);
   });
 });
 

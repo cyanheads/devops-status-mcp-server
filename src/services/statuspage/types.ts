@@ -68,6 +68,10 @@ export interface AffectedComponent {
 
 export interface IncidentUpdate {
   affected_components: AffectedComponent[] | null;
+  /**
+   * Plain text. Vendors publish HTML here; every backend converts it once, through
+   * `htmlToText`, where the body enters this shape.
+   */
   body: string;
   created_at: string;
   display_at: string;
@@ -126,7 +130,7 @@ export interface StatuspageScheduledMaintenancesResponse {
 export interface StatuspageHistoryIncident {
   code: string;
   impact: 'none' | 'minor' | 'major' | 'critical' | 'maintenance';
-  /** The latest update body, with the same markup v2 update bodies carry. */
+  /** The latest update body: published with v2 body markup, converted to plain text the same way. */
   message: string;
   name: string;
   /**

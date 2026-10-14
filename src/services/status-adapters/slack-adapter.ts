@@ -20,6 +20,7 @@ import type {
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchJsonCached } from '@/utils/cached-fetch.js';
+import { htmlToText } from '@/utils/html-to-text.js';
 
 // --- Raw Slack status API types (v2.0.0) ---
 
@@ -117,7 +118,8 @@ export function mapSlackIncident(item: SlackIncident, target: SlackTarget): Stat
     components: [],
     incident_updates: notes.map((n, i) => ({
       id: `${item.id ?? 'note'}-${i}`,
-      body: n.body ?? '',
+      // Every note is HTML (`<p>…</p>`, `&nbsp;`); bodies leave here as plain text.
+      body: htmlToText(n.body ?? ''),
       status,
       created_at: n.date_created ?? '',
       display_at: n.date_created ?? '',

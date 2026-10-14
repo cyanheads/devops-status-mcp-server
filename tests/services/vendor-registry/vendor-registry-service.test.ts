@@ -137,6 +137,18 @@ describe('VendorRegistryService', () => {
     expect(results.some((v) => v.slug === 'github')).toBe(true);
   });
 
+  it('search ignores whitespace around the query (#73)', () => {
+    const service = getVendorRegistryService();
+    expect(service.search(' github ')).toEqual(service.search('github'));
+    expect(service.search('\tGitHub\n', 'dev-platform').map((v) => v.slug)).toContain('github');
+  });
+
+  it('search treats a whitespace-only query as no query (#73)', () => {
+    const service = getVendorRegistryService();
+    expect(service.search('   ')).toEqual(service.getAll());
+    expect(service.search('  ', 'auth')).toEqual(service.search(undefined, 'auth'));
+  });
+
   it('getCategories returns sorted unique categories', () => {
     const service = getVendorRegistryService();
     const cats = service.getCategories();
@@ -153,10 +165,25 @@ describe('VendorRegistryService', () => {
 });
 
 describe('VENDOR_REGISTRY integrity', () => {
-  it('has 52 entries with unique slugs', () => {
-    expect(VENDOR_REGISTRY).toHaveLength(52);
+  it('has 53 entries with unique slugs', () => {
+    expect(VENDOR_REGISTRY).toHaveLength(53);
     const slugs = VENDOR_REGISTRY.map((v) => v.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it('routes Azure DevOps to its own adapter and portal, apart from the azure entry (#56)', () => {
+    expect(getVendorRegistryService().getBySlugOrName('Azure DevOps')?.slug).toBe('azure-devops');
+    expect(getVendorRegistryService().resolve('azure-devops')).toEqual({
+      url: 'https://status.dev.azure.com',
+      name: 'Azure DevOps',
+      slug: 'azure-devops',
+      api_type: 'azure-devops',
+    });
+    expect(
+      getVendorRegistryService()
+        .search(undefined, 'dev-platform')
+        .map((v) => v.slug),
+    ).toContain('azure-devops');
   });
 
   it('lists aws, gcp and azure under the cloud category', () => {
@@ -193,6 +220,36 @@ describe('VENDOR_REGISTRY integrity', () => {
     expect(VENDOR_REGISTRY.find((v) => v.slug === 'akamai')?.statuspage_url).toBe(
       'https://www.akamaistatus.com',
     );
+  });
+
+  /**
+   * status.sendgrid.com 302s to status.twilio.com, whose page also carries Twilio's SMS,
+   * voice, and carrier components; the entry is scoped to SendGrid's components on it.
+   */
+  it('points sendgrid at the Twilio page, scoped to SendGrid components (#54)', () => {
+    const service = getVendorRegistryService();
+    expect(service.resolve('sendgrid')).toEqual({
+      url: 'https://status.twilio.com',
+      name: 'SendGrid',
+      slug: 'sendgrid',
+      api_type: 'statuspage',
+      component_scope_prefix: 'SendGrid',
+    });
+    expect(service.resolve('twilio')).toEqual({
+      url: 'https://status.twilio.com',
+      name: 'Twilio',
+      slug: 'twilio',
+      api_type: 'statuspage',
+    });
+  });
+
+  it('scopes only sendgrid — no other entry shares a page or declares a scope (#54)', () => {
+    expect(
+      VENDOR_REGISTRY.filter((v) => v.component_scope_prefix !== undefined).map((v) => v.slug),
+    ).toEqual(['sendgrid']);
+    const unscoped = VENDOR_REGISTRY.filter((v) => v.component_scope_prefix === undefined);
+    const urls = unscoped.map((v) => v.statuspage_url);
+    expect(new Set(urls).size).toBe(urls.length);
   });
 
   it('every statusio entry carries a page ID', () => {

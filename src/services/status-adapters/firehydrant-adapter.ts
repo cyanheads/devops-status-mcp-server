@@ -38,6 +38,7 @@ import type {
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchJsonCached } from '@/utils/cached-fetch.js';
+import { htmlToText } from '@/utils/html-to-text.js';
 
 const FIREHYDRANT_DATA_PATH = '/data/payload.json';
 
@@ -197,7 +198,7 @@ export function mapFirehydrantIncident(
     }),
     incident_updates: timeline.map((entry, i) => ({
       id: `${item.id ?? 'update'}-${i}`,
-      body: noteText(entry),
+      body: htmlToText(noteText(entry)),
       status,
       created_at: entry.occurredAt ?? entry.time ?? '',
       display_at: entry.occurredAt ?? entry.time ?? '',

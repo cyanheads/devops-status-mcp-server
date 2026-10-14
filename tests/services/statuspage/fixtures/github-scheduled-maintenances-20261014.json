@@ -1,0 +1,3102 @@
+{
+  "page": {
+    "id": "kctbh9vrtdwd",
+    "name": "GitHub",
+    "url": "https://www.githubstatus.com",
+    "time_zone": "Etc/UTC",
+    "updated_at": "2026-10-14T19:00:05.627Z"
+  },
+  "scheduled_maintenances": [
+    {
+      "id": "nwjwwhj118sf",
+      "name": "Codespaces Scheduled Maintenance",
+      "status": "completed",
+      "created_at": "2025-05-29T21:01:34.877Z",
+      "updated_at": "2025-05-31T04:30:21.150Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-05-31T04:30:21.135Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/p98lyhp53nzj",
+      "started_at": "2025-05-29T21:01:34.872Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "g9klg93swk1p",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "nwjwwhj118sf",
+          "created_at": "2025-05-31T04:30:21.135Z",
+          "updated_at": "2025-05-31T04:30:21.135Z",
+          "display_at": "2025-05-31T04:30:21.135Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "pqynvqjx8jn1",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "nwjwwhj118sf",
+          "created_at": "2025-05-29T21:30:21.445Z",
+          "updated_at": "2025-05-29T21:30:21.445Z",
+          "display_at": "2025-05-29T21:30:21.445Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "b0xtrdw7gy7x",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing global maintenance from May 29, 2025 21:30 UTC to May 31, 2025 4:30 UTC. Maintenance will begin in our Europe, Asia, and Australia regions. Once it is complete, maintenance will start in our US regions. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience intermittent connectivity issues when creating new Codespaces or accessing existing ones.\n\nTo avoid disruptions, ensure that any uncommitted changes are committed and pushed before the maintenance starts. Codespaces with uncommitted changes will remain accessible as usual after the maintenance is complete.",
+          "incident_id": "nwjwwhj118sf",
+          "created_at": "2025-05-29T21:01:34.929Z",
+          "updated_at": "2025-05-29T21:01:34.929Z",
+          "display_at": "2025-05-29T21:01:34.929Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "h2ftsgbw7kmk",
+          "name": "Codespaces",
+          "status": "operational",
+          "created_at": "2021-08-11T16:02:09.505Z",
+          "updated_at": "2026-07-14T09:51:08.862Z",
+          "position": 11,
+          "description": "Orchestration and Compute for GitHub Codespaces",
+          "showcase": true,
+          "start_date": "2021-08-11",
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2025-05-29T21:30:00.000Z",
+      "scheduled_until": "2025-05-31T04:30:00.000Z"
+    },
+    {
+      "id": "67vdd3b7d1zq",
+      "name": "Codespaces Scheduled Maintenance",
+      "status": "completed",
+      "created_at": "2025-05-22T15:26:23.906Z",
+      "updated_at": "2025-05-29T16:30:21.560Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-05-29T16:30:21.191Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/w4zyvrpjpfxj",
+      "started_at": "2025-05-22T15:26:23.900Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "zzsrh4y24zzy",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "67vdd3b7d1zq",
+          "created_at": "2025-05-29T16:30:21.191Z",
+          "updated_at": "2025-05-29T16:30:21.553Z",
+          "display_at": "2025-05-29T16:30:21.191Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1928126778092179948
+        },
+        {
+          "id": "l8hb18l6bd7j",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "67vdd3b7d1zq",
+          "created_at": "2025-05-28T16:30:21.885Z",
+          "updated_at": "2025-05-28T16:30:22.325Z",
+          "display_at": "2025-05-28T16:30:21.885Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1927764393468817675
+        },
+        {
+          "id": "jv3m2b3qdh63",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "67vdd3b7d1zq",
+          "created_at": "2025-05-28T15:30:21.349Z",
+          "updated_at": "2025-05-28T15:30:21.784Z",
+          "display_at": "2025-05-28T15:30:21.349Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1927749291717870034
+        },
+        {
+          "id": "pfzr3jgm2yhz",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing global maintenance from 16:30 UTC on Wednesday, May 28 to 16:30 UTC on Thursday, May 29. Maintenance will begin in our Europe, Asia, and Australia regions. Once it is complete, maintenance will start in our US regions. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience intermittent connectivity issues when creating new Codespaces or accessing existing ones.\n\nTo avoid disruptions, ensure that any uncommitted changes are committed and pushed before the maintenance starts. Codespaces with uncommitted changes will remain accessible as usual after the maintenance is complete.",
+          "incident_id": "67vdd3b7d1zq",
+          "created_at": "2025-05-22T15:26:23.961Z",
+          "updated_at": "2025-05-22T15:26:24.288Z",
+          "display_at": "2025-05-22T15:26:23.961Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1925573968393871642
+        }
+      ],
+      "components": [
+        {
+          "id": "h2ftsgbw7kmk",
+          "name": "Codespaces",
+          "status": "operational",
+          "created_at": "2021-08-11T16:02:09.505Z",
+          "updated_at": "2026-07-14T09:51:08.862Z",
+          "position": 11,
+          "description": "Orchestration and Compute for GitHub Codespaces",
+          "showcase": true,
+          "start_date": "2021-08-11",
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2025-05-28T16:30:00.000Z",
+      "scheduled_until": "2025-05-29T16:30:00.000Z"
+    },
+    {
+      "id": "bs901hhxgw33",
+      "name": "Codespaces Scheduled Maintenance",
+      "status": "completed",
+      "created_at": "2025-05-13T19:52:44.238Z",
+      "updated_at": "2025-05-15T16:30:21.592Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-05-15T16:30:21.155Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/767vljf9dpqh",
+      "started_at": "2025-05-13T19:52:44.233Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "2nzb7p3xhgjy",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "bs901hhxgw33",
+          "created_at": "2025-05-15T16:30:21.155Z",
+          "updated_at": "2025-05-15T16:30:21.588Z",
+          "display_at": "2025-05-15T16:30:21.155Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1923053348170932620
+        },
+        {
+          "id": "xw00281nfrzx",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "bs901hhxgw33",
+          "created_at": "2025-05-14T16:30:21.565Z",
+          "updated_at": "2025-05-14T16:30:22.082Z",
+          "display_at": "2025-05-14T16:30:21.565Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1922690962305974465
+        },
+        {
+          "id": "1qgzzfwbyv88",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "bs901hhxgw33",
+          "created_at": "2025-05-14T15:30:24.254Z",
+          "updated_at": "2025-05-14T15:30:24.559Z",
+          "display_at": "2025-05-14T15:30:24.254Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1922675873284845697
+        },
+        {
+          "id": "d9mqzwlzw348",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing global maintenance from 16:30 UTC on Wednesday, May 14 to 16:30 UTC on Thursday, May 15. Maintenance will begin in our Europe, Asia, and Australia regions. Once it is complete, maintenance will start in our US regions. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience intermittent connectivity issues when creating new Codespaces or accessing existing ones.\n\nTo avoid disruptions, ensure that any uncommitted changes are committed and pushed before the maintenance starts. Codespaces with uncommitted changes will remain accessible as usual after the maintenance is complete.",
+          "incident_id": "bs901hhxgw33",
+          "created_at": "2025-05-13T19:52:44.288Z",
+          "updated_at": "2025-05-13T19:52:44.615Z",
+          "display_at": "2025-05-13T19:52:44.288Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1922379503969648758
+        }
+      ],
+      "components": [
+        {
+          "id": "h2ftsgbw7kmk",
+          "name": "Codespaces",
+          "status": "operational",
+          "created_at": "2021-08-11T16:02:09.505Z",
+          "updated_at": "2026-07-14T09:51:08.862Z",
+          "position": 11,
+          "description": "Orchestration and Compute for GitHub Codespaces",
+          "showcase": true,
+          "start_date": "2021-08-11",
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2025-05-14T16:30:00.000Z",
+      "scheduled_until": "2025-05-15T16:30:00.000Z"
+    },
+    {
+      "id": "hkp6z7kt2qm6",
+      "name": "Codespaces Scheduled Maintenance",
+      "status": "completed",
+      "created_at": "2025-05-06T19:29:11.725Z",
+      "updated_at": "2025-05-08T16:30:21.808Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-05-08T16:30:21.162Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/j883xd300ftr",
+      "started_at": "2025-05-06T19:29:11.721Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "lj1m6dtrvvfn",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "hkp6z7kt2qm6",
+          "created_at": "2025-05-08T16:30:21.162Z",
+          "updated_at": "2025-05-08T16:30:21.803Z",
+          "display_at": "2025-05-08T16:30:21.162Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1920516632717504959
+        },
+        {
+          "id": "wdm5ybf8g63x",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "hkp6z7kt2qm6",
+          "created_at": "2025-05-07T16:30:21.606Z",
+          "updated_at": "2025-05-07T16:30:21.950Z",
+          "display_at": "2025-05-07T16:30:21.606Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1920154246714175505
+        },
+        {
+          "id": "1sgqjjh07sqx",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "hkp6z7kt2qm6",
+          "created_at": "2025-05-07T15:30:21.452Z",
+          "updated_at": "2025-05-07T15:30:21.842Z",
+          "display_at": "2025-05-07T15:30:21.452Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1920139146796138577
+        },
+        {
+          "id": "zlp56kqkgqhb",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing global maintenance from 16:30 UTC on Wednesday, May 7 to 16:30 UTC on Thursday, May 8. Maintenance will begin in our Europe, Asia, and Australia regions. Once it is complete, maintenance will start in our US regions. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience intermittent connectivity issues when creating new Codespaces or accessing existing ones.\n\nTo avoid disruptions, ensure that any uncommitted changes are committed and pushed before the maintenance starts. Codespaces with uncommitted changes will remain accessible as usual after the maintenance is complete.",
+          "incident_id": "hkp6z7kt2qm6",
+          "created_at": "2025-05-06T19:29:11.770Z",
+          "updated_at": "2025-05-06T21:57:02.303Z",
+          "display_at": "2025-05-06T19:29:11.770Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1919836864246382862
+        }
+      ],
+      "components": [
+        {
+          "id": "h2ftsgbw7kmk",
+          "name": "Codespaces",
+          "status": "operational",
+          "created_at": "2021-08-11T16:02:09.505Z",
+          "updated_at": "2026-07-14T09:51:08.862Z",
+          "position": 11,
+          "description": "Orchestration and Compute for GitHub Codespaces",
+          "showcase": true,
+          "start_date": "2021-08-11",
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2025-05-07T16:30:00.000Z",
+      "scheduled_until": "2025-05-08T16:30:00.000Z"
+    },
+    {
+      "id": "znhjr4vqqcdw",
+      "name": "Codespaces Scheduled Maintenance",
+      "status": "completed",
+      "created_at": "2025-04-17T15:30:05.815Z",
+      "updated_at": "2025-04-22T16:30:21.464Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-04-22T16:30:21.146Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/h6gh3vyg78jz",
+      "started_at": "2025-04-17T15:30:05.811Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "nw9x0q7kr03h",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "znhjr4vqqcdw",
+          "created_at": "2025-04-22T16:30:21.146Z",
+          "updated_at": "2025-04-22T16:30:21.459Z",
+          "display_at": "2025-04-22T16:30:21.146Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1914718426737860751
+        },
+        {
+          "id": "qdx362b499bw",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "znhjr4vqqcdw",
+          "created_at": "2025-04-21T16:30:21.431Z",
+          "updated_at": "2025-04-21T16:30:21.809Z",
+          "display_at": "2025-04-21T16:30:21.431Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1914356040327651396
+        },
+        {
+          "id": "tbytyq3nmcb9",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "znhjr4vqqcdw",
+          "created_at": "2025-04-21T15:30:21.915Z",
+          "updated_at": "2025-04-21T15:30:22.247Z",
+          "display_at": "2025-04-21T15:30:21.915Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1914340942687207687
+        },
+        {
+          "id": "b10yl6fvkkr3",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing global maintenance from 16:30 UTC on Monday, April 21 to 16:30 UTC on Tuesday, April 22. Maintenance will begin in our Europe, Asia, and Australia regions. Once it is complete, maintenance will start in our US regions. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience intermittent connectivity issues when creating new Codespaces or accessing existing ones.\n\nTo avoid disruptions, ensure that any uncommitted changes are committed and pushed before the maintenance starts. Codespaces with uncommitted changes will remain accessible as usual after the maintenance is complete.",
+          "incident_id": "znhjr4vqqcdw",
+          "created_at": "2025-04-17T15:30:05.861Z",
+          "updated_at": "2025-04-17T15:30:06.211Z",
+          "display_at": "2025-04-17T15:30:05.861Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1912891323897753629
+        }
+      ],
+      "components": [
+        {
+          "id": "h2ftsgbw7kmk",
+          "name": "Codespaces",
+          "status": "operational",
+          "created_at": "2021-08-11T16:02:09.505Z",
+          "updated_at": "2026-07-14T09:51:08.862Z",
+          "position": 11,
+          "description": "Orchestration and Compute for GitHub Codespaces",
+          "showcase": true,
+          "start_date": "2021-08-11",
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2025-04-21T16:30:00.000Z",
+      "scheduled_until": "2025-04-22T16:30:00.000Z"
+    },
+    {
+      "id": "xb49wskhzrm2",
+      "name": "Scheduled Codespaces Maintenance",
+      "status": "completed",
+      "created_at": "2025-04-02T16:11:48.024Z",
+      "updated_at": "2025-04-03T17:00:22.929Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-04-03T17:00:22.304Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/fn6zmzvtjcm5",
+      "started_at": "2025-04-02T16:11:48.019Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "9c4nc6pz673d",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "xb49wskhzrm2",
+          "created_at": "2025-04-03T17:00:22.304Z",
+          "updated_at": "2025-04-03T17:00:22.916Z",
+          "display_at": "2025-04-03T17:00:22.304Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1907840613111972147
+        },
+        {
+          "id": "1wpl8b6k3fzk",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "xb49wskhzrm2",
+          "created_at": "2025-04-02T17:00:24.218Z",
+          "updated_at": "2025-04-02T17:00:25.924Z",
+          "display_at": "2025-04-02T17:00:24.218Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1907478237900582940
+        },
+        {
+          "id": "lrlkw9pqwrnw",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing maintenance in all regions starting from 17:00 UTC on Wednesday, April 2 to 17:00 UTC on Thursday, April 3. Maintenance will begin in Southeast Asia, Central India, Australia Central, and Australia East regions. Once it is complete, maintenance will start in UK South and West Europe, followed by East US, East US2, West US2, and West US3. Each batch of regions will take approximately three to four hours to complete.\n\nDuring this time period, users may experience connectivity issues with new and existing Codespaces.\n\nIf you have uncommitted changes you may need during the maintenance window, you should verify they are committed and pushed before maintenance starts. Codespaces with any uncommitted changes will be accessible as usual once maintenance is complete.",
+          "incident_id": "xb49wskhzrm2",
+          "created_at": "2025-04-02T16:11:48.073Z",
+          "updated_at": "2025-04-02T18:33:00.510Z",
+          "display_at": "2025-04-02T16:11:48.073Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1907466000838377579
+        }
+      ],
+      "components": [
+        {
+          "id": "h2ftsgbw7kmk",
+          "name": "Codespaces",
+          "status": "operational",
+          "created_at": "2021-08-11T16:02:09.505Z",
+          "updated_at": "2026-07-14T09:51:08.862Z",
+          "position": 11,
+          "description": "Orchestration and Compute for GitHub Codespaces",
+          "showcase": true,
+          "start_date": "2021-08-11",
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2025-04-02T17:00:00.000Z",
+      "scheduled_until": "2025-04-03T17:00:00.000Z"
+    },
+    {
+      "id": "tldgc85p3q2d",
+      "name": "Scheduled Migrations Maintenance",
+      "status": "completed",
+      "created_at": "2025-03-18T19:28:45.221Z",
+      "updated_at": "2025-03-19T05:00:23.142Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-03-19T05:00:21.354Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/yc8cpt8yq6c4",
+      "started_at": "2025-03-18T19:28:45.216Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "nb5vrhmb4w1x",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "tldgc85p3q2d",
+          "created_at": "2025-03-19T05:00:21.354Z",
+          "updated_at": "2025-03-19T05:00:23.126Z",
+          "display_at": "2025-03-19T05:00:21.354Z",
+          "affected_components": [
+            {
+              "code": "0l2p9nhqnxpd",
+              "name": "Visit www.githubstatus.com for more information",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1902223601446850893
+        },
+        {
+          "id": "fps7dxs4xhyt",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "tldgc85p3q2d",
+          "created_at": "2025-03-18T21:00:21.755Z",
+          "updated_at": "2025-03-18T21:00:22.346Z",
+          "display_at": "2025-03-18T21:00:21.755Z",
+          "affected_components": [
+            {
+              "code": "0l2p9nhqnxpd",
+              "name": "Visit www.githubstatus.com for more information",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1902102802777960772
+        },
+        {
+          "id": "rs30pmhr661d",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "tldgc85p3q2d",
+          "created_at": "2025-03-18T20:00:24.036Z",
+          "updated_at": "2025-03-18T20:00:24.468Z",
+          "display_at": "2025-03-18T20:00:24.036Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1902087712003543398
+        },
+        {
+          "id": "pq5vwz6l56st",
+          "status": "scheduled",
+          "body": "Migrations will be undergoing maintenance starting at 21:00 UTC on Tuesday, March 18 2025 with an expected duration of up to eight hours.\n\nDuring this maintenance period, users will experience delays importing repositories into GitHub.\n\nOnce the maintenance period is complete, all pending imports will automatically proceed.",
+          "incident_id": "tldgc85p3q2d",
+          "created_at": "2025-03-18T19:28:45.279Z",
+          "updated_at": "2025-03-18T19:28:45.575Z",
+          "display_at": "2025-03-18T19:28:45.279Z",
+          "affected_components": [
+            {
+              "code": "0l2p9nhqnxpd",
+              "name": "Visit www.githubstatus.com for more information",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1902079747724837139
+        }
+      ],
+      "components": [
+        {
+          "id": "0l2p9nhqnxpd",
+          "name": "Visit www.githubstatus.com for more information",
+          "status": "operational",
+          "created_at": "2018-12-05T19:39:40.838Z",
+          "updated_at": "2025-03-19T05:00:21.309Z",
+          "position": 3,
+          "description": null,
+          "showcase": false,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2025-03-18T21:00:00.000Z",
+      "scheduled_until": "2025-03-19T05:00:00.000Z"
+    },
+    {
+      "id": "5ylj8dpvg096",
+      "name": "Scheduled Codespaces Maintenance",
+      "status": "completed",
+      "created_at": "2025-02-27T21:09:36.425Z",
+      "updated_at": "2025-03-01T02:00:22.170Z",
+      "monitoring_at": null,
+      "resolved_at": "2025-03-01T02:00:21.480Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/pcn3xyw4vd5y",
+      "started_at": "2025-02-27T21:09:36.421Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "7g6vhj5kjb27",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "5ylj8dpvg096",
+          "created_at": "2025-03-01T02:00:21.480Z",
+          "updated_at": "2025-03-01T02:00:22.163Z",
+          "display_at": "2025-03-01T02:00:21.480Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1895655317956129015
+        },
+        {
+          "id": "t5xg6vc39wgm",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "5ylj8dpvg096",
+          "created_at": "2025-02-28T17:00:21.197Z",
+          "updated_at": "2025-02-28T17:00:21.873Z",
+          "display_at": "2025-02-28T17:00:21.197Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1895519421353115864
+        },
+        {
+          "id": "b33w155f2hwl",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "5ylj8dpvg096",
+          "created_at": "2025-02-28T16:00:23.628Z",
+          "updated_at": "2025-02-28T16:00:27.357Z",
+          "display_at": "2025-02-28T16:00:23.628Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1895504344461832390
+        },
+        {
+          "id": "tm2glj9dh7wv",
+          "status": "scheduled",
+          "body": "Codespaces will be undergoing maintenance in Europe and Southeast Asia from 17:00 UTC Friday February 28 to 02:00 UTC Saturday March 1. Maintenance will begin in North Europe at 17:00 UTC Friday February 28, followed by Southeast Asia, concluding in UK South. Each region will take 2-3 hours to complete.\n\nDuring this time period, users may experience connectivity issues with new and existing Codespaces.\n\nPlease ensure that any uncommitted changes that you may need during the maintenance window are committed and pushed. Codespaces with any uncommitted changes will be accessible as usual once maintenance is complete.\n\nThank you for your patience as we work to improve our systems.",
+          "incident_id": "5ylj8dpvg096",
+          "created_at": "2025-02-27T21:09:36.469Z",
+          "updated_at": "2025-02-27T21:09:36.767Z",
+          "display_at": "2025-02-27T21:09:36.469Z",
+          "affected_components": [
+            {
+              "code": "h2ftsgbw7kmk",
+              "name": "Codespaces",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1895219758850809937
+        }
+      ],
+      "components": [
+        {
+          "id": "h2ftsgbw7kmk",
+          "name": "Codespaces",
+          "status": "operational",
+          "created_at": "2021-08-11T16:02:09.505Z",
+          "updated_at": "2026-07-14T09:51:08.862Z",
+          "position": 11,
+          "description": "Orchestration and Compute for GitHub Codespaces",
+          "showcase": true,
+          "start_date": "2021-08-11",
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2025-02-28T17:00:00.000Z",
+      "scheduled_until": "2025-03-01T02:00:00.000Z"
+    },
+    {
+      "id": "53t2nlxs8016",
+      "name": "Planned maintenance on GitHub Package Registry",
+      "status": "completed",
+      "created_at": "2023-02-07T10:08:16.166Z",
+      "updated_at": "2023-02-09T09:09:50.258Z",
+      "monitoring_at": null,
+      "resolved_at": "2023-02-09T09:09:50.239Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/5psr38wmcwhv",
+      "started_at": "2023-02-07T10:08:16.162Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "5nsgkl45xdm5",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "53t2nlxs8016",
+          "created_at": "2023-02-09T09:09:50.239Z",
+          "updated_at": "2023-02-09T09:09:50.239Z",
+          "display_at": "2023-02-09T09:09:50.239Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "Packages",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "nfx8pjw89lzb",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "53t2nlxs8016",
+          "created_at": "2023-02-08T22:00:20.101Z",
+          "updated_at": "2023-02-08T22:00:20.101Z",
+          "display_at": "2023-02-08T22:00:20.101Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "Packages",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "m1h2w785zdq6",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "53t2nlxs8016",
+          "created_at": "2023-02-08T21:00:03.043Z",
+          "updated_at": "2023-02-08T21:00:03.043Z",
+          "display_at": "2023-02-08T21:00:03.043Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "tjx78vcfl4ml",
+          "status": "scheduled",
+          "body": "Due to planned maintenance on our infrastructure, we expect an interruption to GitHub Packages Registry that will last two minutes at an unconfirmed time during this 15 hour time window. If you experience interruption, please wait two minutes then try again.\n\nThank you for your patience while we complete this critical work.",
+          "incident_id": "53t2nlxs8016",
+          "created_at": "2023-02-07T11:52:40.238Z",
+          "updated_at": "2023-02-07T11:52:40.238Z",
+          "display_at": "2023-02-07T11:52:40.238Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "Packages",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "bdm3n692y4pf",
+          "status": "scheduled",
+          "body": "We will be undergoing scheduled maintenance during this time.",
+          "incident_id": "53t2nlxs8016",
+          "created_at": "2023-02-07T10:08:16.217Z",
+          "updated_at": "2023-02-07T10:08:16.217Z",
+          "display_at": "2023-02-07T10:08:16.217Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "Packages",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "st3j38cctv9l",
+          "name": "Packages",
+          "status": "operational",
+          "created_at": "2019-11-13T18:02:40.064Z",
+          "updated_at": "2026-08-13T15:33:02.208Z",
+          "position": 8,
+          "description": "API requests and webhook delivery for GitHub Packages",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2023-02-08T22:00:00.000Z",
+      "scheduled_until": "2023-02-09T13:00:00.000Z"
+    },
+    {
+      "id": "3ktldkb3r6f8",
+      "name": "GitHub Importer Maintenance",
+      "status": "completed",
+      "created_at": "2022-10-27T17:00:36.430Z",
+      "updated_at": "2022-11-04T04:01:36.845Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-11-04T04:01:35.743Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/tdscxlkzlkz7",
+      "started_at": "2022-10-27T17:00:36.426Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "swfs96ddmwn0",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "3ktldkb3r6f8",
+          "created_at": "2022-11-04T04:01:35.743Z",
+          "updated_at": "2022-11-04T04:01:36.837Z",
+          "display_at": "2022-11-04T04:01:35.743Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": 1588380919643402241
+        },
+        {
+          "id": "05v3ry46t5fc",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "3ktldkb3r6f8",
+          "created_at": "2022-11-04T03:00:27.191Z",
+          "updated_at": "2022-11-04T03:00:28.041Z",
+          "display_at": "2022-11-04T03:00:27.191Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": 1588365532163870720
+        },
+        {
+          "id": "gywbms3wc5wx",
+          "status": "scheduled",
+          "body": "GitHub Importer—namely the “Import repository” (https://github.com/new/import) UI on GitHub.com and the \"Source Imports\" (https://docs.github.com/en/rest/migrations/source-imports) REST API—will be undergoing scheduled maintenance. During this time, no new source imports will be processed. You will not be able to start new source imports until the end of the maintenance window.",
+          "incident_id": "3ktldkb3r6f8",
+          "created_at": "2022-10-27T17:00:36.489Z",
+          "updated_at": "2022-10-27T17:00:38.665Z",
+          "display_at": "2022-10-27T17:00:36.489Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": 1585677866611924992
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-11-04T03:00:00.000Z",
+      "scheduled_until": "2022-11-04T04:00:00.000Z"
+    },
+    {
+      "id": "lpslbfcw2czs",
+      "name": "GitHub Importer Maintenance",
+      "status": "completed",
+      "created_at": "2022-10-20T16:54:10.524Z",
+      "updated_at": "2022-10-27T16:00:30.732Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-10-27T16:00:30.676Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/wbv063q8lsp9",
+      "started_at": "2022-10-20T16:54:10.521Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "00l0m7q6q2w1",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "lpslbfcw2czs",
+          "created_at": "2022-10-27T16:00:30.676Z",
+          "updated_at": "2022-10-27T16:00:30.676Z",
+          "display_at": "2022-10-27T16:00:30.676Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "tpgypd5qh2kt",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "lpslbfcw2czs",
+          "created_at": "2022-10-27T15:00:28.761Z",
+          "updated_at": "2022-10-27T15:00:28.761Z",
+          "display_at": "2022-10-27T15:00:28.761Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "bv5cjlwbs60q",
+          "status": "scheduled",
+          "body": "GitHub Importer—namely the “Import repository” (https://github.com/new/import) UI on GitHub.com and the \"Source Imports\" (https://docs.github.com/en/rest/migrations/source-imports) REST API—will be undergoing scheduled maintenance. During this time, no new source imports will be processed. You will not be able to start new source imports until the end of the maintenance window.",
+          "incident_id": "lpslbfcw2czs",
+          "created_at": "2022-10-20T16:54:10.562Z",
+          "updated_at": "2022-10-20T16:54:12.098Z",
+          "display_at": "2022-10-20T16:54:10.562Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": 1583139530139668481
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-10-27T15:00:00.000Z",
+      "scheduled_until": "2022-10-27T16:00:00.000Z"
+    },
+    {
+      "id": "6w7lf30qkgqq",
+      "name": "GitHub Enterprise Importer Maintenance",
+      "status": "completed",
+      "created_at": "2022-09-29T14:04:44.490Z",
+      "updated_at": "2022-10-05T05:00:40.151Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-10-05T05:00:40.126Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/5srlh8tv6p4d",
+      "started_at": "2022-09-29T14:04:44.486Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "gy86xtd8f31y",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "6w7lf30qkgqq",
+          "created_at": "2022-10-05T05:00:40.126Z",
+          "updated_at": "2022-10-05T05:00:40.126Z",
+          "display_at": "2022-10-05T05:00:40.126Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "3v095wk31chs",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "6w7lf30qkgqq",
+          "created_at": "2022-10-05T04:00:48.521Z",
+          "updated_at": "2022-10-05T04:00:48.521Z",
+          "display_at": "2022-10-05T04:00:48.521Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "hgm41qmjzfq8",
+          "status": "scheduled",
+          "body": "GitHub Enterprise Importer will be undergoing scheduled maintenance. During this time, all migrations will be paused. You will be able to queue new migrations, but they will not start until the end of the maintenance window.",
+          "incident_id": "6w7lf30qkgqq",
+          "created_at": "2022-09-29T14:04:44.529Z",
+          "updated_at": "2022-09-29T14:04:44.529Z",
+          "display_at": "2022-09-29T14:04:44.529Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-10-05T04:00:00.000Z",
+      "scheduled_until": "2022-10-05T05:00:00.000Z"
+    },
+    {
+      "id": "33gh4sqgw547",
+      "name": "GitHub Enterprise Importer Maintenance",
+      "status": "completed",
+      "created_at": "2022-06-29T16:24:14.969Z",
+      "updated_at": "2022-06-29T19:56:34.649Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-06-29T19:56:34.633Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/sppmj3yzmhhr",
+      "started_at": "2022-06-29T16:24:14.964Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "9hgbvd1zg2gb",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "33gh4sqgw547",
+          "created_at": "2022-06-29T19:56:34.633Z",
+          "updated_at": "2022-06-29T19:56:34.633Z",
+          "display_at": "2022-06-29T19:56:34.633Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "h1bf5b1rdvx5",
+          "status": "in_progress",
+          "body": "Migrations to GitHub using the GitHub Enterprise Importer are currently paused. Migrations will still queue, but won't run until the pause is removed. The pause is expected to be lifted by 20:30 UTC.",
+          "incident_id": "33gh4sqgw547",
+          "created_at": "2022-06-29T17:48:15.588Z",
+          "updated_at": "2022-06-29T17:48:15.588Z",
+          "display_at": "2022-06-29T17:48:15.588Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "b53mgyh70h7v",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "33gh4sqgw547",
+          "created_at": "2022-06-29T16:26:26.948Z",
+          "updated_at": "2022-06-29T16:26:26.948Z",
+          "display_at": "2022-06-29T16:26:26.948Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "7332x0nl6j0m",
+          "status": "scheduled",
+          "body": "Migrations to GitHub using the GitHub Enterprise Importer are currently paused. Migrations will still queue, but won't run until the pause is removed.",
+          "incident_id": "33gh4sqgw547",
+          "created_at": "2022-06-29T16:24:15.012Z",
+          "updated_at": "2022-06-29T16:24:15.012Z",
+          "display_at": "2022-06-29T16:24:15.012Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-06-29T16:25:00.000Z",
+      "scheduled_until": "2022-06-29T20:28:00.000Z"
+    },
+    {
+      "id": "rw3k5dz04rqj",
+      "name": "Insights charts maintenance",
+      "status": "completed",
+      "created_at": "2022-05-12T21:11:09.752Z",
+      "updated_at": "2022-05-16T21:00:33.470Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-05-16T21:00:33.448Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/35621n3ytxj3",
+      "started_at": "2022-05-12T21:11:09.748Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "0p7v02c0dhbg",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "rw3k5dz04rqj",
+          "created_at": "2022-05-16T21:00:33.448Z",
+          "updated_at": "2022-05-16T21:00:33.448Z",
+          "display_at": "2022-05-16T21:00:33.448Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "9qy679gm7ygg",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "rw3k5dz04rqj",
+          "created_at": "2022-05-12T21:12:40.870Z",
+          "updated_at": "2022-05-12T21:12:40.870Z",
+          "display_at": "2022-05-12T21:12:40.870Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "2nn51hc927nb",
+          "status": "scheduled",
+          "body": "GitHub is performing maintenance on the database backing repository and organization Insights charts - once the maintenance is completed, all charts will resume updating.",
+          "incident_id": "rw3k5dz04rqj",
+          "created_at": "2022-05-12T21:11:09.789Z",
+          "updated_at": "2022-05-12T21:11:09.789Z",
+          "display_at": "2022-05-12T21:11:09.789Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-05-12T21:12:00.000Z",
+      "scheduled_until": "2022-05-16T21:00:00.000Z"
+    },
+    {
+      "id": "xfd2x56328gl",
+      "name": "Scheduled Maintenance for GitHub Actions",
+      "status": "completed",
+      "created_at": "2022-04-06T16:37:35.909Z",
+      "updated_at": "2022-04-09T01:00:23.529Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-04-09T01:00:23.504Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/bj199s67tk96",
+      "started_at": "2022-04-06T16:37:35.903Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "mbdgx90f5tp0",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "xfd2x56328gl",
+          "created_at": "2022-04-09T01:00:23.504Z",
+          "updated_at": "2022-04-09T01:00:23.504Z",
+          "display_at": "2022-04-09T01:00:23.504Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "wmdb7dt7bbr1",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "xfd2x56328gl",
+          "created_at": "2022-04-08T23:01:14.942Z",
+          "updated_at": "2022-04-08T23:01:14.942Z",
+          "display_at": "2022-04-08T23:01:14.942Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "py3wk9m6kbr7",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "xfd2x56328gl",
+          "created_at": "2022-04-08T22:00:23.144Z",
+          "updated_at": "2022-04-08T22:00:23.144Z",
+          "display_at": "2022-04-08T22:00:23.144Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "881ldc9xwqt6",
+          "status": "scheduled",
+          "body": "Actions will be in a maintenance window from Friday, April 8th 23:00 to Saturday, April 9th 1:00 UTC as we migrate to a new database cluster. Starting jobs could be delayed during this timeframe. We will update our status with more details if there is notable impact. Our engineers will be working to minimize disruption as much as possible.",
+          "incident_id": "xfd2x56328gl",
+          "created_at": "2022-04-06T16:37:35.970Z",
+          "updated_at": "2022-04-06T16:37:35.970Z",
+          "display_at": "2022-04-06T16:37:35.970Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "br0l2tvcx85d",
+          "name": "Actions",
+          "status": "operational",
+          "created_at": "2019-11-13T18:02:19.432Z",
+          "updated_at": "2026-10-12T14:36:09.389Z",
+          "position": 7,
+          "description": "Workflows, Compute and Orchestration for GitHub Actions",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2022-04-08T23:00:00.000Z",
+      "scheduled_until": "2022-04-09T01:00:00.000Z"
+    },
+    {
+      "id": "9nmsrrxb5brs",
+      "name": "Scheduled Maintenance for GitHub Actions",
+      "status": "completed",
+      "created_at": "2022-03-25T15:31:31.403Z",
+      "updated_at": "2022-03-28T17:52:03.257Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-03-28T15:03:22.051Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/pdmysbdr0xhn",
+      "started_at": "2022-03-25T15:31:31.397Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "5bdbgbyhfx83",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed. No jobs were delayed during maintenance today.",
+          "incident_id": "9nmsrrxb5brs",
+          "created_at": "2022-03-28T15:03:22.051Z",
+          "updated_at": "2022-03-28T17:52:03.238Z",
+          "display_at": "2022-03-28T15:03:22.051Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "2swrm7gn8ky5",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "9nmsrrxb5brs",
+          "created_at": "2022-03-28T12:01:32.457Z",
+          "updated_at": "2022-03-28T12:01:32.457Z",
+          "display_at": "2022-03-28T12:01:32.457Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "f8w8znn3gb2r",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "9nmsrrxb5brs",
+          "created_at": "2022-03-28T11:00:25.495Z",
+          "updated_at": "2022-03-28T11:00:25.495Z",
+          "display_at": "2022-03-28T11:00:25.495Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "blct7bmf4sbr",
+          "status": "scheduled",
+          "body": "Actions will be in a maintenance window on Monday, March 28th from 12:00 to 16:30 UTC as we apply mitigations to reduce mySQL1 load. Starting jobs could be delayed up to an hour during this timeframe. Our engineers will be working to minimize disruption as much as possible.",
+          "incident_id": "9nmsrrxb5brs",
+          "created_at": "2022-03-25T15:31:31.470Z",
+          "updated_at": "2022-03-25T15:31:31.470Z",
+          "display_at": "2022-03-25T15:31:31.470Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "br0l2tvcx85d",
+          "name": "Actions",
+          "status": "operational",
+          "created_at": "2019-11-13T18:02:19.432Z",
+          "updated_at": "2026-10-12T14:36:09.389Z",
+          "position": 7,
+          "description": "Workflows, Compute and Orchestration for GitHub Actions",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2022-03-28T12:00:00.000Z",
+      "scheduled_until": "2022-03-28T16:30:00.000Z"
+    },
+    {
+      "id": "n2vqnsg14tw2",
+      "name": "Migrations to GitHub are Paused",
+      "status": "completed",
+      "created_at": "2022-03-24T19:11:11.343Z",
+      "updated_at": "2022-03-28T15:02:33.501Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-03-28T15:02:33.485Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/0sbybcwhh1kh",
+      "started_at": "2022-03-24T19:11:11.340Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "pt16txtn8ytb",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "n2vqnsg14tw2",
+          "created_at": "2022-03-28T15:02:33.485Z",
+          "updated_at": "2022-03-28T15:02:33.485Z",
+          "display_at": "2022-03-28T15:02:33.485Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "t0ddwvwr7h0b",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "n2vqnsg14tw2",
+          "created_at": "2022-03-28T12:01:30.580Z",
+          "updated_at": "2022-03-28T12:01:30.580Z",
+          "display_at": "2022-03-28T12:01:30.580Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "2347r7zr11nc",
+          "status": "scheduled",
+          "body": "Migrations to GitHub will proactively be paused on Monday, March 28th from 12:00 to 16:30 UTC to reduce mySQL1 load.",
+          "incident_id": "n2vqnsg14tw2",
+          "created_at": "2022-03-24T19:11:11.376Z",
+          "updated_at": "2022-03-24T19:11:11.376Z",
+          "display_at": "2022-03-24T19:11:11.376Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-03-28T12:00:00.000Z",
+      "scheduled_until": "2022-03-28T16:30:00.000Z"
+    },
+    {
+      "id": "qdh0m7tdrh80",
+      "name": "Team Synchronization for GitHub is Paused",
+      "status": "completed",
+      "created_at": "2022-03-25T17:35:10.243Z",
+      "updated_at": "2022-03-28T15:02:24.127Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-03-28T15:02:24.112Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/mfmp7nx3k44z",
+      "started_at": "2022-03-25T17:35:10.239Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "f2gjc3196c5y",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "qdh0m7tdrh80",
+          "created_at": "2022-03-28T15:02:24.112Z",
+          "updated_at": "2022-03-28T15:02:24.112Z",
+          "display_at": "2022-03-28T15:02:24.112Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "8wpnz66cwnz8",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "qdh0m7tdrh80",
+          "created_at": "2022-03-28T12:01:33.296Z",
+          "updated_at": "2022-03-28T12:01:33.296Z",
+          "display_at": "2022-03-28T12:01:33.296Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "lgj9lswf8jjz",
+          "status": "scheduled",
+          "body": "Team synchronization for GHEC organizations will proactively be paused on Monday, March 28th from 12:00 to 16:30 UTC to reduce mySQL1 load. Some teams may see delayed synchronization of teams linked to security group memberships on GitHub Enterprise Cloud and invited users may see delays in access to organizational resources. There will be no impact to enterprise managed users and groups.",
+          "incident_id": "qdh0m7tdrh80",
+          "created_at": "2022-03-25T17:35:10.285Z",
+          "updated_at": "2022-03-25T17:35:10.285Z",
+          "display_at": "2022-03-25T17:35:10.285Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-03-28T12:00:00.000Z",
+      "scheduled_until": "2022-03-28T16:30:00.000Z"
+    },
+    {
+      "id": "qt1dj8v3whg9",
+      "name": "Scheduled Maintenance for GitHub Actions",
+      "status": "completed",
+      "created_at": "2022-03-25T01:55:10.647Z",
+      "updated_at": "2022-03-25T15:01:54.059Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-03-25T15:01:54.042Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/1qnpb5wdgv5h",
+      "started_at": "2022-03-25T01:55:10.642Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "qvlk3yx6jy4s",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "qt1dj8v3whg9",
+          "created_at": "2022-03-25T15:01:54.042Z",
+          "updated_at": "2022-03-25T15:01:54.042Z",
+          "display_at": "2022-03-25T15:01:54.042Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "qvh66hfwch7f",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "qt1dj8v3whg9",
+          "created_at": "2022-03-25T12:00:33.831Z",
+          "updated_at": "2022-03-25T12:00:33.831Z",
+          "display_at": "2022-03-25T12:00:33.831Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "rxzcrn0y70rf",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "qt1dj8v3whg9",
+          "created_at": "2022-03-25T11:00:25.656Z",
+          "updated_at": "2022-03-25T11:00:25.656Z",
+          "display_at": "2022-03-25T11:00:25.656Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "lrsrjvzymsy7",
+          "status": "scheduled",
+          "body": "Actions will be in a maintenance window on Friday, March 25th from 12:00 to 16:30 UTC as we apply mitigations to reduce mySQL1 load. Starting jobs could be delayed up to an hour during this timeframe. Our engineers will be working to minimize disruption as much as possible.",
+          "incident_id": "qt1dj8v3whg9",
+          "created_at": "2022-03-25T01:55:10.691Z",
+          "updated_at": "2022-03-25T01:55:10.691Z",
+          "display_at": "2022-03-25T01:55:10.691Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "br0l2tvcx85d",
+          "name": "Actions",
+          "status": "operational",
+          "created_at": "2019-11-13T18:02:19.432Z",
+          "updated_at": "2026-10-12T14:36:09.389Z",
+          "position": 7,
+          "description": "Workflows, Compute and Orchestration for GitHub Actions",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2022-03-25T12:00:00.000Z",
+      "scheduled_until": "2022-03-25T16:30:00.000Z"
+    },
+    {
+      "id": "d689nf6g005c",
+      "name": "Team Synchronization for GitHub is Paused",
+      "status": "completed",
+      "created_at": "2022-03-25T10:37:36.147Z",
+      "updated_at": "2022-03-25T15:01:29.215Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-03-25T15:01:29.199Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/fszwxj94xj9r",
+      "started_at": "2022-03-25T10:37:36.143Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "1c04fpwptf5n",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "d689nf6g005c",
+          "created_at": "2022-03-25T15:01:29.199Z",
+          "updated_at": "2022-03-25T15:01:29.199Z",
+          "display_at": "2022-03-25T15:01:29.199Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "sx615fttr2cx",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "d689nf6g005c",
+          "created_at": "2022-03-25T12:00:34.625Z",
+          "updated_at": "2022-03-25T12:00:34.625Z",
+          "display_at": "2022-03-25T12:00:34.625Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "64tbqjnkbkbn",
+          "status": "scheduled",
+          "body": "Team synchronization will proactively be paused on Friday, March 25th from 12:00 to 16:30 UTC to reduce mySQL1 load. Some teams may see delayed synchronization of teams linked to security group memberships on GitHub Enterprise Cloud and invited users may see delays in access to organizational resources.",
+          "incident_id": "d689nf6g005c",
+          "created_at": "2022-03-25T10:37:36.197Z",
+          "updated_at": "2022-03-25T10:37:36.197Z",
+          "display_at": "2022-03-25T10:37:36.197Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-03-25T12:00:00.000Z",
+      "scheduled_until": "2022-03-25T16:30:00.000Z"
+    },
+    {
+      "id": "cz2k50kvfwsw",
+      "name": "Migrations to GitHub are Paused",
+      "status": "completed",
+      "created_at": "2022-03-24T19:10:08.289Z",
+      "updated_at": "2022-03-25T15:00:47.000Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-03-25T15:00:46.985Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/mwzymgzw5wp7",
+      "started_at": "2022-03-24T19:10:08.285Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "b7vr8y4bvpvh",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "cz2k50kvfwsw",
+          "created_at": "2022-03-25T15:00:46.985Z",
+          "updated_at": "2022-03-25T15:00:46.985Z",
+          "display_at": "2022-03-25T15:00:46.985Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "15cyqtg136qz",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "cz2k50kvfwsw",
+          "created_at": "2022-03-25T12:00:33.122Z",
+          "updated_at": "2022-03-25T12:00:33.122Z",
+          "display_at": "2022-03-25T12:00:33.122Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "cmh9tznnhfdn",
+          "status": "scheduled",
+          "body": "Migrations to GitHub will proactively be paused on Friday, March 25th from 12:00 to 16:30 UTC to reduce mySQL1 load.",
+          "incident_id": "cz2k50kvfwsw",
+          "created_at": "2022-03-24T19:10:08.330Z",
+          "updated_at": "2022-03-24T19:10:08.330Z",
+          "display_at": "2022-03-24T19:10:08.330Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-03-25T12:00:00.000Z",
+      "scheduled_until": "2022-03-25T16:30:00.000Z"
+    },
+    {
+      "id": "flf8c4lvch31",
+      "name": "Migrations to GitHub are Paused",
+      "status": "completed",
+      "created_at": "2022-03-24T10:39:09.937Z",
+      "updated_at": "2022-03-24T19:08:19.264Z",
+      "monitoring_at": null,
+      "resolved_at": "2022-03-24T19:08:19.245Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/v3m3srgnnmmq",
+      "started_at": "2022-03-24T10:39:09.932Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "wwcvx2lj22xf",
+          "status": "completed",
+          "body": "The proactive pause on Migrations to reduce load on mySQL1 has ended. Migrations to GitHub are now functional. Thank you for your patience.",
+          "incident_id": "flf8c4lvch31",
+          "created_at": "2022-03-24T19:08:19.245Z",
+          "updated_at": "2022-03-24T19:08:19.245Z",
+          "display_at": "2022-03-24T19:08:19.245Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "kzwb0thm1y84",
+          "status": "in_progress",
+          "body": "Our proactive pause of migrations to GitHub is being extended to 20:30 UTC as we continue to reduce load on mySQL1. We will provide updates as necessary.",
+          "incident_id": "flf8c4lvch31",
+          "created_at": "2022-03-24T17:37:15.343Z",
+          "updated_at": "2022-03-24T17:37:15.343Z",
+          "display_at": "2022-03-24T17:37:15.343Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "v1gck3bq40dv",
+          "status": "in_progress",
+          "body": "Our proactive pause of migrations to GitHub is being extended to 18:30 UTC as we continue to reduce load on mySQL1. We will provide updates as necessary.",
+          "incident_id": "flf8c4lvch31",
+          "created_at": "2022-03-24T16:06:38.900Z",
+          "updated_at": "2022-03-24T16:06:38.900Z",
+          "display_at": "2022-03-24T16:06:38.900Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "sb61jht10js9",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "flf8c4lvch31",
+          "created_at": "2022-03-24T12:02:33.965Z",
+          "updated_at": "2022-03-24T12:02:33.965Z",
+          "display_at": "2022-03-24T12:02:33.965Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "0n2d45mqfcdm",
+          "status": "scheduled",
+          "body": "Migrations to GitHub will proactively be paused to reduce mySQL1 load from 12:00 - 16:30 UTC on Thursday, March 24th",
+          "incident_id": "flf8c4lvch31",
+          "created_at": "2022-03-24T10:39:09.994Z",
+          "updated_at": "2022-03-24T10:39:09.994Z",
+          "display_at": "2022-03-24T10:39:09.994Z",
+          "affected_components": null,
+          "deliver_notifications": false,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2022-03-24T12:00:00.000Z",
+      "scheduled_until": "2022-03-24T20:30:00.000Z"
+    },
+    {
+      "id": "6gpzw3mdnkwj",
+      "name": "Sunsetting API Authentication via Query Parameters, and the OAuth Applications API",
+      "status": "completed",
+      "created_at": "2021-06-29T07:14:25.286Z",
+      "updated_at": "2021-08-13T14:00:29.907Z",
+      "monitoring_at": null,
+      "resolved_at": "2021-08-13T14:00:29.892Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/vrtrk0fyhy25",
+      "started_at": "2021-06-29T07:14:25.282Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "c8v1x93xjtw5",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "6gpzw3mdnkwj",
+          "created_at": "2021-08-13T14:00:29.892Z",
+          "updated_at": "2021-08-13T14:00:29.892Z",
+          "display_at": "2021-08-13T14:00:29.892Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "3mq6tpklgj45",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "6gpzw3mdnkwj",
+          "created_at": "2021-08-11T14:00:34.154Z",
+          "updated_at": "2021-08-11T14:00:34.154Z",
+          "display_at": "2021-08-11T14:00:34.154Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "71qpnpnfyvmd",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "6gpzw3mdnkwj",
+          "created_at": "2021-08-11T13:00:33.008Z",
+          "updated_at": "2021-08-11T13:00:33.008Z",
+          "display_at": "2021-08-11T13:00:33.008Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "8309j5bg0z53",
+          "status": "scheduled",
+          "body": "We will be removing <a href=\"https://developer.github.com/changes/2020-02-10-deprecating-auth-through-query-param/\">API Authentication via Query Parameters</a> and <a href=\"https://developer.github.com/changes/2020-02-14-deprecating-oauth-app-endpoint\">OAuth Application API</a> during these hours as part of a planned deprecation cycle. For more information, please read our <a href=\"https://github.blog/changelog/2021-04-19-sunsetting-api-authentication-via-query-parameters-and-the-oauth-applications-api/\">blog post</a>.",
+          "incident_id": "6gpzw3mdnkwj",
+          "created_at": "2021-06-29T07:14:25.330Z",
+          "updated_at": "2021-06-29T07:14:25.330Z",
+          "display_at": "2021-06-29T07:14:25.330Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "brv1bkgrwx7q",
+          "name": "API Requests",
+          "status": "operational",
+          "created_at": "2017-01-31T20:01:46.621Z",
+          "updated_at": "2026-09-23T10:58:27.066Z",
+          "position": 4,
+          "description": "Requests for GitHub APIs",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2021-08-11T14:00:00.000Z",
+      "scheduled_until": "2021-08-13T14:00:00.000Z"
+    },
+    {
+      "id": "d5l3bkvh9ttf",
+      "name": "Sunsetting API Authentication via Query Parameters, and the OAuth Applications API",
+      "status": "completed",
+      "created_at": "2021-04-22T08:46:03.434Z",
+      "updated_at": "2021-06-10T14:00:29.950Z",
+      "monitoring_at": null,
+      "resolved_at": "2021-06-10T14:00:29.931Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/9vpp2xdh8gl5",
+      "started_at": "2021-04-22T08:46:03.429Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "1rxzppx4ttm8",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "d5l3bkvh9ttf",
+          "created_at": "2021-06-10T14:00:29.931Z",
+          "updated_at": "2021-06-10T14:00:29.931Z",
+          "display_at": "2021-06-10T14:00:29.931Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "2s8qtj348956",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "d5l3bkvh9ttf",
+          "created_at": "2021-06-09T14:00:31.319Z",
+          "updated_at": "2021-06-09T14:00:31.319Z",
+          "display_at": "2021-06-09T14:00:31.319Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "zljmn2cpgsjt",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "d5l3bkvh9ttf",
+          "created_at": "2021-06-09T13:00:38.174Z",
+          "updated_at": "2021-06-09T13:00:38.174Z",
+          "display_at": "2021-06-09T13:00:38.174Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "170rnss8kbh7",
+          "status": "scheduled",
+          "body": "We will be removing <a href=\"https://developer.github.com/changes/2020-02-10-deprecating-auth-through-query-param/\">API Authentication via Query Parameters</a> and <a href=\"https://developer.github.com/changes/2020-02-14-deprecating-oauth-app-endpoint\">OAuth Application API</a> during these hours as part of a planned deprecation cycle. For more information, please read our <a href=\"https://github.blog/changelog/2021-04-19-sunsetting-api-authentication-via-query-parameters-and-the-oauth-applications-api/\">blog post</a>.",
+          "incident_id": "d5l3bkvh9ttf",
+          "created_at": "2021-04-22T08:46:03.482Z",
+          "updated_at": "2021-04-22T08:50:16.861Z",
+          "display_at": "2021-04-22T08:46:03.482Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "brv1bkgrwx7q",
+          "name": "API Requests",
+          "status": "operational",
+          "created_at": "2017-01-31T20:01:46.621Z",
+          "updated_at": "2026-09-23T10:58:27.066Z",
+          "position": 4,
+          "description": "Requests for GitHub APIs",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2021-06-09T14:00:00.000Z",
+      "scheduled_until": "2021-06-10T14:00:00.000Z"
+    },
+    {
+      "id": "wh3yy9v46929",
+      "name": "GitHub Container Registry in read-only mode",
+      "status": "completed",
+      "created_at": "2021-06-02T14:20:22.439Z",
+      "updated_at": "2021-06-05T17:30:29.912Z",
+      "monitoring_at": null,
+      "resolved_at": "2021-06-05T17:30:29.884Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/rl1vn8dszh3b",
+      "started_at": "2021-06-02T14:20:22.435Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "dhc1bmmhqxkh",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "wh3yy9v46929",
+          "created_at": "2021-06-05T17:30:29.884Z",
+          "updated_at": "2021-06-05T17:30:29.884Z",
+          "display_at": "2021-06-05T17:30:29.884Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "GitHub Packages",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "r957g3s0xjc9",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "wh3yy9v46929",
+          "created_at": "2021-06-05T16:00:45.251Z",
+          "updated_at": "2021-06-05T16:00:45.251Z",
+          "display_at": "2021-06-05T16:00:45.251Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "GitHub Packages",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "cmlg7wnxn6v6",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "wh3yy9v46929",
+          "created_at": "2021-06-05T15:00:30.906Z",
+          "updated_at": "2021-06-05T15:00:30.906Z",
+          "display_at": "2021-06-05T15:00:30.906Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "b3zz492f16f1",
+          "status": "scheduled",
+          "body": "GitHub will be performing scheduled maintenance on GitHub Container Registry (ghcr.io). During this time GitHub Container Registry will be put in Read Only mode. This means that docker pull commands will continue to work, however docker push commands to the GitHub Container Registry will be denied during this period.",
+          "incident_id": "wh3yy9v46929",
+          "created_at": "2021-06-02T14:20:22.485Z",
+          "updated_at": "2021-06-02T14:20:22.485Z",
+          "display_at": "2021-06-02T14:20:22.485Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "GitHub Packages",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "st3j38cctv9l",
+          "name": "Packages",
+          "status": "operational",
+          "created_at": "2019-11-13T18:02:40.064Z",
+          "updated_at": "2026-08-13T15:33:02.208Z",
+          "position": 8,
+          "description": "API requests and webhook delivery for GitHub Packages",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2021-06-05T16:00:00.000Z",
+      "scheduled_until": "2021-06-05T17:30:00.000Z"
+    },
+    {
+      "id": "lkcdh6zsvngf",
+      "name": "Sunsetting API Authentication via Query Parameters, and the OAuth Applications API",
+      "status": "completed",
+      "created_at": "2021-04-22T08:44:58.328Z",
+      "updated_at": "2021-05-06T02:00:29.744Z",
+      "monitoring_at": null,
+      "resolved_at": "2021-05-06T02:00:29.722Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/9ymg1gwpw2hx",
+      "started_at": "2021-04-22T08:44:58.323Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "l5n61hv0srpv",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "lkcdh6zsvngf",
+          "created_at": "2021-05-06T02:00:29.722Z",
+          "updated_at": "2021-05-06T02:00:29.722Z",
+          "display_at": "2021-05-06T02:00:29.722Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "25xzrhy0rchz",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "lkcdh6zsvngf",
+          "created_at": "2021-05-05T14:01:22.651Z",
+          "updated_at": "2021-05-05T14:01:22.651Z",
+          "display_at": "2021-05-05T14:01:22.651Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "zkpqm0nhdqy8",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "lkcdh6zsvngf",
+          "created_at": "2021-05-05T12:59:32.887Z",
+          "updated_at": "2021-05-05T12:59:32.887Z",
+          "display_at": "2021-05-05T12:59:32.887Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "kgshh6rm7zg5",
+          "status": "scheduled",
+          "body": "We will be removing <a href=\"https://developer.github.com/changes/2020-02-10-deprecating-auth-through-query-param/\">API Authentication via Query Parameters</a> and <a href=\"https://developer.github.com/changes/2020-02-14-deprecating-oauth-app-endpoint\">OAuth Application API</a> during these hours as part of a planned deprecation cycle. For more information, please read our <a href=\"https://github.blog/changelog/2021-04-19-sunsetting-api-authentication-via-query-parameters-and-the-oauth-applications-api/\">blog post</a>.",
+          "incident_id": "lkcdh6zsvngf",
+          "created_at": "2021-04-22T08:44:58.383Z",
+          "updated_at": "2021-04-22T08:49:00.480Z",
+          "display_at": "2021-04-22T08:44:58.383Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "brv1bkgrwx7q",
+          "name": "API Requests",
+          "status": "operational",
+          "created_at": "2017-01-31T20:01:46.621Z",
+          "updated_at": "2026-09-23T10:58:27.066Z",
+          "position": 4,
+          "description": "Requests for GitHub APIs",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2021-05-05T14:00:00.000Z",
+      "scheduled_until": "2021-05-06T02:00:00.000Z"
+    },
+    {
+      "id": "b48hhfrdlfk4",
+      "name": "GitHub Container Registry enters Read Only mode",
+      "status": "completed",
+      "created_at": "2021-01-07T16:07:16.448Z",
+      "updated_at": "2021-01-09T17:00:35.570Z",
+      "monitoring_at": null,
+      "resolved_at": "2021-01-09T17:00:35.548Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/xcmb400bldcg",
+      "started_at": "2021-01-07T16:07:16.443Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "8yvxk145rs14",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "b48hhfrdlfk4",
+          "created_at": "2021-01-09T17:00:35.548Z",
+          "updated_at": "2021-01-09T17:00:35.548Z",
+          "display_at": "2021-01-09T17:00:35.548Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "bs1lyhjlq05t",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "b48hhfrdlfk4",
+          "created_at": "2021-01-09T16:00:45.119Z",
+          "updated_at": "2021-01-09T16:00:45.119Z",
+          "display_at": "2021-01-09T16:00:45.119Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "GitHub Packages",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "lx3hw7996w62",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "b48hhfrdlfk4",
+          "created_at": "2021-01-09T15:00:37.535Z",
+          "updated_at": "2021-01-09T15:00:37.535Z",
+          "display_at": "2021-01-09T15:00:37.535Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "fxl8c226qr03",
+          "status": "scheduled",
+          "body": "On 1/9/21 at 16:00 UTC GitHub will be performing scheduled maintenance on GitHub Container Registry (ghcr.io). During this time GitHub Container Registry will be put in Read Only mode. This means that \"docker pull\" commands will continue to work, however docker push commands to the GitHub Container Registry will be denied during this period.",
+          "incident_id": "b48hhfrdlfk4",
+          "created_at": "2021-01-07T16:07:16.500Z",
+          "updated_at": "2021-01-07T16:07:16.500Z",
+          "display_at": "2021-01-07T16:07:16.500Z",
+          "affected_components": [
+            {
+              "code": "st3j38cctv9l",
+              "name": "GitHub Packages",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "st3j38cctv9l",
+          "name": "Packages",
+          "status": "operational",
+          "created_at": "2019-11-13T18:02:40.064Z",
+          "updated_at": "2026-08-13T15:33:02.208Z",
+          "position": 8,
+          "description": "API requests and webhook delivery for GitHub Packages",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2021-01-09T16:00:00.000Z",
+      "scheduled_until": "2021-01-09T17:00:00.000Z"
+    },
+    {
+      "id": "3jr0nb7zjpbm",
+      "name": "macOS virtual environment maintenance",
+      "status": "completed",
+      "created_at": "2020-12-14T16:37:35.904Z",
+      "updated_at": "2020-12-18T19:01:59.111Z",
+      "monitoring_at": null,
+      "resolved_at": "2020-12-18T19:01:59.096Z",
+      "impact": "maintenance",
+      "shortlink": "https://stspg.io/rm0t69d0btrr",
+      "started_at": "2020-12-14T16:37:35.898Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "myv3pmsmm5fg",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "3jr0nb7zjpbm",
+          "created_at": "2020-12-18T19:01:59.096Z",
+          "updated_at": "2020-12-18T19:01:59.096Z",
+          "display_at": "2020-12-18T19:01:59.096Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "f0421g6r1g8m",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "3jr0nb7zjpbm",
+          "created_at": "2020-12-15T10:00:40.056Z",
+          "updated_at": "2020-12-15T10:00:40.056Z",
+          "display_at": "2020-12-15T10:00:40.056Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "vrs2hgm4k8th",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "3jr0nb7zjpbm",
+          "created_at": "2020-12-15T09:00:29.617Z",
+          "updated_at": "2020-12-15T09:00:29.617Z",
+          "display_at": "2020-12-15T09:00:29.617Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "9byn0w0j9hyg",
+          "status": "scheduled",
+          "body": "During the week of December 14-18, GitHub will be performing scheduled maintenance on one of our datacenters that may result in longer than normal queue times for macOS workflows using macos-latest, macos-10.14, or macos-10.15. In some cases, it may be possible that jobs will time out or be cancelled, and will need to be restarted.\n\nWe apologize for the inconvenience and encourage you to be patient, and give your workflows extra time to run. Follow our progress in the virtual-environments repo <a href=\"https://github.com/actions/virtual-environments/issues/2247\">here</a>.",
+          "incident_id": "3jr0nb7zjpbm",
+          "created_at": "2020-12-14T16:37:35.959Z",
+          "updated_at": "2020-12-14T16:37:35.959Z",
+          "display_at": "2020-12-14T16:37:35.959Z",
+          "affected_components": [
+            {
+              "code": "br0l2tvcx85d",
+              "name": "GitHub Actions",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "br0l2tvcx85d",
+          "name": "Actions",
+          "status": "operational",
+          "created_at": "2019-11-13T18:02:19.432Z",
+          "updated_at": "2026-10-12T14:36:09.389Z",
+          "position": 7,
+          "description": "Workflows, Compute and Orchestration for GitHub Actions",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2020-12-15T10:00:00.000Z",
+      "scheduled_until": "2020-12-19T04:00:00.000Z"
+    },
+    {
+      "id": "0ssdjdm7k4h4",
+      "name": "Deprecating password authentication",
+      "status": "completed",
+      "created_at": "2020-10-05T08:00:27.034Z",
+      "updated_at": "2020-10-28T19:00:29.781Z",
+      "monitoring_at": null,
+      "resolved_at": "2020-10-28T19:00:29.663Z",
+      "impact": "maintenance",
+      "shortlink": "http://stspg.io/nv3xjbjgf0p1",
+      "started_at": "2020-10-05T08:00:27.029Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "s9z14hjpb84p",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "0ssdjdm7k4h4",
+          "created_at": "2020-10-28T19:00:29.663Z",
+          "updated_at": "2020-10-28T19:00:29.663Z",
+          "display_at": "2020-10-28T19:00:29.663Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "1dqr78thkkb9",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "0ssdjdm7k4h4",
+          "created_at": "2020-10-28T16:00:32.429Z",
+          "updated_at": "2020-10-28T16:00:32.429Z",
+          "display_at": "2020-10-28T16:00:32.429Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "0pj2cxjf1jpf",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "0ssdjdm7k4h4",
+          "created_at": "2020-10-28T15:00:32.599Z",
+          "updated_at": "2020-10-28T15:00:32.599Z",
+          "display_at": "2020-10-28T15:00:32.599Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "lcst39s8f94y",
+          "status": "scheduled",
+          "body": "As mentioned in our <a href=\"https://developer.github.com/changes/2020-02-14-deprecating-password-auth\">developer guide</a>, GitHub no longer supports basic authentication using a username and password. Instead, we recommend using personal access tokens or the web application flow.",
+          "incident_id": "0ssdjdm7k4h4",
+          "created_at": "2020-10-05T08:00:27.104Z",
+          "updated_at": "2020-10-05T08:00:27.104Z",
+          "display_at": "2020-10-05T08:00:27.104Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "brv1bkgrwx7q",
+          "name": "API Requests",
+          "status": "operational",
+          "created_at": "2017-01-31T20:01:46.621Z",
+          "updated_at": "2026-09-23T10:58:27.066Z",
+          "position": 4,
+          "description": "Requests for GitHub APIs",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2020-10-28T16:00:00.000Z",
+      "scheduled_until": "2020-10-28T19:00:00.000Z"
+    },
+    {
+      "id": "7jyjrj5prv9h",
+      "name": "Deprecating password authentication",
+      "status": "completed",
+      "created_at": "2020-10-05T07:59:47.919Z",
+      "updated_at": "2020-10-28T10:00:31.630Z",
+      "monitoring_at": null,
+      "resolved_at": "2020-10-28T10:00:31.605Z",
+      "impact": "maintenance",
+      "shortlink": "http://stspg.io/0vw5jqzjmms3",
+      "started_at": "2020-10-05T07:59:47.913Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "899d3rq6m7k9",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "7jyjrj5prv9h",
+          "created_at": "2020-10-28T10:00:31.605Z",
+          "updated_at": "2020-10-28T10:00:31.605Z",
+          "display_at": "2020-10-28T10:00:31.605Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "m3dwk0f9rstf",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "7jyjrj5prv9h",
+          "created_at": "2020-10-28T07:00:32.329Z",
+          "updated_at": "2020-10-28T07:00:32.329Z",
+          "display_at": "2020-10-28T07:00:32.329Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "7r6p7c9st1p7",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "7jyjrj5prv9h",
+          "created_at": "2020-10-28T06:00:37.369Z",
+          "updated_at": "2020-10-28T06:00:37.369Z",
+          "display_at": "2020-10-28T06:00:37.369Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "w7gmkxsmnmnp",
+          "status": "scheduled",
+          "body": "As mentioned in our <a href=\"https://developer.github.com/changes/2020-02-14-deprecating-password-auth\">developer guide</a>, GitHub no longer supports basic authentication using a username and password. Instead, we recommend using personal access tokens or the web application flow.",
+          "incident_id": "7jyjrj5prv9h",
+          "created_at": "2020-10-05T07:59:47.996Z",
+          "updated_at": "2020-10-05T07:59:47.996Z",
+          "display_at": "2020-10-05T07:59:47.996Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "brv1bkgrwx7q",
+          "name": "API Requests",
+          "status": "operational",
+          "created_at": "2017-01-31T20:01:46.621Z",
+          "updated_at": "2026-09-23T10:58:27.066Z",
+          "position": 4,
+          "description": "Requests for GitHub APIs",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2020-10-28T07:00:00.000Z",
+      "scheduled_until": "2020-10-28T10:00:00.000Z"
+    },
+    {
+      "id": "ry5psbndh11j",
+      "name": "Deprecating password authentication",
+      "status": "completed",
+      "created_at": "2020-09-14T09:34:09.320Z",
+      "updated_at": "2020-09-30T19:00:29.640Z",
+      "monitoring_at": null,
+      "resolved_at": "2020-09-30T19:00:29.621Z",
+      "impact": "maintenance",
+      "shortlink": "http://stspg.io/r7b3cwdr1hll",
+      "started_at": "2020-09-14T09:34:09.316Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "rkxmcwwt3wcf",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "ry5psbndh11j",
+          "created_at": "2020-09-30T19:00:29.621Z",
+          "updated_at": "2020-09-30T19:00:29.621Z",
+          "display_at": "2020-09-30T19:00:29.621Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "tz8lcfk741pb",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "ry5psbndh11j",
+          "created_at": "2020-09-30T16:00:31.846Z",
+          "updated_at": "2020-09-30T16:00:31.846Z",
+          "display_at": "2020-09-30T16:00:31.846Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "px4xz5kgf9dx",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "ry5psbndh11j",
+          "created_at": "2020-09-30T14:59:30.183Z",
+          "updated_at": "2020-09-30T14:59:30.183Z",
+          "display_at": "2020-09-30T14:59:30.183Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "9pyd05dq9dmh",
+          "status": "scheduled",
+          "body": "As mentioned in our <a href=\"https://developer.github.com/changes/2020-02-14-deprecating-password-auth\">developer guide</a>, GitHub no longer supports basic authentication using a username and password. Instead, we recommend using personal access tokens or the web application flow.",
+          "incident_id": "ry5psbndh11j",
+          "created_at": "2020-09-14T09:34:09.369Z",
+          "updated_at": "2020-09-14T09:35:34.841Z",
+          "display_at": "2020-09-14T09:34:09.369Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "brv1bkgrwx7q",
+          "name": "API Requests",
+          "status": "operational",
+          "created_at": "2017-01-31T20:01:46.621Z",
+          "updated_at": "2026-09-23T10:58:27.066Z",
+          "position": 4,
+          "description": "Requests for GitHub APIs",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2020-09-30T16:00:00.000Z",
+      "scheduled_until": "2020-09-30T19:00:00.000Z"
+    },
+    {
+      "id": "skzhfwy9kf8q",
+      "name": "Deprecating password authentication",
+      "status": "completed",
+      "created_at": "2020-09-14T09:33:28.071Z",
+      "updated_at": "2020-09-30T10:00:30.126Z",
+      "monitoring_at": null,
+      "resolved_at": "2020-09-30T10:00:30.106Z",
+      "impact": "maintenance",
+      "shortlink": "http://stspg.io/z0gf9ffzy530",
+      "started_at": "2020-09-14T09:33:28.065Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "dv5mb9tk7466",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "skzhfwy9kf8q",
+          "created_at": "2020-09-30T10:00:30.106Z",
+          "updated_at": "2020-09-30T10:00:30.106Z",
+          "display_at": "2020-09-30T10:00:30.106Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "under_maintenance",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "8xyyxx6prwp9",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "skzhfwy9kf8q",
+          "created_at": "2020-09-30T07:01:12.442Z",
+          "updated_at": "2020-09-30T07:01:12.442Z",
+          "display_at": "2020-09-30T07:01:12.442Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "under_maintenance"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "szv8w154cxtk",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "skzhfwy9kf8q",
+          "created_at": "2020-09-30T06:00:30.509Z",
+          "updated_at": "2020-09-30T06:00:30.509Z",
+          "display_at": "2020-09-30T06:00:30.509Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "xwjsnptt3v4g",
+          "status": "scheduled",
+          "body": "As mentioned in our <a href=\"https://developer.github.com/changes/2020-02-14-deprecating-password-auth/\">developer guide</a>, GitHub no longer supports basic authentication using a username and password. Instead, we recommend using personal access tokens or the web application flow.",
+          "incident_id": "skzhfwy9kf8q",
+          "created_at": "2020-09-14T09:33:28.126Z",
+          "updated_at": "2020-09-14T09:36:29.607Z",
+          "display_at": "2020-09-14T09:33:28.126Z",
+          "affected_components": [
+            {
+              "code": "brv1bkgrwx7q",
+              "name": "API Requests",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [
+        {
+          "id": "brv1bkgrwx7q",
+          "name": "API Requests",
+          "status": "operational",
+          "created_at": "2017-01-31T20:01:46.621Z",
+          "updated_at": "2026-09-23T10:58:27.066Z",
+          "position": 4,
+          "description": "Requests for GitHub APIs",
+          "showcase": true,
+          "start_date": null,
+          "group_id": null,
+          "page_id": "kctbh9vrtdwd",
+          "group": false,
+          "only_show_if_degraded": false
+        }
+      ],
+      "scheduled_for": "2020-09-30T07:00:00.000Z",
+      "scheduled_until": "2020-09-30T10:00:00.000Z"
+    },
+    {
+      "id": "kq75qp7try8t",
+      "name": "\"Github Services\" Feature Webhook Brownout",
+      "status": "completed",
+      "created_at": "2018-12-19T21:27:18.687Z",
+      "updated_at": "2019-01-14T19:01:00.010Z",
+      "monitoring_at": null,
+      "resolved_at": "2019-01-14T19:00:59.137Z",
+      "impact": "maintenance",
+      "shortlink": "http://stspg.io/48fef2c91",
+      "started_at": "2018-12-19T21:27:18.744Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "95f3krkl4phj",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "kq75qp7try8t",
+          "created_at": "2019-01-14T19:00:59.137Z",
+          "updated_at": "2019-01-14T19:01:00.006Z",
+          "display_at": "2019-01-14T19:00:59.137Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": 1084888125032128514
+        },
+        {
+          "id": "fb5mm0jp4fr3",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "kq75qp7try8t",
+          "created_at": "2019-01-07T19:00:48.377Z",
+          "updated_at": "2019-01-07T19:00:48.377Z",
+          "display_at": "2019-01-07T19:00:48.377Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "jq1y7ysy0hy9",
+          "status": "scheduled",
+          "body": "Maintenance will begin as scheduled in 60 minutes.",
+          "incident_id": "kq75qp7try8t",
+          "created_at": "2019-01-07T17:59:32.334Z",
+          "updated_at": "2019-01-07T17:59:32.334Z",
+          "display_at": "2019-01-07T17:59:32.334Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "s4ytxfvy4vxy",
+          "status": "scheduled",
+          "body": "As part of the deprecation process of the \"GitHub Services\" feature, we have planned a week-long brownout of services webhook deliveries. This brownout will begin on January 7th, at 19:00 UTC, and will end on January 14th, at 19:00 UTC. All other systems are operating normally. More information can be found at https://developer.github.com/changes/2018-11-05-github-services-brownout",
+          "incident_id": "kq75qp7try8t",
+          "created_at": "2018-12-19T21:27:18.744Z",
+          "updated_at": "2018-12-19T21:27:18.744Z",
+          "display_at": "2018-12-19T21:27:18.744Z",
+          "affected_components": [
+            {
+              "code": "5bfcr2x9x8kc",
+              "name": "Notifications",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2019-01-07T19:00:00.000Z",
+      "scheduled_until": "2019-01-14T19:00:00.000Z"
+    },
+    {
+      "id": "xsz0vwqhcvt6",
+      "name": "\"Github Services\" Feature Webhook Brownout",
+      "status": "completed",
+      "created_at": "2018-12-12T17:59:46.160Z",
+      "updated_at": "2018-12-13T18:15:31.901Z",
+      "monitoring_at": null,
+      "resolved_at": "2018-12-13T18:15:31.857Z",
+      "impact": "maintenance",
+      "shortlink": "http://stspg.io/5fec12c61",
+      "started_at": "2018-12-12T17:59:46.227Z",
+      "page_id": "kctbh9vrtdwd",
+      "incident_updates": [
+        {
+          "id": "t8hlhtb3jnrf",
+          "status": "completed",
+          "body": "The scheduled maintenance has been completed.",
+          "incident_id": "xsz0vwqhcvt6",
+          "created_at": "2018-12-13T18:15:31.857Z",
+          "updated_at": "2018-12-13T18:15:31.857Z",
+          "display_at": "2018-12-13T18:15:31.857Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "4c4y95lyzvyj",
+          "status": "in_progress",
+          "body": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "incident_id": "xsz0vwqhcvt6",
+          "created_at": "2018-12-12T18:15:59.100Z",
+          "updated_at": "2018-12-12T18:15:59.100Z",
+          "display_at": "2018-12-12T18:15:59.100Z",
+          "affected_components": null,
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        },
+        {
+          "id": "444dv1srwgym",
+          "status": "scheduled",
+          "body": "As part of the deprecation process of the \"GitHub Services\" feature, we have commenced the 24 hour brownout of services webhook deliveries. All other systems are operating normally. More information can be found in https://git.io/fpf5g.",
+          "incident_id": "xsz0vwqhcvt6",
+          "created_at": "2018-12-12T17:59:46.227Z",
+          "updated_at": "2018-12-12T17:59:46.227Z",
+          "display_at": "2018-12-12T17:59:46.227Z",
+          "affected_components": [
+            {
+              "code": "5bfcr2x9x8kc",
+              "name": "Notifications",
+              "old_status": "operational",
+              "new_status": "operational"
+            }
+          ],
+          "deliver_notifications": true,
+          "custom_tweet": null,
+          "tweet_id": null
+        }
+      ],
+      "components": [],
+      "scheduled_for": "2018-12-12T18:15:00.000Z",
+      "scheduled_until": "2018-12-13T18:15:00.000Z"
+    }
+  ]
+}

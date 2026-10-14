@@ -173,6 +173,25 @@ describe('mapGcpIncident', () => {
     expect(incident.shortlink).toBeNull();
     expect(incident.incident_updates).toHaveLength(0);
   });
+
+  /** Google Cloud writes update text as markdown, never HTML — no conversion may touch it. */
+  it('keeps every markdown update body byte-identical, blank lines and indentation included (#63)', () => {
+    const records = liveIncidents();
+    const sources = records.flatMap((r) => (r.updates ?? []).map((u) => u.text ?? ''));
+    const bodies = records.flatMap((r) =>
+      mapGcpIncident(r, GCP).incident_updates.map((u) => u.body),
+    );
+    expect(bodies.length).toBeGreaterThan(0);
+    expect([...bodies].sort()).toEqual([...sources].sort());
+
+    const markdown =
+      '**Summary:**\n\nError rates rose (<1%) in us-central1.\n\n**Workaround:**\n\n- Retry with backoff:\n\n      gcloud run deploy --region=us-east1\n\n  - then confirm';
+    const [update] = mapGcpIncident(
+      { id: 'md', updates: [{ text: markdown, when: '2026-10-01T00:00:00Z' }] },
+      GCP,
+    ).incident_updates;
+    expect(update!.body).toBe(markdown);
+  });
 });
 
 describe('mapGcpSummary', () => {

@@ -23,6 +23,12 @@ import {
   fetchAzureSummary,
 } from './azure-adapter.js';
 import {
+  fetchAzureDevOpsIncidents,
+  fetchAzureDevOpsScheduledMaintenances,
+  fetchAzureDevOpsSummary,
+} from './azure-devops-adapter.js';
+import { inScopeComponentIds, scopeRecords, scopeSummary } from './component-scope.js';
+import {
   fetchFirehydrantIncidents,
   fetchFirehydrantScheduledMaintenances,
   fetchFirehydrantSummary,
@@ -43,10 +49,10 @@ import {
   fetchStatusioSummary,
 } from './statusio-adapter.js';
 
-/** Fetch the status summary for a resolved vendor via its backend adapter. */
-export function fetchVendorSummary(
-  vendor: ResolvedVendor,
-): Promise<{ data: StatuspageSummaryResponse; cached: boolean }> {
+type Fetched<T> = Promise<{ data: T; cached: boolean }>;
+
+/** The backend's summary for a resolved vendor, before any component scope. */
+function backendSummary(vendor: ResolvedVendor): Fetched<StatuspageSummaryResponse> {
   switch (vendor.api_type) {
     case 'statuspage':
       return getStatuspageService().fetchSummary(vendor.url);
@@ -60,15 +66,15 @@ export function fetchVendorSummary(
       return fetchGcpSummary(vendor);
     case 'azure':
       return fetchAzureSummary(vendor);
+    case 'azure-devops':
+      return fetchAzureDevOpsSummary(vendor);
     case 'firehydrant':
       return fetchFirehydrantSummary(vendor);
   }
 }
 
-/** Fetch the incident list for a resolved vendor via its backend adapter. */
-export function fetchVendorIncidents(
-  vendor: ResolvedVendor,
-): Promise<{ data: StatuspageIncidentsResponse; cached: boolean }> {
+/** The backend's incident list for a resolved vendor, before any component scope. */
+function backendIncidents(vendor: ResolvedVendor): Fetched<StatuspageIncidentsResponse> {
   switch (vendor.api_type) {
     case 'statuspage':
       return getStatuspageService().fetchIncidents(vendor.url);
@@ -82,15 +88,17 @@ export function fetchVendorIncidents(
       return fetchGcpIncidents(vendor);
     case 'azure':
       return fetchAzureIncidents(vendor);
+    case 'azure-devops':
+      return fetchAzureDevOpsIncidents(vendor);
     case 'firehydrant':
       return fetchFirehydrantIncidents(vendor);
   }
 }
 
-/** Fetch scheduled maintenances for a resolved vendor via its backend adapter. */
-export function fetchVendorScheduledMaintenances(
+/** The backend's maintenance windows for a resolved vendor, before any component scope. */
+function backendScheduledMaintenances(
   vendor: ResolvedVendor,
-): Promise<{ data: StatuspageScheduledMaintenancesResponse; cached: boolean }> {
+): Fetched<StatuspageScheduledMaintenancesResponse> {
   switch (vendor.api_type) {
     case 'statuspage':
       return getStatuspageService().fetchScheduledMaintenances(vendor.url);
@@ -104,9 +112,85 @@ export function fetchVendorScheduledMaintenances(
       return fetchGcpScheduledMaintenances(vendor);
     case 'azure':
       return fetchAzureScheduledMaintenances(vendor);
+    case 'azure-devops':
+      return fetchAzureDevOpsScheduledMaintenances(vendor);
     case 'firehydrant':
       return fetchFirehydrantScheduledMaintenances(vendor);
   }
+}
+
+/**
+ * Ids of a scoped vendor's components. Incident and maintenance records name their
+ * components by id and group id but carry no group names, so the page's component
+ * table — the summary, shared with the status check through the response cache — is
+ * what resolves a group id to its name.
+ */
+async function scopedComponentIds(vendor: ResolvedVendor, prefix: string): Promise<Set<string>> {
+  const { data } = await backendSummary(vendor);
+  return inScopeComponentIds(data.components, prefix);
+}
+
+/**
+ * Fetch the status summary for a resolved vendor via its backend adapter, narrowed to
+ * the entry's components when it declares a component scope.
+ */
+export async function fetchVendorSummary(
+  vendor: ResolvedVendor,
+): Fetched<StatuspageSummaryResponse> {
+  const prefix = vendor.component_scope_prefix;
+  if (prefix === undefined) return backendSummary(vendor);
+  const { data, cached } = await backendSummary(vendor);
+  return { data: scopeSummary(data, prefix, vendor.name), cached };
+}
+
+/**
+ * Fetch the incident list for a resolved vendor via its backend adapter, narrowed to
+ * the records touching the entry's components when it declares a component scope.
+ * `upstreamCount` is how many records the feed returned before that narrowing — the
+ * number that shows whether the feed hit its own ceiling.
+ */
+export async function fetchVendorIncidents(
+  vendor: ResolvedVendor,
+): Promise<{ data: StatuspageIncidentsResponse; cached: boolean; upstreamCount: number }> {
+  const prefix = vendor.component_scope_prefix;
+  if (prefix === undefined) {
+    const { data, cached } = await backendIncidents(vendor);
+    return { data, cached, upstreamCount: data.incidents.length };
+  }
+  const [{ data, cached }, ids] = await Promise.all([
+    backendIncidents(vendor),
+    scopedComponentIds(vendor, prefix),
+  ]);
+  return {
+    data: {
+      page: { ...data.page, name: vendor.name },
+      incidents: scopeRecords(data.incidents, ids),
+    },
+    cached,
+    upstreamCount: data.incidents.length,
+  };
+}
+
+/**
+ * Fetch scheduled maintenances for a resolved vendor via its backend adapter, narrowed
+ * to the windows touching the entry's components when it declares a component scope.
+ */
+export async function fetchVendorScheduledMaintenances(
+  vendor: ResolvedVendor,
+): Fetched<StatuspageScheduledMaintenancesResponse> {
+  const prefix = vendor.component_scope_prefix;
+  if (prefix === undefined) return backendScheduledMaintenances(vendor);
+  const [{ data, cached }, ids] = await Promise.all([
+    backendScheduledMaintenances(vendor),
+    scopedComponentIds(vendor, prefix),
+  ]);
+  return {
+    data: {
+      page: { ...data.page, name: vendor.name },
+      scheduled_maintenances: scopeRecords(data.scheduled_maintenances, ids),
+    },
+    cached,
+  };
 }
 
 /**
@@ -198,6 +282,17 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         scheduledMaintenance: false,
         historyPages: false,
       };
+    case 'azure-devops':
+      // The _rss feed is a rolling window bounded by age, with no record count to
+      // disclose, and it keeps resolved events (status:state Resolved). Neither source
+      // publishes maintenance: fetchAzureDevOpsScheduledMaintenances is empty with no
+      // network call.
+      return {
+        incidentCeiling: null,
+        resolved: 'full',
+        scheduledMaintenance: false,
+        historyPages: false,
+      };
     case 'statusio':
       // The Public Status API serves the page's current incidents plus its active
       // and upcoming maintenance windows; resolved incidents drop off the feed.
@@ -217,4 +312,17 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         historyPages: false,
       };
   }
+}
+
+/**
+ * Feed capabilities for one resolved vendor: its backend's, except that an entry with a
+ * component scope reads no history archive — archive records list no components, so
+ * they cannot be narrowed to the entry's. The incident ceiling still applies, counted on
+ * the unscoped feed.
+ */
+export function vendorHistory(vendor: ResolvedVendor): BackendHistory {
+  const history = backendHistory(vendor.api_type);
+  return vendor.component_scope_prefix === undefined
+    ? history
+    : { ...history, historyPages: false };
 }

@@ -158,6 +158,34 @@ describe('mapSlackIncident', () => {
     expect(inc.incident_updates).toHaveLength(0);
     expect(inc.resolved_at).toBeNull();
   });
+
+  /** Every live note is HTML: `<p>` paragraphs, `<br>`, `&nbsp;`, and links wrapping a `<span>`. */
+  it('renders every recorded note as plain text (#63)', () => {
+    const history = fixture<SlackIncident[]>('slack-history.json');
+    const bodies = history.flatMap((item) =>
+      mapSlackIncident(item, SLACK).incident_updates.map((u) => u.body),
+    );
+    expect(bodies).toHaveLength(12);
+    for (const body of bodies) {
+      expect(body).not.toMatch(/<\/?(?:p|br|a|span)\b|&nbsp;|&amp;/);
+      expect(body).not.toMatch(/^\s|\s$|\n\n/);
+    }
+
+    const [, workaround, resolved] = mapSlackIncident(history[0]!, SLACK).incident_updates;
+    expect(workaround!.body).toBe(
+      [
+        'Additional Slack engineers have been engaged and are investigating this issue.',
+        'As a workaround, if users require support, they can use the ‘Send us a Message’ functionality on the Slack Help Center page here: https://slack.com/intl/en-gb/help/requests/new . A member of the Slack team will then be in touch.',
+        "We're working to resolve this issue and will provide an update in 30 minutes or sooner if additional information becomes available.",
+      ].join('\n'),
+    );
+    expect(resolved!.body).toBe(
+      [
+        "We've resolved the issue and users can now use the Chat feature on the Slack Help Center. We performed a configuration change, which brought the feature back online and have validated that it's functioning as expected.",
+        'We apologize for how this incident may have affected you and your business.',
+      ].join('\n'),
+    );
+  });
 });
 
 describe('fetchers', () => {

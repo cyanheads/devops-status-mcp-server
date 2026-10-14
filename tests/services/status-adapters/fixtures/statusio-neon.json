@@ -1,0 +1,796 @@
+{
+  "result": {
+    "status_overall": {
+      "updated": "2026-10-01T15:31:24.194Z",
+      "status": "Operational",
+      "status_code": 100
+    },
+    "status": [
+      {
+        "id": "690ccc238c3745059f2b33b2",
+        "name": "Database Connectivity",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "690ccafbbfd4c50578f181cc",
+            "name": "AWS ap-southeast-1",
+            "updated": "2026-09-16T16:00:03.890Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb05220d0b058a2e700a",
+            "name": "AWS ap-southeast-2",
+            "updated": "2026-09-16T16:00:03.892Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-09-16T18:00:03.135Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb313e9b0e0539518461",
+            "name": "AWS eu-west-2",
+            "updated": "2026-09-16T18:00:03.135Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb3e1cc5d9057f11fde0",
+            "name": "AWS sa-east-1",
+            "updated": "2026-09-17T13:00:03.606Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb48769e0d058c5c353d",
+            "name": "AWS us-east-1",
+            "updated": "2026-09-17T13:00:03.571Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-09-17T13:00:03.607Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb5d8c199d057e3d8b17",
+            "name": "AWS us-west-2",
+            "updated": "2026-09-17T13:00:03.570Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb7b3e9b0e0539518462",
+            "name": "Azure germanywestcentral",
+            "updated": "2026-04-22T19:07:17.182Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb8b3e9b0e0539518463",
+            "name": "Azure eastus2",
+            "updated": "2026-10-01T15:31:24.293Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb941cde000532ba309e",
+            "name": "Azure westus3",
+            "updated": "2026-10-01T15:31:24.293Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-10-01T15:31:24.293Z"
+      },
+      {
+        "id": "690ccc9c1cc5d9057f11fde1",
+        "name": "Project/Branch Operations",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "690ccafbbfd4c50578f181cc",
+            "name": "AWS ap-southeast-1",
+            "updated": "2026-09-16T16:00:03.892Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb05220d0b058a2e700a",
+            "name": "AWS ap-southeast-2",
+            "updated": "2026-09-16T16:00:03.891Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-09-16T18:00:03.134Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb313e9b0e0539518461",
+            "name": "AWS eu-west-2",
+            "updated": "2026-09-16T18:00:03.169Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb3e1cc5d9057f11fde0",
+            "name": "AWS sa-east-1",
+            "updated": "2026-09-17T13:00:03.641Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb48769e0d058c5c353d",
+            "name": "AWS us-east-1",
+            "updated": "2026-09-17T13:00:03.608Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-09-17T13:00:03.571Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb5d8c199d057e3d8b17",
+            "name": "AWS us-west-2",
+            "updated": "2026-09-17T13:00:03.642Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb7b3e9b0e0539518462",
+            "name": "Azure germanywestcentral",
+            "updated": "2026-06-17T21:51:12.240Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb8b3e9b0e0539518463",
+            "name": "Azure eastus2",
+            "updated": "2026-10-01T15:31:24.294Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb941cde000532ba309e",
+            "name": "Azure westus3",
+            "updated": "2026-10-01T15:31:24.294Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-10-01T15:31:24.294Z"
+      },
+      {
+        "id": "690cccdd8c199d057e3d8b18",
+        "name": "Console API",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "6878fc85709daa75be6c7e4b",
+            "name": "Global",
+            "updated": "2026-10-01T15:31:24.295Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccafbbfd4c50578f181cc",
+            "name": "AWS ap-southeast-1",
+            "updated": "2026-09-16T16:00:03.925Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb05220d0b058a2e700a",
+            "name": "AWS ap-southeast-2",
+            "updated": "2026-09-16T16:00:03.890Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-09-16T18:00:03.136Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb313e9b0e0539518461",
+            "name": "AWS eu-west-2",
+            "updated": "2026-09-16T18:00:03.136Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb3e1cc5d9057f11fde0",
+            "name": "AWS sa-east-1",
+            "updated": "2026-09-17T13:00:03.608Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb48769e0d058c5c353d",
+            "name": "AWS us-east-1",
+            "updated": "2026-09-17T13:00:03.570Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-09-17T13:00:03.606Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb5d8c199d057e3d8b17",
+            "name": "AWS us-west-2",
+            "updated": "2026-09-17T13:00:03.572Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb7b3e9b0e0539518462",
+            "name": "Azure germanywestcentral",
+            "updated": "2026-10-01T15:31:24.295Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb8b3e9b0e0539518463",
+            "name": "Azure eastus2",
+            "updated": "2026-10-01T15:31:24.295Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb941cde000532ba309e",
+            "name": "Azure westus3",
+            "updated": "2026-03-31T14:57:49.821Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-10-01T15:31:24.295Z"
+      },
+      {
+        "id": "690ccd0d702b5705544465a0",
+        "name": "Console Frontend",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "6878fc85709daa75be6c7e4b",
+            "name": "Global",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccafbbfd4c50578f181cc",
+            "name": "AWS ap-southeast-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb05220d0b058a2e700a",
+            "name": "AWS ap-southeast-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb313e9b0e0539518461",
+            "name": "AWS eu-west-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb3e1cc5d9057f11fde0",
+            "name": "AWS sa-east-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb48769e0d058c5c353d",
+            "name": "AWS us-east-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb5d8c199d057e3d8b17",
+            "name": "AWS us-west-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb7b3e9b0e0539518462",
+            "name": "Azure germanywestcentral",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb8b3e9b0e0539518463",
+            "name": "Azure eastus2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb941cde000532ba309e",
+            "name": "Azure westus3",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-10-01T15:31:24.296Z"
+      },
+      {
+        "id": "690ccd3458ed170546c6f5e6",
+        "name": "Account Creation",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "6878fc85709daa75be6c7e4b",
+            "name": "Global",
+            "updated": "2026-10-01T15:31:24.191Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccafbbfd4c50578f181cc",
+            "name": "AWS ap-southeast-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb05220d0b058a2e700a",
+            "name": "AWS ap-southeast-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb313e9b0e0539518461",
+            "name": "AWS eu-west-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb3e1cc5d9057f11fde0",
+            "name": "AWS sa-east-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb48769e0d058c5c353d",
+            "name": "AWS us-east-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb5d8c199d057e3d8b17",
+            "name": "AWS us-west-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb7b3e9b0e0539518462",
+            "name": "Azure germanywestcentral",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb8b3e9b0e0539518463",
+            "name": "Azure eastus2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb941cde000532ba309e",
+            "name": "Azure westus3",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-10-01T15:31:24.296Z"
+      },
+      {
+        "id": "690ccd538c199d057e3d8b24",
+        "name": "Console Login",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "6878fc85709daa75be6c7e4b",
+            "name": "Global",
+            "updated": "2026-10-01T15:31:24.189Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccafbbfd4c50578f181cc",
+            "name": "AWS ap-southeast-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb05220d0b058a2e700a",
+            "name": "AWS ap-southeast-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb313e9b0e0539518461",
+            "name": "AWS eu-west-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb3e1cc5d9057f11fde0",
+            "name": "AWS sa-east-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb48769e0d058c5c353d",
+            "name": "AWS us-east-1",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb5d8c199d057e3d8b17",
+            "name": "AWS us-west-2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb7b3e9b0e0539518462",
+            "name": "Azure germanywestcentral",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb8b3e9b0e0539518463",
+            "name": "Azure eastus2",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb941cde000532ba309e",
+            "name": "Azure westus3",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-10-01T15:31:24.296Z"
+      },
+      {
+        "id": "6878fc85709daa75be6c7e4c",
+        "name": "Website",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "6878fc85709daa75be6c7e4b",
+            "name": "Global",
+            "updated": "2026-10-01T15:31:24.296Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-10-01T15:31:24.296Z"
+      },
+      {
+        "id": "6a9fdc8b6f989604d7b087d0",
+        "name": "Object Storage",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-09-08T09:59:39.076Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-09-08T09:59:39.112Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-09-08T09:59:39.112Z"
+      },
+      {
+        "id": "6a9fdc96472c9804ee6c9924",
+        "name": "Functions",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-09-08T09:59:50.495Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-09-08T09:59:50.532Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-09-08T09:59:50.532Z"
+      },
+      {
+        "id": "6a9fdcbb6c10cf04f78fcea8",
+        "name": "AI Gateway",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-09-08T10:00:27.651Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-09-08T10:00:27.685Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-09-08T10:00:27.685Z"
+      },
+      {
+        "id": "6a9fdcc496d41a47784d9b41",
+        "name": "Managed Better Auth",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "690ccafbbfd4c50578f181cc",
+            "name": "AWS ap-southeast-1",
+            "updated": "2026-09-08T10:00:36.820Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb05220d0b058a2e700a",
+            "name": "AWS ap-southeast-2",
+            "updated": "2026-09-08T10:00:36.819Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-09-08T10:00:36.821Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb313e9b0e0539518461",
+            "name": "AWS eu-west-2",
+            "updated": "2026-09-08T10:00:36.822Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb3e1cc5d9057f11fde0",
+            "name": "AWS sa-east-1",
+            "updated": "2026-09-08T10:00:36.822Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb48769e0d058c5c353d",
+            "name": "AWS us-east-1",
+            "updated": "2026-09-08T10:00:36.856Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-09-08T10:00:36.857Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb5d8c199d057e3d8b17",
+            "name": "AWS us-west-2",
+            "updated": "2026-09-08T10:00:36.854Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-09-08T10:00:36.857Z"
+      },
+      {
+        "id": "6a9fdccd19fb1a04da432962",
+        "name": "Data API",
+        "status": "Operational",
+        "status_code": 100,
+        "containers": [
+          {
+            "id": "690ccafbbfd4c50578f181cc",
+            "name": "AWS ap-southeast-1",
+            "updated": "2026-09-08T10:00:45.448Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb05220d0b058a2e700a",
+            "name": "AWS ap-southeast-2",
+            "updated": "2026-09-08T10:00:45.450Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb1ee98ae5053d8beeaa",
+            "name": "AWS eu-central-1",
+            "updated": "2026-09-08T10:00:45.449Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb313e9b0e0539518461",
+            "name": "AWS eu-west-2",
+            "updated": "2026-09-08T10:00:45.450Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb3e1cc5d9057f11fde0",
+            "name": "AWS sa-east-1",
+            "updated": "2026-09-08T10:00:45.451Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb48769e0d058c5c353d",
+            "name": "AWS us-east-1",
+            "updated": "2026-09-08T10:00:45.486Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb4f8c3745059f2b33b1",
+            "name": "AWS us-east-2",
+            "updated": "2026-09-08T10:00:45.485Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb5d8c199d057e3d8b17",
+            "name": "AWS us-west-2",
+            "updated": "2026-09-08T10:00:45.486Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb7b3e9b0e0539518462",
+            "name": "Azure germanywestcentral",
+            "updated": "2026-09-08T10:00:45.487Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb8b3e9b0e0539518463",
+            "name": "Azure eastus2",
+            "updated": "2026-09-08T10:00:45.484Z",
+            "status": "Operational",
+            "status_code": 100
+          },
+          {
+            "id": "690ccb941cde000532ba309e",
+            "name": "Azure westus3",
+            "updated": "2026-09-08T10:00:45.519Z",
+            "status": "Operational",
+            "status_code": 100
+          }
+        ],
+        "updated": "2026-09-08T10:00:45.519Z"
+      }
+    ],
+    "incidents": [],
+    "maintenance": {
+      "active": [],
+      "upcoming": []
+    }
+  }
+}

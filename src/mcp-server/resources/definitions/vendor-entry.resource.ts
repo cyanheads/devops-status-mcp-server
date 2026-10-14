@@ -36,7 +36,13 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
     api_type: z
       .string()
       .describe(
-        'Status backend: "statuspage" (Atlassian Statuspage), "statusio" (Status.io), "slack" (Slack status API), "aws" (AWS Health Dashboard), "gcp" (Google Cloud Service Health), "azure" (Azure status RSS feed), or "firehydrant" (Firehydrant-hosted status page).',
+        'Status backend: "statuspage" (Atlassian Statuspage), "statusio" (Status.io), "slack" (Slack status API), "aws" (AWS Health Dashboard), "gcp" (Google Cloud Service Health), "azure" (Azure status RSS feed), "azure-devops" (Azure DevOps health API and status RSS feed), or "firehydrant" (Firehydrant-hosted status page).',
+      ),
+    component_scope_prefix: z
+      .string()
+      .optional()
+      .describe(
+        'Present when the vendor publishes on a status page it shares with other products: only components whose name, or whose group name, starts with this prefix belong to the vendor, and the status tools report those components and the incidents and maintenance windows touching them. Absent when the entry reads its whole page.',
       ),
   }),
 
@@ -54,6 +60,9 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
       category: entry.category,
       statuspage_url: entry.statuspage_url,
       api_type: entry.api_type,
+      ...(entry.component_scope_prefix && {
+        component_scope_prefix: entry.component_scope_prefix,
+      }),
     };
   },
 });

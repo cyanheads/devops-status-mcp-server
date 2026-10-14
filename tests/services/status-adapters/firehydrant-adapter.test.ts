@@ -189,6 +189,50 @@ describe('mapFirehydrantIncidents', () => {
     expect(incidents[0]!.status).toBe('investigating');
     expect(incidents[0]!.incident_updates).toHaveLength(0);
   });
+
+  /**
+   * A note recorded from status.redis.io opens an anchor and never closes it; the
+   * markdown notes the fixture captures carry no HTML and must come back unchanged.
+   */
+  it('renders an HTML note as plain text and leaves a markdown note unchanged (#63)', () => {
+    const raw = fixture();
+    const markdownNotes = (mapFirehydrantIncidents(raw, REDIS).incidents ?? []).flatMap((i) =>
+      i.incident_updates.map((u) => u.body),
+    );
+    const { incidents } = mapFirehydrantIncidents(
+      {
+        incidents: [
+          {
+            id: 'html',
+            timestamps: { started: '2026-05-13T18:00:00Z', resolved: '2026-05-13T18:50:45Z' },
+            timeline: [
+              {
+                occurredAt: '2026-05-13T18:50:45Z',
+                details: {
+                  note: 'The issue has been fully resolved. Should you encounter any remaining issues, please contact our support team via our <a href="https://support.redislabs.com/hc/en-us/requests/new">support portal.\n\nThank you for your patience.',
+                },
+              },
+            ],
+          },
+        ],
+      },
+      REDIS,
+    );
+    expect(incidents[0]!.incident_updates[0]!.body).toBe(
+      [
+        'The issue has been fully resolved. Should you encounter any remaining issues, please contact our support team via our support portal.',
+        'Thank you for your patience. (https://support.redislabs.com/hc/en-us/requests/new)',
+      ].join('\n'),
+    );
+
+    const sources = (raw.incidents ?? []).flatMap((i) =>
+      (i.timeline ?? []).map((e) =>
+        typeof e.details?.note === 'string' ? e.details.note : (e.details?.note?.note ?? ''),
+      ),
+    );
+    expect(markdownNotes.length).toBeGreaterThan(0);
+    for (const body of markdownNotes) expect(sources).toContain(body);
+  });
 });
 
 describe('mapFirehydrantScheduledMaintenances', () => {

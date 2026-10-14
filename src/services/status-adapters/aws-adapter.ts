@@ -36,6 +36,7 @@ import type {
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
+import { htmlToText } from '@/utils/html-to-text.js';
 
 const AWS_CURRENT_EVENTS_URL = 'https://health.aws.amazon.com/public/currentevents';
 
@@ -185,13 +186,28 @@ export function mapAwsEvent(event: AwsEvent, target: AwsTarget): StatuspageIncid
     components: [],
     incident_updates: log.map((entry, i) => ({
       id: `${event.arn ?? 'event'}-${i}`,
-      body: entry.message ?? entry.summary ?? '',
+      body: htmlToText(entry.message ?? entry.summary ?? ''),
       status: logStatusLabel(entry.status),
       created_at: epochSecondsToIso(entry.timestamp),
       display_at: epochSecondsToIso(entry.timestamp),
       affected_components: i === log.length - 1 && affected.length > 0 ? affected : null,
     })),
   };
+}
+
+/** The region field of an ARN (`arn:aws:health:me-central-1::event/…`). */
+const ARN_REGION_RE = /^arn:[^:]*:[^:]*:([^:]+):/;
+
+/**
+ * The component name for an open event: `<service> (<region name>, <region code>)`. The
+ * display name alone is ambiguous where AWS names two regions alike, and it is not what a
+ * caller filters on; the code comes from the event ARN, and an ARN with no region (a
+ * global event) leaves the name as `<service> (<region name>)`.
+ */
+function componentName(event: AwsEvent | undefined): string {
+  const regionName = event?.region_name ?? 'Unknown region';
+  const code = event?.arn?.match(ARN_REGION_RE)?.[1];
+  return `${event?.service_name ?? 'Unknown service'} (${code ? `${regionName}, ${code}` : regionName})`;
 }
 
 /**
@@ -207,22 +223,19 @@ export function mapAwsSummary(events: AwsEvent[], target: AwsTarget): Statuspage
       indicator = inc.impact;
   }
   // One component per open event — a compact "what is degraded" signal.
-  const components: StatuspageComponent[] = incidents.map((inc, i) => {
-    const event = open[i];
-    return {
-      id: inc.id,
-      name: `${event?.service_name ?? 'Unknown service'} (${event?.region_name ?? 'Unknown region'})`,
-      status: inc.impact === 'major' ? 'partial_outage' : 'degraded_performance',
-      created_at: '',
-      updated_at: inc.created_at,
-      description: null,
-      group: false,
-      group_id: null,
-      only_show_if_degraded: true,
-      position: i,
-      showcase: true,
-    };
-  });
+  const components: StatuspageComponent[] = incidents.map((inc, i) => ({
+    id: inc.id,
+    name: componentName(open[i]),
+    status: inc.impact === 'major' ? 'partial_outage' : 'degraded_performance',
+    created_at: '',
+    updated_at: inc.created_at,
+    description: null,
+    group: false,
+    group_id: null,
+    only_show_if_degraded: true,
+    position: i,
+    showcase: true,
+  }));
   return {
     page: buildPage(target),
     status: {

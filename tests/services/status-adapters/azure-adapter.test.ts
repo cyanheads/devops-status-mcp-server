@@ -151,7 +151,7 @@ describe('parseAzureFeed', () => {
     );
   });
 
-  it('leaves no tag reassembled from nested malformed markup, in the body or a link label', () => {
+  it('reads nested malformed markup in one pass, its text `<` kept as text (#63)', () => {
     const [item] = parseAzureFeed(
       feed(
         '<guid>g</guid><description>&lt;p&gt;a &lt;scr&lt;b&gt;ipt&gt;x&lt;/p&gt;' +
@@ -159,9 +159,12 @@ describe('parseAzureFeed', () => {
           '&lt;p&gt;1 &amp;lt; 2&lt;/p&gt;</description>',
       ),
     );
-    // Escaped text `<` survives; a `<` left by stripping nested tags does not.
+    /**
+     * `<scr` and `<i` open no element, so they are text; only the `<b>` between goes. What
+     * remains reads like a tag but is never parsed again — format() escapes its `<`.
+     */
     expect(item!.description).toBe(
-      ['a script>x', 'see img> (https://example.com/)', '1 < 2'].join('\n'),
+      ['a <script>x', 'see <img> (https://example.com/)', '1 < 2'].join('\n'),
     );
   });
 
@@ -233,8 +236,11 @@ describe('parseAzureFeed', () => {
       );
       expect(item!.title).toBe('Real');
       expect(item!.categories).toEqual(['Storage']);
-      // Inside the description they are HTML, rendered as text like any other unknown tag.
-      expect(item!.description).toBe('Before\ninnerfake');
+      /**
+       * Inside the description they are HTML: `<title>` is an HTML element and goes, while
+       * `<category>` is not one and stays as the text it is (#63).
+       */
+      expect(item!.description).toBe('Before\ninner<category>fake</category>');
     });
 
     it('reads a CDATA title containing comment markup verbatim', () => {

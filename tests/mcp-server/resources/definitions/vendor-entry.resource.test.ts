@@ -39,6 +39,35 @@ describe('vendorEntryResource', () => {
     expect(result.slug).toBe('github');
   });
 
+  it('returns the azure-devops entry with its own backend (#56)', async () => {
+    const ctx = createMockContext({ uri: new URL('devops-status://vendors/azure-devops') });
+    const result = await vendorEntryResource.handler(
+      paramsSchema.parse({ name: 'azure-devops' }),
+      ctx,
+    );
+    expect(result).toEqual({
+      slug: 'azure-devops',
+      name: 'Azure DevOps',
+      category: 'dev-platform',
+      statuspage_url: 'https://status.dev.azure.com',
+      api_type: 'azure-devops',
+    });
+    expect(vendorEntryResource.output?.shape.api_type.description).toContain('"azure-devops"');
+  });
+
+  it('carries the component scope of an entry on a shared page, and none otherwise', async () => {
+    const read = (name: string) =>
+      vendorEntryResource.handler(
+        paramsSchema.parse({ name }),
+        createMockContext({ uri: new URL(`devops-status://vendors/${name}`) }),
+      );
+    const sendgrid = await read('sendgrid');
+    expect(sendgrid.component_scope_prefix).toBe('SendGrid');
+    expect(vendorEntryResource.output?.parse(sendgrid)).toEqual(sendgrid);
+    const twilio = await read('twilio');
+    expect(twilio).not.toHaveProperty('component_scope_prefix');
+  });
+
   it('throws notFound for unknown slug', () => {
     const ctx = createMockContext({ uri: new URL('devops-status://vendors/unknown-xyz') });
     const params = paramsSchema.parse({ name: 'unknown-xyz-doesnt-exist' });

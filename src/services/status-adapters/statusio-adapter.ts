@@ -26,6 +26,7 @@ import type {
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchJsonCached } from '@/utils/cached-fetch.js';
+import { htmlToText } from '@/utils/html-to-text.js';
 
 const STATUSIO_API_BASE = 'https://status-api.hostedstatus.com/1.0/status/';
 
@@ -56,7 +57,17 @@ interface StatusioIncidentItem {
   name?: string;
 }
 
+/** Where a component runs — on multi-region pages, one container per region. */
+interface StatusioContainerItem {
+  id?: string;
+  name?: string;
+  status?: string;
+  status_code?: number;
+  updated?: string;
+}
+
 interface StatusioComponentItem {
+  containers?: StatusioContainerItem[];
   id?: string;
   name?: string;
   status?: string;
@@ -186,7 +197,7 @@ function mapIncident(
     }),
     incident_updates: messages.map((m, i) => ({
       id: `${item._id ?? 'msg'}-${i}`,
-      body: m.details ?? '',
+      body: htmlToText(m.details ?? ''),
       status: maintenanceStatus ?? stateToStatus(m.state),
       created_at: m.datetime ?? '',
       display_at: m.datetime ?? '',
@@ -207,25 +218,59 @@ function mapMaintenances(raw: StatusioResponse, target: StatusioTarget): Statusp
   return [...active, ...upcoming];
 }
 
+/**
+ * Normalize the page's components. A component published in more than one container
+ * (Neon lists each per AWS region) becomes a Statuspage group with one leaf per
+ * container, each carrying that container's own status — the component-level status
+ * alone cannot say which region is degraded. A single-container component stays one
+ * flat leaf.
+ */
+function mapComponents(raw: StatusioResponse): StatuspageComponent[] {
+  const components: StatuspageComponent[] = [];
+  const push = (
+    id: string,
+    item: StatusioComponentItem | StatusioContainerItem,
+    group: boolean,
+    groupId: string | null,
+  ) => {
+    components.push({
+      id,
+      name: item.name ?? 'Unknown',
+      status: severityToComponentStatus(item.status_code),
+      created_at: '',
+      updated_at: item.updated ?? '',
+      description: null,
+      group,
+      group_id: groupId,
+      only_show_if_degraded: false,
+      position: components.length,
+      showcase: true,
+    });
+  };
+
+  (raw.result.status ?? []).forEach((c, i) => {
+    const id = c.id ?? `component-${i}`;
+    const containers = c.containers ?? [];
+    if (containers.length <= 1) {
+      push(id, c, false, null);
+      return;
+    }
+    push(id, c, true, null);
+    // Container ids repeat across components (they name regions), so the leaf id pairs them.
+    containers.forEach((k, j) => {
+      push(`${id}/${k.id ?? j}`, k, false, id);
+    });
+  });
+  return components;
+}
+
 /** Normalize a Status.io Public Status API response into a Statuspage summary. */
 export function mapStatusioSummary(
   raw: StatusioResponse,
   target: StatusioTarget,
 ): StatuspageSummaryResponse {
   const overall = raw.result.status_overall ?? {};
-  const components: StatuspageComponent[] = (raw.result.status ?? []).map((c, i) => ({
-    id: c.id ?? `component-${i}`,
-    name: c.name ?? 'Unknown',
-    status: severityToComponentStatus(c.status_code),
-    created_at: '',
-    updated_at: c.updated ?? '',
-    description: null,
-    group: false,
-    group_id: null,
-    only_show_if_degraded: false,
-    position: i,
-    showcase: true,
-  }));
+  const components = mapComponents(raw);
   return {
     page: buildPage(raw, target),
     status: {

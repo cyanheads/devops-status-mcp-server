@@ -16,6 +16,8 @@ export type ResolvedVendor = {
   url: string;
   name: string;
   slug: string | null;
+  /** The registry entry's component scope on a shared status page; absent when it has none. */
+  component_scope_prefix?: string;
 } & (
   | { api_type: Exclude<VendorApiType, 'statusio'> }
   | { api_type: 'statusio'; statusio_page_id: string }
@@ -41,7 +43,14 @@ export class VendorRegistryService {
     const lower = input.trim().toLowerCase();
     const entry = this.bySlug.get(lower);
     if (entry) {
-      const base = { url: entry.statuspage_url, name: entry.name, slug: entry.slug };
+      const base = {
+        url: entry.statuspage_url,
+        name: entry.name,
+        slug: entry.slug,
+        ...(entry.component_scope_prefix && {
+          component_scope_prefix: entry.component_scope_prefix,
+        }),
+      };
       return entry.api_type === 'statusio'
         ? { ...base, api_type: 'statusio', statusio_page_id: entry.statusio_page_id }
         : { ...base, api_type: entry.api_type };
@@ -80,14 +89,17 @@ export class VendorRegistryService {
     return this.all.find((v) => v.name.toLowerCase() === lowerName);
   }
 
-  /** Filter vendors by optional query and/or category. */
+  /**
+   * Filter vendors by optional query and/or category. The query is a trimmed,
+   * case-insensitive substring of the slug or display name; whitespace alone matches all.
+   */
   search(query?: string, category?: string): VendorEntry[] {
     let results = [...this.all];
     if (category) {
       results = results.filter((v) => v.category === category);
     }
-    if (query) {
-      const q = query.toLowerCase();
+    const q = query?.trim().toLowerCase();
+    if (q) {
       results = results.filter((v) => v.slug.includes(q) || v.name.toLowerCase().includes(q));
     }
     return results;

@@ -49,6 +49,7 @@ import type {
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
+import { htmlToText } from '@/utils/html-to-text.js';
 
 const GCP_INCIDENTS_URL = 'https://status.cloud.google.com/incidents.json';
 
@@ -207,7 +208,8 @@ export function mapGcpIncident(incident: GcpIncident, target: GcpTarget): Status
     components: [],
     incident_updates: updates.map((update, i) => ({
       id: `${incident.id ?? 'update'}-${i}`,
-      body: update.text ?? '',
+      // Markdown bodies carry no HTML and pass through unchanged, blank lines and all.
+      body: htmlToText(update.text ?? ''),
       status: updateStatusLabel(update.status),
       created_at: updateTime(update),
       display_at: updateTime(update),

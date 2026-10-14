@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:sy="http://purl.org/rss/1.0/modules/syndication/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:status="https://status.dev.azure.com/" version="2.0">
+  <channel>
+    <title>Azure DevOps - Recent Events</title>
+    <link>https://status.dev.azure.com/</link>
+    <atom:link rel="self" type="application/rss+xml" href="https://status.dev.azure.com/_rss" />
+    <atom:link rel="alternate" type="text/html" href="https://status.dev.azure.com/" />
+    <description>Recent events affecting availability of Azure DevOps Services.</description>
+    <language>en-US</language>
+    <pubDate>Wed, 30 Sep 2026 03:42:17 GMT</pubDate>
+    <lastBuildDate>Wed, 30 Sep 2026 03:42:17 GMT</lastBuildDate>
+    <sy:updatePeriod>hourly</sy:updatePeriod>
+    <sy:updateFrequency>1</sy:updateFrequency>
+    <item>
+      <title>Artifact uploads or downloads during a pipeline run may be slow or fail to process</title>
+      <link>https://status.dev.azure.com/_event/876715443</link>
+      <pubDate>Wed, 30 Sep 2026 03:42:17 GMT</pubDate>
+      <atom:updated>2026-09-30T03:42:17.577Z</atom:updated>
+      <dc:creator>Merlyn Oppenheim (Azure DevOps)</dc:creator>
+      <status:geography>United States</status:geography>
+      <status:state>Resolved</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/876715443</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 9/30/2026 3:42:17 AM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.  We've updated the duration of this incident to reflect the detected impact.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 9/30/2026 3:42:17 AM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.  We've updated the duration of this incident to reflect the detected impact.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 9/30/2026 3:09:45 AM&lt;/p&gt;
+&lt;p&gt;Our engineers are continuing to investigate and mitigate the issue.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 9/30/2026 1:45:41 AM&lt;/p&gt;
+&lt;p&gt;The impact of this issue is ongoing. Our engineers have narrowed the investigation and are continuing to isolate the root cause of the latency.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 9/30/2026 12:23:07 AM&lt;/p&gt;
+&lt;p&gt;Our engineers are working to understand and mitigate the issue.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Azure DevOps Incident Scout, 9/30/2026 12:12:49 AM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+    <item>
+      <title>Availability Degradation in East US</title>
+      <link>https://status.dev.azure.com/_event/885607752</link>
+      <pubDate>Wed, 14 Oct 2026 10:14:38 GMT</pubDate>
+      <atom:updated>2026-10-14T10:14:38.513Z</atom:updated>
+      <dc:creator>Gaurav Singhal (Azure DevOps)</dc:creator>
+      <status:geography>United States</status:geography>
+      <status:state>Resolved</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/885607752</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Gaurav Singhal, 10/14/2026 10:14:38 AM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Gaurav Singhal, 10/14/2026 10:14:38 AM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Gaurav Singhal, 10/14/2026 10:08:14 AM&lt;/p&gt;
+&lt;p&gt;Failures are coming down and workitems/wiki search should be functioning fine for the users. Our engineers are still monitoring the failures.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Gaurav Singhal, 10/14/2026 9:09:57 AM&lt;/p&gt;
+&lt;p&gt;Several users will face intermittent failures while searching for workitems and wikis. Our engineers are working on the full mitigation.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Azure DevOps Incident Scout, 10/14/2026 8:27:01 AM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+    <item>
+      <title>Availability Degradation in Central US</title>
+      <link>https://status.dev.azure.com/_event/876404879</link>
+      <pubDate>Tue, 29 Sep 2026 19:29:28 GMT</pubDate>
+      <atom:updated>2026-09-29T19:29:28.907Z</atom:updated>
+      <dc:creator>Merlyn Oppenheim (Azure DevOps)</dc:creator>
+      <status:geography>United States</status:geography>
+      <status:state>Resolved</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/876404879</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 9/29/2026 7:29:28 PM&lt;/p&gt;
+&lt;p&gt;The root cause of this issue was memory exhaustion on the application servers. We collected a live memory dump during the incident and determined that the issue is triggered by a specific data pattern that exposes a product defect, resulting in excessive memory consumption. Our engineers have identified the underlying bug and are working on a fix to prevent this condition from occurring in the future.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 9/29/2026 7:29:28 PM&lt;/p&gt;
+&lt;p&gt;The root cause of this issue was memory exhaustion on the application servers. We collected a live memory dump during the incident and determined that the issue is triggered by a specific data pattern that exposes a product defect, resulting in excessive memory consumption. Our engineers have identified the underlying bug and are working on a fix to prevent this condition from occurring in the future.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 9/29/2026 6:41:06 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Gabriela Rosca, 9/29/2026 4:41:08 PM&lt;/p&gt;
+&lt;p&gt;Customer impact has been mitigated. The incident will remain open while our engineers continue their investigation to better understand the underlying cause.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Gabriela Rosca, 9/29/2026 2:05:23 PM&lt;/p&gt;
+&lt;p&gt;Our engineers are actively working to understand and mitigate the issue, while continuing recovery efforts to reduce customer impact.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Azure DevOps Incident Scout, 9/29/2026 12:56:01 PM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+    <item>
+      <title>Availability Degradation in West Europe</title>
+      <link>https://status.dev.azure.com/_event/885062559</link>
+      <pubDate>Tue, 13 Oct 2026 13:54:14 GMT</pubDate>
+      <atom:updated>2026-10-13T13:54:14.350Z</atom:updated>
+      <dc:creator>Gaurav Singhal (Azure DevOps)</dc:creator>
+      <status:geography>Europe</status:geography>
+      <status:state>Resolved</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/885062559</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Gaurav Singhal, 10/13/2026 1:54:14 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Gaurav Singhal, 10/13/2026 1:54:14 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Azure DevOps Incident Scout, 10/13/2026 1:24:53 PM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+    <item>
+      <title>Availability Degradation - increased MCP server latency</title>
+      <link>https://status.dev.azure.com/_event/881067311</link>
+      <pubDate>Tue, 06 Oct 2026 18:45:51 GMT</pubDate>
+      <atom:updated>2026-10-06T18:45:51.473Z</atom:updated>
+      <dc:creator>Loren Paulsen (Azure DevOps)</dc:creator>
+      <status:geography>Asia Pacific</status:geography>
+      <status:geography>Australia</status:geography>
+      <status:geography>Brazil</status:geography>
+      <status:geography>Canada</status:geography>
+      <status:geography>Europe</status:geography>
+      <status:geography>India</status:geography>
+      <status:geography>United Kingdom</status:geography>
+      <status:geography>United States</status:geography>
+      <status:state>Resolved</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/881067311</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Loren Paulsen, 10/6/2026 6:45:51 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Loren Paulsen, 10/6/2026 6:45:51 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Loren Paulsen, 10/6/2026 5:56:42 PM&lt;/p&gt;
+&lt;p&gt;Customers may experience increased MCP tool call latency. Our engineers are working to understand and mitigate the issue.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Sergii Kozak, 10/6/2026 4:17:17 PM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps MCP server. In particular, high latency is being observed in all regions. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+    <item>
+      <title>Higher latency and intermittent failures for the organizations in Australia</title>
+      <link>https://status.dev.azure.com/_event/876939898</link>
+      <pubDate>Thu, 08 Oct 2026 16:36:20 GMT</pubDate>
+      <atom:updated>2026-10-08T16:36:20.617Z</atom:updated>
+      <dc:creator>Sergii Kozak (Azure DevOps)</dc:creator>
+      <status:geography>Australia</status:geography>
+      <status:state>Active</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/876939898</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Sergii Kozak, 10/8/2026 4:36:20 PM&lt;/p&gt;
+&lt;p&gt;Users in APAC, Middle East and Africa working with ADO organizations in Australia might experience higher latency and intermittent failures due to an Azure infrastructure issue that is currently being worked on. We are sorry for the inconvenience it might cause.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Sergii Kozak, 10/8/2026 4:36:20 PM&lt;/p&gt;
+&lt;p&gt;Users in APAC, Middle East and Africa working with ADO organizations in Australia might experience higher latency and intermittent failures due to an Azure infrastructure issue that is currently being worked on. We are sorry for the inconvenience it might cause.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+    <item>
+      <title>Availability Degradation - Visual Studio Marketplace</title>
+      <link>https://status.dev.azure.com/_event/880443318</link>
+      <pubDate>Mon, 05 Oct 2026 20:53:03 GMT</pubDate>
+      <atom:updated>2026-10-05T20:53:03.250Z</atom:updated>
+      <dc:creator>Loren Paulsen (Azure DevOps)</dc:creator>
+      <status:geography>United States</status:geography>
+      <status:state>Resolved</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/880443318</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Loren Paulsen, 10/5/2026 8:53:03 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Visual Studio Marketplace extension downloads may have been intermittently slow or unresponsive during this incident.&lt;/p&gt;
+&lt;p&gt;Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Loren Paulsen, 10/5/2026 8:53:03 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Visual Studio Marketplace extension downloads may have been intermittently slow or unresponsive during this incident.&lt;/p&gt;
+&lt;p&gt;Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Azure DevOps Incident Scout, 10/5/2026 7:28:14 PM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+    <item>
+      <title>Availability Degradation in West Europe</title>
+      <link>https://status.dev.azure.com/_event/882946087</link>
+      <pubDate>Fri, 09 Oct 2026 14:24:01 GMT</pubDate>
+      <atom:updated>2026-10-09T14:24:01.830Z</atom:updated>
+      <dc:creator>Sergii Kozak (Azure DevOps)</dc:creator>
+      <status:geography>Europe</status:geography>
+      <status:state>Resolved</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/882946087</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Sergii Kozak, 10/9/2026 2:24:01 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We are sorry for any inconvenience this might have caused.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Sergii Kozak, 10/9/2026 2:24:01 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We are sorry for any inconvenience this might have caused.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;&lt;br&gt;Sergii Kozak, 10/9/2026 1:59:17 PM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps in West Europe. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Azure DevOps Incident Scout, 10/9/2026 1:38:54 PM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+    <item>
+      <title>Visual Studio Marketplace extension downloads may have been intermittently slow or unresponsive during this incident</title>
+      <link>https://status.dev.azure.com/_event/878794612</link>
+      <pubDate>Fri, 02 Oct 2026 23:20:51 GMT</pubDate>
+      <atom:updated>2026-10-02T23:20:51.473Z</atom:updated>
+      <dc:creator>Merlyn Oppenheim (Azure DevOps)</dc:creator>
+      <status:geography>United States</status:geography>
+      <status:state>Resolved</status:state>
+      <guid isPermaLink="true">https://status.dev.azure.com/_event/878794612</guid>
+      <description>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 10/2/2026 11:20:51 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+</description>
+      <content:encoded>&lt;p&gt;&lt;strong&gt;Final update&lt;/strong&gt;&lt;br&gt;Merlyn Oppenheim, 10/2/2026 11:20:51 PM&lt;/p&gt;
+&lt;p&gt;The issue is now fully mitigated. Our engineers will be investigating this further to learn from and reduce the risk of potential recurrences. We apologize for the impact this had on our customers.&lt;/p&gt;
+
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Initial communication&lt;/strong&gt;&lt;br&gt;Azure DevOps Incident Scout, 10/2/2026 9:43:12 PM&lt;/p&gt;
+&lt;p&gt;Our engineers are currently investigating an event impacting Azure DevOps. The event is being triaged and we will post an update as soon as we know more.&lt;/p&gt;
+
+</content:encoded>
+    </item>
+  </channel>
+</rss>

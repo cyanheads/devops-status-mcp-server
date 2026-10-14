@@ -1,13 +1,22 @@
 /**
  * @fileoverview Tests for the shared cached fetch helper — per-hop redirect
- * re-validation against the SSRF guard, and transport failures mapped onto the
- * statuspage_unavailable contract.
+ * re-validation against the SSRF guard, transport failures mapped onto the
+ * statuspage_unavailable contract, the cache's key normalization and byte bounds,
+ * and the upstream body read limit.
  * @module tests/utils/cached-fetch.test
  */
 
 import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearFetchCache, fetchJsonCached } from '@/utils/cached-fetch.js';
+import {
+  clearFetchCache,
+  FETCH_CACHE_BUDGET_BYTES,
+  FETCH_CACHE_MAX_ENTRY_BYTES,
+  fetchCached,
+  fetchCacheStats,
+  fetchJsonCached,
+  MAX_RESPONSE_BODY_BYTES,
+} from '@/utils/cached-fetch.js';
 import { assertSafeUrl } from '@/utils/ssrf-guard.js';
 
 /**
@@ -249,6 +258,280 @@ describe('fetchCached transport failures', () => {
     const again = await fetchJsonCached(url, 60_000, 5_000);
 
     expect(again.cached).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+const MiB = 1024 * 1024;
+
+/** A JSON body whose serialized parsed value is `bytes` long: `{"pad":"xxx…"}`. */
+function paddedJson(bytes: number): string {
+  return JSON.stringify({ pad: 'x'.repeat(bytes - '{"pad":""}'.length) });
+}
+
+/**
+ * Stubs `fetch` with real `Response` objects, routed by hostname. Each host maps to a
+ * body factory; anything else is rejected.
+ */
+function stubHosts(routes: Record<string, () => Response>) {
+  const fetchMock = vi.fn(async (input: string) => {
+    const route = routes[new URL(input).hostname];
+    if (!route) throw new Error(`Unmocked fetch: ${input}`);
+    return route();
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+/**
+ * A body of `total` bytes served in `chunk`-sized pulls, recording how many bytes the
+ * consumer pulled — the observable that shows reading stopped at the limit.
+ */
+function countedBody(total: number, chunk = 256 * 1024) {
+  const counter = { pulled: 0 };
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (counter.pulled >= total) {
+          controller.close();
+          return;
+        }
+        const size = Math.min(chunk, total - counter.pulled);
+        counter.pulled += size;
+        controller.enqueue(new Uint8Array(size).fill(0x20));
+      },
+    },
+    // Pull only when the consumer reads, so `pulled` counts what was actually read.
+    { highWaterMark: 0 },
+  );
+  return { stream, counter };
+}
+
+describe('fetchCached cache key', () => {
+  beforeEach(() => clearFetchCache());
+
+  it.each([
+    'https://WWW.githubstatus.com/api/v2/summary.json',
+    'https://www.GitHubStatus.com/api/v2/summary.json',
+    'https://www.githubstatus.com:443/api/v2/summary.json',
+    'HTTPS://www.githubstatus.com/api/v2/summary.json',
+    'https://www.githubstatus.com/api/./v2/x/../summary.json',
+  ])('serves %s from the entry the canonical spelling stored', async (variant) => {
+    const fetchMock = stubHosts({
+      'www.githubstatus.com': () => new Response(JSON.stringify({ page: { name: 'GitHub' } })),
+    });
+
+    const first = await fetchJsonCached(
+      'https://www.githubstatus.com/api/v2/summary.json',
+      60_000,
+      5_000,
+    );
+    const second = await fetchJsonCached(variant, 60_000, 5_000);
+
+    expect(first.cached).toBe(false);
+    expect(second.cached).toBe(true);
+    expect(second.data).toEqual({ page: { name: 'GitHub' } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchCacheStats().entries).toBe(1);
+  });
+
+  it('keeps distinct pages in distinct entries', async () => {
+    stubHosts({
+      'a.example.com': () => new Response('{"page":"a"}'),
+      'b.example.com': () => new Response('{"page":"b"}'),
+    });
+
+    await fetchJsonCached('https://a.example.com/api/v2/summary.json', 60_000, 5_000);
+    const b = await fetchJsonCached('https://b.example.com/api/v2/summary.json', 60_000, 5_000);
+
+    expect(b).toEqual({ data: { page: 'b' }, cached: false });
+    expect(fetchCacheStats().entries).toBe(2);
+  });
+});
+
+describe('fetchCached byte budget', () => {
+  beforeEach(() => clearFetchCache());
+  afterEach(() => vi.useRealTimers());
+
+  it('counts each entry at its serialized size', async () => {
+    stubHosts({ 'sized.example.com': () => new Response(paddedJson(1000)) });
+
+    await fetchJsonCached('https://sized.example.com/x.json', 60_000, 5_000);
+
+    expect(fetchCacheStats()).toEqual({ entries: 1, bytes: 1000 });
+  });
+
+  it('evicts oldest-first and never holds more than the budget', async () => {
+    const entryBytes = 3 * MiB;
+    const count = Math.ceil(FETCH_CACHE_BUDGET_BYTES / entryBytes) + 2;
+    const body = paddedJson(entryBytes);
+    const routes: Record<string, () => Response> = {};
+    for (let i = 0; i < count; i++) routes[`v${i}.example.com`] = () => new Response(body);
+    const fetchMock = stubHosts(routes);
+
+    for (let i = 0; i < count; i++) {
+      await fetchJsonCached(`https://v${i}.example.com/x.json`, 60_000, 5_000);
+      expect(fetchCacheStats().bytes).toBeLessThanOrEqual(FETCH_CACHE_BUDGET_BYTES);
+    }
+    const held = Math.floor(FETCH_CACHE_BUDGET_BYTES / entryBytes);
+    expect(fetchCacheStats()).toEqual({ entries: held, bytes: held * entryBytes });
+
+    // The newest entries are the ones still held; the oldest were evicted.
+    const newest = await fetchJsonCached(`https://v${count - 1}.example.com/x.json`, 60_000, 5_000);
+    expect(newest.cached).toBe(true);
+    const oldest = await fetchJsonCached('https://v0.example.com/x.json', 60_000, 5_000);
+    expect(oldest.cached).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(count + 1);
+  });
+
+  it('returns a value over the per-entry limit without caching it', async () => {
+    const fetchMock = stubHosts({
+      'big.example.com': () => new Response(paddedJson(FETCH_CACHE_MAX_ENTRY_BYTES + 1)),
+      'small.example.com': () => new Response(paddedJson(1000)),
+    });
+    await fetchJsonCached('https://small.example.com/x.json', 60_000, 5_000);
+
+    const first = await fetchJsonCached<{ pad: string }>(
+      'https://big.example.com/x.json',
+      60_000,
+      5_000,
+    );
+    const second = await fetchJsonCached('https://big.example.com/x.json', 60_000, 5_000);
+
+    expect(first.cached).toBe(false);
+    expect(first.data.pad).toHaveLength(FETCH_CACHE_MAX_ENTRY_BYTES + 1 - '{"pad":""}'.length);
+    expect(second.cached).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // The small entry is untouched; nothing else was stored.
+    expect(fetchCacheStats()).toEqual({ entries: 1, bytes: 1000 });
+  });
+
+  it('caches a value exactly at the per-entry limit', async () => {
+    stubHosts({ 'edge.example.com': () => new Response(paddedJson(FETCH_CACHE_MAX_ENTRY_BYTES)) });
+
+    await fetchJsonCached('https://edge.example.com/x.json', 60_000, 5_000);
+    const again = await fetchJsonCached('https://edge.example.com/x.json', 60_000, 5_000);
+
+    expect(again.cached).toBe(true);
+    expect(fetchCacheStats().bytes).toBe(FETCH_CACHE_MAX_ENTRY_BYTES);
+  });
+
+  it('sweeps expired entries on any insert, even when their keys are never read again', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-14T00:00:00Z'));
+    stubHosts({
+      'stale-1.example.com': () => new Response(paddedJson(500)),
+      'stale-2.example.com': () => new Response(paddedJson(600)),
+      'fresh.example.com': () => new Response(paddedJson(700)),
+    });
+
+    await fetchJsonCached('https://stale-1.example.com/x.json', 60_000, 5_000);
+    await fetchJsonCached('https://stale-2.example.com/x.json', 60_000, 5_000);
+    expect(fetchCacheStats()).toEqual({ entries: 2, bytes: 1100 });
+
+    vi.setSystemTime(new Date('2026-10-14T00:01:01Z'));
+    await fetchJsonCached('https://fresh.example.com/x.json', 60_000, 5_000);
+
+    expect(fetchCacheStats()).toEqual({ entries: 1, bytes: 700 });
+  });
+
+  it('replaces a refetched key in place rather than counting it twice', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-14T00:00:00Z'));
+    stubHosts({ 'again.example.com': () => new Response(paddedJson(800)) });
+
+    await fetchJsonCached('https://again.example.com/x.json', 60_000, 5_000);
+    vi.setSystemTime(new Date('2026-10-14T00:01:01Z'));
+    const refetched = await fetchJsonCached('https://again.example.com/x.json', 60_000, 5_000);
+
+    expect(refetched.cached).toBe(false);
+    expect(fetchCacheStats()).toEqual({ entries: 1, bytes: 800 });
+  });
+});
+
+describe('fetchCached body read limit', () => {
+  beforeEach(() => clearFetchCache());
+
+  function expectTooLarge(err: unknown, url: string) {
+    expect(err).toBeInstanceOf(McpError);
+    expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
+    expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable', url });
+    expect((err as McpError).message).toContain('size limit');
+  }
+
+  it.each([
+    ['res.json()', (res: Response) => res.json()],
+    ['res.text()', (res: Response) => res.text()],
+    ['res.arrayBuffer()', (res: Response) => res.arrayBuffer()],
+  ])(
+    'stops reading a body past the limit and fails typed when the parser uses %s',
+    async (_label, parse) => {
+      const url = 'https://huge.example.com/api/v2/incidents.json';
+      const { stream, counter } = countedBody(MAX_RESPONSE_BODY_BYTES + 4 * MiB);
+      stubHosts({ 'huge.example.com': () => new Response(stream) });
+
+      const err = await fetchCached(url, 60_000, 5_000, parse).catch((e: unknown) => e);
+
+      expectTooLarge(err, url);
+      // Reading stopped within one chunk of the limit, before the rest arrived.
+      expect(counter.pulled).toBeLessThanOrEqual(MAX_RESPONSE_BODY_BYTES + 512 * 1024);
+      expect(fetchCacheStats().entries).toBe(0);
+    },
+  );
+
+  it('fails before reading when the declared length is past the limit', async () => {
+    const url = 'https://declared.example.com/api/v2/summary.json';
+    const { stream, counter } = countedBody(1024);
+    stubHosts({
+      'declared.example.com': () =>
+        new Response(stream, {
+          headers: { 'content-length': String(MAX_RESPONSE_BODY_BYTES + 1) },
+        }),
+    });
+
+    const err = await fetchJsonCached(url, 60_000, 5_000).catch((e: unknown) => e);
+
+    expectTooLarge(err, url);
+    expect(counter.pulled).toBe(0);
+  });
+
+  it('reads a body exactly at the limit', async () => {
+    const url = 'https://at-limit.example.com/raw';
+    const { stream } = countedBody(MAX_RESPONSE_BODY_BYTES);
+    stubHosts({ 'at-limit.example.com': () => new Response(stream) });
+
+    const { data } = await fetchCached(
+      url,
+      60_000,
+      5_000,
+      async (res) => (await res.arrayBuffer()).byteLength,
+    );
+
+    expect(data).toBe(MAX_RESPONSE_BODY_BYTES);
+  });
+
+  it('reads a body the size of the largest real status payload unchanged', async () => {
+    const url = 'https://large-real.example.com/api/v2/incidents.json';
+    const body = paddedJson(1_000_000);
+    stubHosts({ 'large-real.example.com': () => new Response(body) });
+
+    const { data } = await fetchJsonCached<{ pad: string }>(url, 60_000, 5_000);
+
+    expect(data.pad).toHaveLength(1_000_000 - '{"pad":""}'.length);
+  });
+
+  it('still re-checks each redirect hop before reading the final body', async () => {
+    const url = 'https://hop.example.com/api/v2/summary.json';
+    const target = 'https://cdn.example.net/summary.json';
+    const fetchMock = stubHosts({
+      'hop.example.com': () => new Response(null, { status: 302, headers: { location: target } }),
+      'cdn.example.net': () => new Response('{"page":{"name":"Vendor"}}'),
+    });
+
+    const { data } = await fetchJsonCached(url, 60_000, 5_000);
+
+    expect(data).toEqual({ page: { name: 'Vendor' } });
+    expect(mockAssertSafeUrl).toHaveBeenCalledWith(target);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

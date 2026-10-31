@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.11.0](changelog/0.11.x/0.11.0.md) — 2026-10-30 · ⚠️ Breaking · 🛡️ Security
+
+Adds ten Atlassian product vendors, component paging, Google Cloud affected locations, and a published devops-status-guide agent skill; summary and health now count an open incident the page's indicator misses. Breaking: a maintenance window with no published end reports scheduled_until as null, not an empty string.
+
 ## [0.10.0](changelog/0.10.x/0.10.0.md) — 2026-10-14 · ⚠️ Breaking · 🛡️ Security
 
 Adds an azure-devops vendor, a wire-format DNS client with CAA and SOA, URL-tolerant domain input, incident narrowing with until and match, and plain-text vendor update bodies; batch and output inputs are served at a cap instead of rejected, and saved stacks are isolated per caller. Breaking: several validation and startup changes.

@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-10-31 00:29:06
+Generated on: 2026-10-31 01:09:19
 
 ```text
 devops-status-mcp-server/
@@ -26,6 +26,7 @@ devops-status-mcp-server/
 ├── changelog/
 │   ├── 0.1.x/
 │   ├── 0.10.x/
+│   ├── 0.11.x/
 │   ├── 0.2.x/
 │   ├── 0.3.x/
 │   ├── 0.4.x/

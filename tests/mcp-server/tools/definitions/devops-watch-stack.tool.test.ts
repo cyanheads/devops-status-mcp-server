@@ -6,6 +6,7 @@
 import { resetConfig } from '@cyanheads/mcp-ts-core/config';
 import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { createMockContext, getEnrichment, runToolContract } from '@cyanheads/mcp-ts-core/testing';
+import MarkdownIt from 'markdown-it';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
 import {
@@ -68,6 +69,22 @@ const CRITICAL_SUMMARY: StatuspageSummaryResponse = {
   incidents: [],
   scheduled_maintenances: [],
 };
+
+/**
+ * content[] as a reader sees it: parsed as CommonMark, with escapes resolved and code
+ * spans and block quotes reduced to their text, one line per paragraph or heading.
+ */
+function readable(markdown: string): string {
+  return new MarkdownIt()
+    .parse(markdown, {})
+    .filter((token) => token.type === 'inline')
+    .map((token) => (token.children ?? []).map((child) => child.content).join(''))
+    .join('\n');
+}
+
+/** The sentence a notice ends with wherever a tool serves the `atlassian` umbrella entry (#74). */
+const ATLASSIAN_POINTER =
+  "atlassian reads an umbrella status page that publishes no components and only cross-product incidents; product outages are posted on each product's own page — check those by slug: jira, confluence, bitbucket, jira-service-management, atlassian-compass, atlassian-developer, trello, opsgenie, atlassian-statuspage, atlassian-guard.";
 
 beforeAll(() => {
   initVendorRegistryService();
@@ -361,6 +378,94 @@ describe('devopsWatchStack', () => {
     expect(structured.notice).toContain('component_limit');
   });
 
+  /**
+   * The sweep takes no component_offset (#82): a capped row carries next_component_offset
+   * through the shared result schema, and the notice continues it in devops_status_check.
+   */
+  it('marks a capped row with next_component_offset and continues it in devops_status_check (#82)', async () => {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+    const many = Array.from({ length: 5 }, (_, i) => ({
+      ...CRITICAL_SUMMARY.components[0]!,
+      id: `c${i}`,
+      name: `Component ${i}`,
+      status: 'operational' as const,
+    }));
+    _mockFetchSummary.mockReset();
+    _mockFetchSummary.mockResolvedValue({
+      data: { ...OPERATIONAL_SUMMARY, components: many },
+      cached: false,
+    });
+
+    const result = await runToolContract(
+      devopsWatchStack,
+      { vendors: ['github'], stack_name: 'paged', mode: 'detailed', component_limit: 2 },
+      { context: { tenantId: 'paged-stack' } },
+    );
+    const structured = result.structuredContent as {
+      vendors: Array<{ all_components?: Array<{ name: string }>; next_component_offset?: number }>;
+      notice?: string;
+      truncated?: boolean;
+    };
+
+    expect(Object.keys(devopsWatchStack.input.shape)).not.toContain('component_offset');
+    expect(structured.vendors[0]!.all_components!.map((c) => c.name)).toEqual([
+      'Component 0',
+      'Component 1',
+    ]);
+    expect(structured.vendors[0]!.next_component_offset).toBe(2);
+    expect(structured.truncated).toBe(true);
+    expect(structured.notice).toBe(
+      '3 of 5 components are not shown — component lists are capped at 2 per vendor. Continue a capped list with devops_status_check, passing that vendor, mode: "detailed", and its next_component_offset as component_offset. Set component_filter to reach a specific component, or raise component_limit.',
+    );
+    const text = readable(result.content.map((c) => (c as { text: string }).text).join('\n'));
+    expect(text).toContain('Components (2 of 5):');
+    expect(text).toContain('next_component_offset: 2');
+  });
+
+  /**
+   * The window mapping is tabled in the devops_status_check suite (#91); this case proves the
+   * sweep is wired to it: a window with no published end reads null and "end not published".
+   */
+  it('reports a maintenance window with no published end as null on both surfaces (#91)', async () => {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+    const window = (name: string, scheduledUntil?: string) => ({
+      ...withIncident(name, 'maintenance', null),
+      status: 'scheduled',
+      scheduled_for: '2026-11-02T01:00:00Z',
+      ...(scheduledUntil === undefined ? {} : { scheduled_until: scheduledUntil }),
+    });
+    _mockFetchSummary.mockReset();
+    _mockFetchSummary.mockResolvedValue({
+      data: {
+        ...OPERATIONAL_SUMMARY,
+        scheduled_maintenances: [window('Ends', '2026-11-02T03:00:00Z'), window('Open-ended')],
+      },
+      cached: false,
+    });
+
+    const result = await runToolContract(
+      devopsWatchStack,
+      { vendors: ['github'], stack_name: 'windows', mode: 'detailed' },
+      { context: { tenantId: 'windows-stack' } },
+    );
+    const structured = result.structuredContent as {
+      vendors: Array<{ scheduled_maintenances?: Array<{ scheduled_until: unknown }> }>;
+    };
+
+    expect(result.isError).toBeFalsy();
+    expect(structured.vendors[0]!.scheduled_maintenances!.map((m) => m.scheduled_until)).toEqual([
+      '2026-11-02T03:00:00Z',
+      null,
+    ]);
+    const text = readable(result.content.map((c) => (c as { text: string }).text).join('\n'));
+    expect(text).toContain('Ends [scheduled] 2026-11-02T01:00:00Z → 2026-11-02T03:00:00Z');
+    expect(text).toContain('Open-ended [scheduled] 2026-11-02T01:00:00Z → end not published');
+  });
+
   it('formats output with health field verbatim', async () => {
     const { _mockFetchSummary } = (await import(
       '@/services/statuspage/statuspage-service.js'
@@ -590,6 +695,118 @@ describe('devopsWatchStack', () => {
     });
   });
 
+  /**
+   * The rollup reads each vendor at the worse of its indicator and its worst open incident
+   * rated minor or worse (#87). The rule itself is tabled in the devops_status_check suite;
+   * these cases prove the rollup is wired to it, one per side.
+   */
+  describe('health for an open incident under a calmer indicator (#87)', () => {
+    async function serve(pages: Record<string, StatuspageSummaryResponse>) {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const registry = getVendorRegistryService();
+      const byUrl = new Map(
+        Object.entries(pages).map(([slug, data]) => [
+          registry.getBySlug(slug)!.statuspage_url,
+          data,
+        ]),
+      );
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockImplementation((url: string) =>
+        Promise.resolve({ data: byUrl.get(url) ?? OPERATIONAL_SUMMARY, cached: false }),
+      );
+    }
+
+    /** mongodb-atlas on 2026-10-30: indicator none, one open major incident. */
+    const MONGODB: StatuspageSummaryResponse = {
+      ...OPERATIONAL_SUMMARY,
+      page: { ...OPERATIONAL_SUMMARY.page, name: 'MongoDB Cloud' },
+      incidents: [
+        withIncident(
+          'Impaired Cluster operations in AWS me-central-1',
+          'major',
+          '2026-09-03T16:44:43Z',
+        ),
+      ],
+    };
+
+    async function sweep(vendors: string[]) {
+      const ctx = createMockContext({ tenantId: 'rating-87', errors: devopsWatchStack.errors });
+      return await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors, stack_name: 'rating' }),
+        ctx,
+      );
+    }
+
+    it('rolls an open major incident under indicator none up as partial_outage', async () => {
+      await serve({ 'mongodb-atlas': MONGODB });
+      const result = await sweep(['mongodb-atlas', 'github']);
+
+      expect(result.vendors[0]!.indicator).toBe('none');
+      expect(result.health).toBe('partial_outage');
+      expect(result.summary).toEqual({
+        total: 2,
+        operational: 1,
+        degraded: 1,
+        down: 0,
+        maintenance: 0,
+        unavailable: 0,
+      });
+      const text = readable(
+        (devopsWatchStack.format!(devopsWatchStack.output.parse(result))[0] as { text: string })
+          .text,
+      );
+      expect(text).toContain('⚠️ Stack "rating" — partial_outage');
+      expect(text).toContain('⚠️ 1 degraded');
+      expect(text).toContain('⚠️ MongoDB Cloud (mongodb-atlas)');
+    });
+
+    it('rolls an open minor incident under a maintenance window up as degraded', async () => {
+      await serve({
+        brevo: {
+          ...OPERATIONAL_SUMMARY,
+          status: { indicator: 'maintenance', description: 'Under Maintenance' },
+          incidents: [withIncident('Delayed sends', 'minor', '2026-10-30T00:00:00Z')],
+        },
+      });
+      const result = await sweep(['brevo']);
+
+      expect(result.health).toBe('degraded');
+      expect(result.summary.degraded).toBe(1);
+      expect(result.summary.maintenance).toBe(0);
+    });
+
+    it('ranks an open minor incident above an unchecked vendor', async () => {
+      await serve({
+        'mongodb-atlas': {
+          ...MONGODB,
+          incidents: [withIncident('Slow queries', 'minor', null)],
+        },
+      });
+      const result = await sweep(['mongodb-atlas', 'unknown-xyz-999']);
+
+      expect(result.health).toBe('degraded');
+      expect(result.summary.unavailable).toBe(1);
+    });
+
+    it('stays all_operational when the open incidents are rated none or maintenance', async () => {
+      await serve({
+        'mongodb-atlas': {
+          ...MONGODB,
+          incidents: [
+            withIncident('Security advisory', 'none', '2026-10-30T00:00:00Z'),
+            withIncident('Planned upgrade', 'maintenance', '2026-10-30T01:00:00Z'),
+          ],
+        },
+      });
+      const result = await sweep(['mongodb-atlas', 'github']);
+
+      expect(result.health).toBe('all_operational');
+      expect(result.summary.operational).toBe(2);
+    });
+  });
+
   it('errored vendors force health = unknown, count as unavailable, and never roll up as all_operational', async () => {
     const { _mockFetchSummary } = (await import(
       '@/services/statuspage/statuspage-service.js'
@@ -797,12 +1014,12 @@ describe('devopsWatchStack', () => {
       for (const s of suggestions) {
         expect(devopsSuggestAction.input.parse(s.args)).toMatchObject(s.args);
       }
-      // The rollup and buckets are unchanged by the new field.
+      // npm reads none with an open major incident, so it counts degraded, not operational (#87).
       expect(result.health).toBe('partial_outage');
       expect(result.summary).toEqual({
         total: 5,
-        operational: 2,
-        degraded: 1,
+        operational: 1,
+        degraded: 2,
         down: 0,
         maintenance: 0,
         unavailable: 2,
@@ -958,6 +1175,10 @@ describe('devopsWatchStack: deployment posture', () => {
       const text = result.content.map((c) => (c as { text: string }).text).join('\n');
       expect(text).toContain('does not save stacks');
       expect(text).not.toContain('Stack list saved for future calls');
+      // The notice is prose for the reader: a block quote, never a code literal.
+      expect(text).toMatch(
+        /^> This deployment does not save stacks because callers are not authenticated — pass vendors on every call\.$/m,
+      );
     });
 
     it('keeps the truncation notice alongside the persistence notice', async () => {
@@ -1033,7 +1254,7 @@ describe('devopsWatchStack: deployment posture', () => {
         expect.objectContaining({ name: 'Region 1', group: 'Europe' }),
       ]);
       expect(structured.notice).toBe(
-        '2 of 4 components are not shown — component lists are capped at 2 per vendor. Set component_filter to reach a specific component, or raise component_limit. component_filter "europe" matched no component of cloudflare (0 published). It matches component and group names as a case-insensitive substring; call again without component_filter to list them.',
+        '2 of 4 components are not shown — component lists are capped at 2 per vendor. Continue a capped list with devops_status_check, passing that vendor, mode: "detailed", the same component_filter, and its next_component_offset as component_offset. Set component_filter to reach a specific component, or raise component_limit. component_filter "europe" matched no component of cloudflare (0 published). It matches component and group names as a case-insensitive substring; call again without component_filter to list them.',
       );
       expect(structured.persistence_notice).toContain('does not save stacks');
       const text = result.content.map((c) => (c as { text: string }).text).join('\n');
@@ -1088,7 +1309,7 @@ describe('devopsWatchStack: deployment posture', () => {
       'circleci',
       'travis-ci',
       'snyk',
-      'atlassian',
+      'bitbucket',
       'figma',
       'launchdarkly',
       'mongodb-atlas',
@@ -1291,12 +1512,90 @@ describe('devopsWatchStack: deployment posture', () => {
           component_limit: 1000,
         });
 
-        const expected = `${DEFERRAL_21} component_limit 1000 is past the maximum of 500; 500 was used. 60 of 10060 components are not shown — component lists are capped at 500 per vendor. Set component_filter to reach a specific component.`;
+        const expected = `${DEFERRAL_21} component_limit 1000 is past the maximum of 500; 500 was used. 60 of 10060 components are not shown — component lists are capped at 500 per vendor. Continue a capped list with devops_status_check, passing that vendor, mode: "detailed", and its next_component_offset as component_offset. Set component_filter to reach a specific component.`;
         expect(structured.vendors[0]!.all_components).toHaveLength(500);
         expect(structured.notice).toBe(expected);
         expect(structured.persistence_notice).toContain('does not save stacks');
         expect(text).toContain(expected);
       });
+    });
+  });
+
+  /**
+   * `atlassian` stays one entry on Atlassian's umbrella page (#74): it counts once against
+   * the 20-vendor caps, and a sweep that serves it ends its notice with the product slugs.
+   */
+  describe('atlassian umbrella entry (#74)', () => {
+    beforeEach(() => {
+      useDeployment({ MCP_TRANSPORT_TYPE: 'stdio', MCP_AUTH_MODE: 'none' });
+    });
+
+    /** Statuspage-backed slugs other than atlassian, each on a page of its own. */
+    function otherSlugs(count: number): string[] {
+      return getVendorRegistryService()
+        .getAll()
+        .filter((v) => v.api_type === 'statuspage' && !v.component_scope_prefix)
+        .map((v) => v.slug)
+        .filter((slug) => slug !== 'atlassian')
+        .slice(0, count);
+    }
+
+    it.each(['summary', 'detailed'] as const)(
+      'sweeps atlassian as one umbrella row with the pointer as its notice, in %s mode',
+      async (mode) => {
+        await serveOperational();
+        const result = await runToolContract(
+          devopsWatchStack,
+          { vendors: ['atlassian'], stack_name: 'atl', mode },
+          { context: { tenantId: 'atl-stack' } },
+        );
+        const structured = result.structuredContent as {
+          vendors: Array<{ vendor: string; statuspage_url: string }>;
+          notice?: string;
+        };
+
+        expect(result.isError).toBeFalsy();
+        expect(structured.vendors.map((v) => [v.vendor, v.statuspage_url])).toEqual([
+          ['atlassian', 'https://status.atlassian.com'],
+        ]);
+        expect(structured.notice).toBe(ATLASSIAN_POINTER);
+        const text = readable(result.content.map((c) => (c as { text: string }).text).join('\n'));
+        expect(text).toContain(ATLASSIAN_POINTER);
+      },
+    );
+
+    it('saves 20 vendors holding atlassian and sweeps the saved stack in one call, deferring nothing', async () => {
+      await serveOperational();
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const stack = [...otherSlugs(19), 'atlassian'];
+
+      const saveCtx = createMockContext({
+        tenantId: 'full-stack',
+        errors: devopsWatchStack.errors,
+      });
+      const saved = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ vendors: stack, stack_name: 'full' }),
+        saveCtx,
+      );
+      expect(saved.stack_persisted).toBe(true);
+      expect(await saveCtx.state.get('stack/full')).toEqual(stack);
+      _mockFetchSummary.mockClear();
+
+      // A fresh context, so the enrichment read below is the sweep's alone.
+      const ctx = createMockContext({ tenantId: 'full-stack', errors: devopsWatchStack.errors });
+      await ctx.state.set('stack/full', stack);
+      const swept = await devopsWatchStack.handler(
+        devopsWatchStack.input.parse({ stack_name: 'full' }),
+        ctx,
+      );
+      expect(swept.vendors.map((v) => v.vendor)).toEqual(stack);
+      expect(swept.deferred_vendors).toEqual([]);
+      expect(swept.summary.total).toBe(20);
+      expect(_mockFetchSummary).toHaveBeenCalledTimes(20);
+      const effective = devopsWatchStack.output.extend(devopsWatchStack.enrichment!);
+      expect(effective.parse({ ...swept, ...getEnrichment(ctx) }).notice).toBe(ATLASSIAN_POINTER);
     });
   });
 

@@ -68,6 +68,38 @@ describe('vendorEntryResource', () => {
     expect(twilio).not.toHaveProperty('component_scope_prefix');
   });
 
+  it('carries product_slugs on the atlassian umbrella entry, and none on a product (#74)', async () => {
+    const read = (name: string) =>
+      vendorEntryResource.handler(
+        paramsSchema.parse({ name }),
+        createMockContext({ uri: new URL(`devops-status://vendors/${name}`) }),
+      );
+    const atlassian = await read('atlassian');
+    expect(atlassian).toEqual({
+      slug: 'atlassian',
+      name: 'Atlassian (cross-product incidents)',
+      category: 'dev-platform',
+      statuspage_url: 'https://status.atlassian.com',
+      api_type: 'statuspage',
+      product_slugs: [
+        'jira',
+        'confluence',
+        'bitbucket',
+        'jira-service-management',
+        'atlassian-compass',
+        'atlassian-developer',
+        'trello',
+        'opsgenie',
+        'atlassian-statuspage',
+        'atlassian-guard',
+      ],
+    });
+    expect(vendorEntryResource.output?.parse(atlassian)).toEqual(atlassian);
+    const jira = await read('jira');
+    expect(jira).not.toHaveProperty('product_slugs');
+    expect(jira.statuspage_url).toBe('https://jira-software.status.atlassian.com');
+  });
+
   it('throws notFound for unknown slug', () => {
     const ctx = createMockContext({ uri: new URL('devops-status://vendors/unknown-xyz') });
     const params = paramsSchema.parse({ name: 'unknown-xyz-doesnt-exist' });

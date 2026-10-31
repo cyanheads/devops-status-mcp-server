@@ -25,6 +25,7 @@ import {
   splitVendors,
   summarizeVendorResults,
   VendorResultSchema,
+  vendorRating,
 } from './devops-vendor-result.js';
 
 const STACK_STATE_PREFIX = 'stack/';
@@ -67,11 +68,15 @@ const STACK_HEALTH_RUNGS = [
 
 type StackHealth = (typeof STACK_HEALTH_RUNGS)[number];
 
+/**
+ * Roll the stack up from each checked vendor's rating — the worse of its indicator and its
+ * worst open incident rated minor or worse — the same level `summary` counts it at.
+ */
 function computeStackHealth(results: VendorResult[]): StackHealth {
-  const indicators = results.filter((r) => !r.error).map((r) => r.indicator);
-  if (indicators.some((i) => i === 'critical')) return 'major_outage';
-  if (indicators.some((i) => i === 'major')) return 'partial_outage';
-  if (indicators.some((i) => i === 'minor')) return 'degraded';
+  const ratings = results.filter((r) => !r.error).map(vendorRating);
+  if (ratings.some((i) => i === 'critical')) return 'major_outage';
+  if (ratings.some((i) => i === 'major')) return 'partial_outage';
+  if (ratings.some((i) => i === 'minor')) return 'degraded';
   // A vendor carrying a fetch error has an UNKNOWN status — never operational. Its
   // presence forces a non-green rollup, so an all-errored (or partially-errored)
   // stack can never fall through to all_operational.
@@ -79,7 +84,7 @@ function computeStackHealth(results: VendorResult[]): StackHealth {
   // A published maintenance window is planned, so it ranks below every outage rung
   // and below unknown — but it is not unqualified health either, and all_operational
   // stays reserved for a stack with nothing open at all.
-  if (indicators.some((i) => i === 'maintenance')) return 'maintenance';
+  if (ratings.some((i) => i === 'maintenance')) return 'maintenance';
   return 'all_operational';
 }
 
@@ -136,7 +141,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .string()
       .optional()
       .describe(
-        'Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_limit, so it is the way to reach a component that the cap would otherwise omit. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.',
+        'Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_limit, so it reaches a specific component the cap would otherwise omit; a capped vendor\'s full list continues in devops_status_check from its next_component_offset. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.',
       ),
     component_limit: z
       .number()
@@ -153,20 +158,24 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     health: z
       .enum(STACK_HEALTH_RUNGS)
       .describe(
-        'Aggregate health rollup: all_operational = everything clear, maintenance = at least one vendor in a scheduled window and nothing worse open, degraded = at least one minor issue, partial_outage = at least one major issue, major_outage = at least one critical outage, unknown = at least one vendor could not be checked (unresolvable entry, blocked target, or failed fetch) and no checked vendor reported a worse issue. Never all_operational when any vendor errored or is in a window.',
+        "Aggregate health rollup over each checked vendor's rating — the worse of its indicator and its worst open incident rated minor or worse — taking the worst rung that applies: major_outage = a vendor rated critical, partial_outage = a vendor rated major, degraded = a vendor rated minor, unknown = at least one vendor could not be checked (unresolvable entry, blocked target, or failed fetch) and none rated worse, maintenance = a vendor in a scheduled window and nothing worse, all_operational = every vendor checked and rated none. Never all_operational when any vendor errored, is in a window, or has an open incident rated minor or worse.",
       ),
     summary: z
       .object({
         total: z
           .number()
           .describe('Total vendors checked on this call — never counts deferred_vendors.'),
-        operational: z.number().describe('Vendors with indicator = none and no error.'),
-        degraded: z.number().describe('Vendors with indicator = minor or major.'),
-        down: z.number().describe('Vendors with indicator = critical.'),
+        operational: z
+          .number()
+          .describe(
+            'Vendors rated none — indicator none and no open incident rated minor or worse — and not errored.',
+          ),
+        degraded: z.number().describe('Vendors rated minor or major.'),
+        down: z.number().describe('Vendors rated critical.'),
         maintenance: z
           .number()
           .describe(
-            'Vendors with indicator = maintenance — in a scheduled window the vendor published. Counted apart from degraded and down, which are faults.',
+            'Vendors rated maintenance — in a scheduled window the vendor published, with no open incident rated minor or worse. Counted apart from degraded and down, which are faults.',
           ),
         unavailable: z
           .number()
@@ -175,7 +184,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
           ),
       })
       .describe(
-        'Aggregate health counts across all checked vendors. Buckets partition the stack: operational + degraded + down + maintenance + unavailable = total.',
+        'Aggregate health counts across all checked vendors. Each vendor is rated by the worse of its indicator and its worst open incident rated minor or worse; an incident rated none or maintenance never raises the rating. Buckets partition the stack: operational + degraded + down + maintenance + unavailable = total.',
       ),
     vendors: z
       .array(VendorResultSchema)
@@ -200,14 +209,14 @@ export const devopsWatchStack = tool('devops_watch_stack', {
   }),
 
   enrichment: {
-    // Populated only via ctx.enrich when a component list is actually capped, when
-    // component_filter matched nothing for a vendor, or when stacks are not saved — all
-    // fields must be optional so a plain result passes the effective-output parse.
+    // Populated only via ctx.enrich when a component list is actually capped, when notice
+    // has something to say, or when stacks are not saved — all fields must be optional so
+    // a plain result passes the effective-output parse.
     truncated: z
       .boolean()
       .optional()
       .describe(
-        "True when at least one vendor's component list was capped at component_limit. Absent when nothing was capped.",
+        "True when at least one vendor's component list was capped at component_limit — those vendors carry next_component_offset. Absent when nothing was capped.",
       ),
     shown: z
       .number()
@@ -227,7 +236,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .string()
       .optional()
       .describe(
-        'Plain-language explanation of what this call left out or adjusted: vendors past the first 20 (listed in deferred_vendors), a component_limit above 500 reduced to 500, and in detailed mode how many components the cap omitted and how to reach them (component_filter to target one, or component_limit to raise a cap below 500), and which checked vendors component_filter matched no component of, with how many each publishes. Present only when one of these applies.',
+        'Plain-language explanation of what this call left out or adjusted, in this order: vendors past the first 20 (listed in deferred_vendors), and for a saved stack how to sweep every one; a component_limit above 500 reduced to 500; in detailed mode, how many components the cap omitted and how to reach them (devops_status_check with that vendor and its next_component_offset as component_offset, component_filter to target one, or component_limit to raise a cap below 500), and which checked vendors component_filter matched no component of, with how many each publishes; and last, for a vendor whose entry reads an umbrella status page with no components (atlassian), the slugs of the entries reading its product pages. Present only when one of these applies.',
       ),
     persistence_notice: z
       .string()
@@ -370,6 +379,8 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       {
         mode: input.mode,
         componentLimit: componentLimit.value,
+        // A sweep always reads from the first component; capped lists continue in devops_status_check.
+        componentOffset: 0,
         componentFilter: input.component_filter,
       },
       leadNotices,

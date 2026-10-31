@@ -34,6 +34,12 @@ interface VendorEntryBase {
   component_scope_prefix?: string;
   /** Display name (e.g., "GitHub", "Cloudflare"). */
   name: string;
+  /**
+   * Set on an entry that reads an umbrella page publishing no components and only
+   * cross-product incidents: the slugs of the entries that read its products' own pages.
+   * The status tools name them in `notice` wherever the entry is served.
+   */
+  product_slugs?: readonly string[];
   /** Canonical identifier used in tool inputs (e.g., "github", "cloudflare"). */
   slug: string;
   /**
@@ -53,7 +59,7 @@ export type VendorEntry =
     });
 
 /**
- * 53-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
+ * 63-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
  * every other api_type is served through a native-API adapter
  * (src/services/status-adapters/) that normalizes into the Statuspage shapes.
  * Probe every entry for drift with `bun run verify:registry`.
@@ -196,9 +202,75 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
   },
   {
     slug: 'atlassian',
-    name: 'Atlassian',
+    name: 'Atlassian (cross-product incidents)',
     category: 'dev-platform',
+    // Umbrella page: no components, and only incidents posted across products. Product
+    // outages are posted on each product's own page, read by the entries listed here.
     statuspage_url: 'https://status.atlassian.com',
+    api_type: 'statuspage',
+    product_slugs: [
+      'jira',
+      'confluence',
+      'bitbucket',
+      'jira-service-management',
+      'atlassian-compass',
+      'atlassian-developer',
+      'trello',
+      'opsgenie',
+      'atlassian-statuspage',
+      'atlassian-guard',
+    ],
+  },
+  {
+    slug: 'jira',
+    name: 'Atlassian Jira',
+    category: 'dev-platform',
+    statuspage_url: 'https://jira-software.status.atlassian.com',
+    api_type: 'statuspage',
+  },
+  {
+    slug: 'confluence',
+    name: 'Atlassian Confluence',
+    category: 'dev-platform',
+    statuspage_url: 'https://confluence.status.atlassian.com',
+    api_type: 'statuspage',
+  },
+  {
+    slug: 'bitbucket',
+    name: 'Atlassian Bitbucket',
+    category: 'dev-platform',
+    // status.bitbucket.org 302s here.
+    statuspage_url: 'https://bitbucket.status.atlassian.com',
+    api_type: 'statuspage',
+  },
+  {
+    slug: 'jira-service-management',
+    name: 'Atlassian Jira Service Management',
+    category: 'dev-platform',
+    statuspage_url: 'https://jira-service-management.status.atlassian.com',
+    api_type: 'statuspage',
+  },
+  {
+    slug: 'atlassian-compass',
+    name: 'Atlassian Compass',
+    category: 'dev-platform',
+    statuspage_url: 'https://compass.status.atlassian.com',
+    api_type: 'statuspage',
+  },
+  {
+    slug: 'atlassian-developer',
+    name: 'Atlassian Developer',
+    category: 'dev-platform',
+    // The Forge and Connect app platform; status.developer.atlassian.com 302s here.
+    statuspage_url: 'https://developer.status.atlassian.com',
+    api_type: 'statuspage',
+  },
+  {
+    slug: 'trello',
+    name: 'Atlassian Trello',
+    category: 'dev-platform',
+    // www.trellostatus.com 302s here.
+    statuspage_url: 'https://trello.status.atlassian.com',
     api_type: 'statuspage',
   },
   {
@@ -380,6 +452,14 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     statuspage_url: 'https://status.workos.com',
     api_type: 'statuspage',
   },
+  {
+    slug: 'atlassian-guard',
+    name: 'Atlassian Guard',
+    category: 'auth',
+    // SSO and identity in front of the Atlassian cloud products.
+    statuspage_url: 'https://guard.status.atlassian.com',
+    api_type: 'statuspage',
+  },
   // monitoring
   {
     slug: 'datadog',
@@ -414,6 +494,22 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     name: 'Honeycomb',
     category: 'monitoring',
     statuspage_url: 'https://status.honeycomb.io',
+    api_type: 'statuspage',
+  },
+  {
+    slug: 'opsgenie',
+    name: 'Atlassian Opsgenie',
+    category: 'monitoring',
+    // status.opsgenie.com 302s here.
+    statuspage_url: 'https://opsgenie.status.atlassian.com',
+    api_type: 'statuspage',
+  },
+  {
+    slug: 'atlassian-statuspage',
+    name: 'Atlassian Statuspage',
+    category: 'monitoring',
+    // Statuspage's own status page — the backend most entries in this registry run on.
+    statuspage_url: 'https://metastatuspage.com',
     api_type: 'statuspage',
   },
   // ai

@@ -38,13 +38,14 @@ export function vendorErrorMessage(reason: unknown): string {
  * Components returned per vendor in detailed mode when the caller sets no limit.
  * Large pages publish hundreds (one vendor alone can exceed 400), which is a
  * six-figure-byte response across a full batch; callers who need more raise
- * `component_limit` or narrow with `component_filter`.
+ * `component_limit`, page with `component_offset`, or narrow with `component_filter`.
  */
 export const DEFAULT_COMPONENT_LIMIT = 50;
 
 /**
- * Highest `component_limit` applied — above the largest published component list. A larger
- * request is clamped to it rather than rejected.
+ * Highest `component_limit` applied. It bounds one call's response rather than any page's
+ * size — some pages publish more — so a longer list is reached through `component_offset`.
+ * A larger request is clamped to it rather than rejected.
  */
 export const MAX_COMPONENT_LIMIT = 500;
 
@@ -116,7 +117,7 @@ export const VendorResultSchema = z
     indicator: z
       .enum(['none', 'minor', 'major', 'critical', 'maintenance'])
       .describe(
-        'Overall health indicator: none = all clear, minor = some degradation, major = significant outage, critical = complete outage, maintenance = scheduled window in progress, planned rather than a fault.',
+        "Overall health indicator, as the vendor published it: none = no degradation reported, minor = some degradation, major = significant outage, critical = complete outage, maintenance = scheduled window in progress, planned rather than a fault. A page can rate it from component statuses alone, so it can read none or maintenance while active_incidents lists an open incident rated minor or worse; summary, and devops_watch_stack's health, rate the vendor by the worse of the two.",
       ),
     description: z
       .string()
@@ -177,7 +178,10 @@ export const VendorResultSchema = z
               .describe("ISO 8601 start time, with the vendor's UTC offset."),
             scheduled_until: z
               .string()
-              .describe("ISO 8601 end time, with the vendor's UTC offset."),
+              .nullable()
+              .describe(
+                "ISO 8601 end time, with the vendor's UTC offset, or null when the vendor's feed publishes no planned end.",
+              ),
             status: z.string().describe('Maintenance status (scheduled, in_progress, completed).'),
           })
           .describe('A scheduled maintenance entry.'),
@@ -200,16 +204,31 @@ export const VendorResultSchema = z
       )
       .optional()
       .describe(
-        'Components including operational ones, capped at component_limit per vendor and narrowed by component_filter (matched against name and group) when given. Present in detailed mode only.',
+        'Components including operational ones, narrowed by component_filter (matched against name and group) when given, starting at component_offset (devops_status_check only; the first component otherwise), and at most component_limit per vendor. Present in detailed mode only.',
       ),
     all_components_total: z
       .number()
       .optional()
       .describe(
-        'Components matching component_filter for this vendor before the component_limit cap. Larger than the length of all_components when this vendor was capped. Present in detailed mode only.',
+        'Components matching component_filter for this vendor, before component_offset and component_limit — the length of the whole list all_components is a page of. Present in detailed mode only.',
       ),
-    cached: z.boolean().describe('True when this result was served from the 60s in-memory cache.'),
-    checked_at: z.string().describe('ISO 8601 UTC timestamp of this check.'),
+    next_component_offset: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        'Where this vendor\'s component list continues. Present in detailed mode only, and only when components remain past the returned page: pass it as component_offset to devops_status_check, with this vendor, mode "detailed", and the same component_filter. Absent on the last page.',
+      ),
+    cached: z
+      .boolean()
+      .describe(
+        'True when this result was served from the in-memory status cache, shared across callers (60 s TTL by default), so its data can be up to that TTL older than checked_at.',
+      ),
+    checked_at: z
+      .string()
+      .describe(
+        'ISO 8601 UTC timestamp of this check — when this result was built, not when the status data was fetched; see cached.',
+      ),
     statuspage_url: z.string().describe('Status page base URL used for this vendor.'),
     error: z
       .string()
@@ -280,18 +299,29 @@ function renderDegradedComponents(components: VendorResult['degraded_components'
 }
 
 /**
- * Status icon per indicator. A record rather than a ternary chain so a new
- * indicator is a compile error here instead of falling through to the wrong glyph.
- * `maintenance` reuses the 🛠️ the degraded-component list already marks scheduled
- * windows with, so a planned window reads the same wherever it appears.
+ * Status icon per rating ({@link vendorRating}), so a vendor's heading agrees with the
+ * summary bucket it counts in — a page reading `none` beside an open major incident is not
+ * shown ✅. A record rather than a ternary chain so a new indicator is a compile error here
+ * instead of falling through to the wrong glyph. `maintenance` reuses the 🛠️ the
+ * degraded-component list already marks scheduled windows with, so a planned window reads
+ * the same wherever it appears.
  */
-const INDICATOR_ICON: Record<VendorResult['indicator'], string> = {
+const RATING_ICON: Record<VendorResult['indicator'], string> = {
   none: '✅',
   minor: '⚠️',
   major: '⚠️',
   critical: '🔴',
   maintenance: '🛠️',
 };
+
+/**
+ * A maintenance window's end for a content[] line — the vendor's timestamp, escaped, or a
+ * statement that its feed publishes none. Shared with devops_get_incidents so both tools
+ * word a missing end the same way.
+ */
+export function renderWindowEnd(scheduledUntil: string | null): string {
+  return scheduledUntil === null ? 'end not published' : vendorInline(scheduledUntil);
+}
 
 /**
  * Render a vendor result block for use in format(). Every string the status page wrote
@@ -301,7 +331,7 @@ const INDICATOR_ICON: Record<VendorResult['indicator'], string> = {
  */
 export function renderVendorBlock(v: VendorResult): string[] {
   const lines: string[] = [];
-  const icon = v.error ? '❓' : INDICATOR_ICON[v.indicator];
+  const icon = v.error ? '❓' : RATING_ICON[vendorRating(v)];
   lines.push(`### ${icon} ${vendorInline(v.name)} (${v.vendor})`);
   lines.push(`**Status:** ${vendorInline(v.description)} | **Indicator:** ${v.indicator}`);
   if (v.error) lines.push(`**Error:** ${v.error}`);
@@ -321,16 +351,25 @@ export function renderVendorBlock(v: VendorResult): string[] {
   if (v.scheduled_maintenances && v.scheduled_maintenances.length > 0) {
     for (const m of v.scheduled_maintenances) {
       lines.push(
-        `**Maintenance:** ${vendorInline(m.name)} [${vendorInline(m.status)}] ${vendorInline(m.scheduled_for)} → ${vendorInline(m.scheduled_until)}`,
+        `**Maintenance:** ${vendorInline(m.name)} [${vendorInline(m.status)}] ${vendorInline(m.scheduled_for)} → ${renderWindowEnd(m.scheduled_until)}`,
       );
     }
   }
   if (v.all_components && v.all_components.length > 0) {
-    const total = v.all_components_total ?? v.all_components.length;
-    lines.push(`**Components (${v.all_components.length} of ${total}):**`);
+    const shown = v.all_components.length;
+    const total = v.all_components_total ?? shown;
+    // A page ends where the next one starts, or at the end of the list when it is the last.
+    const start = (v.next_component_offset ?? total) - shown;
+    const range = start === 0 ? `${shown}` : `${start + 1}–${start + shown}`;
+    lines.push(`**Components (${range} of ${total}):**`);
     for (const c of v.all_components) {
       lines.push(
         `- ${vendorInline(qualifiedName(c))}: ${vendorInline(c.status)}${c.description ? ` — ${vendorInline(c.description)}` : ''}`,
+      );
+    }
+    if (v.next_component_offset !== undefined) {
+      lines.push(
+        `**next_component_offset:** ${v.next_component_offset} — the list continues past this page.`,
       );
     }
   }
@@ -395,7 +434,7 @@ type NextToolSuggestion = z.infer<typeof NextToolSuggestionSchema>;
 export const NextToolSuggestionsSchema = z
   .array(NextToolSuggestionSchema)
   .describe(
-    "One devops_suggest_action call per vendor with an active problem — an indicator of minor, major, or critical, or an open incident of that impact even while the indicator reads none or maintenance — with its arguments filled from that vendor's result. Vendors that could not be checked never appear. Empty when no checked vendor has an active problem.",
+    "One devops_suggest_action call per vendor with an active problem — an indicator of minor, major, or critical, or an open incident of that impact even while the indicator reads none or maintenance; these are the vendors summary counts as degraded or down — with its arguments filled from that vendor's result. Vendors that could not be checked never appear. Empty when no checked vendor has an active problem.",
   );
 
 /**
@@ -413,6 +452,36 @@ type ProblemSeverity = keyof typeof PROBLEM_SEVERITY_LABEL;
 
 function isProblemSeverity(value: VendorResult['indicator']): value is ProblemSeverity {
   return Object.hasOwn(PROBLEM_SEVERITY_LABEL, value);
+}
+
+/**
+ * Each indicator value's place in a vendor's rating, best first. A planned window sits above
+ * all clear and below every fault, so an open outage outranks it.
+ */
+const RATING_RANK: Record<VendorResult['indicator'], number> = {
+  none: 0,
+  maintenance: 1,
+  minor: 2,
+  major: 3,
+  critical: 4,
+};
+
+/**
+ * The level a vendor is counted at in `summary` and rolled up at in devops_watch_stack's
+ * `health`: the worse of its published indicator and its worst open incident rated minor or
+ * worse. Statuspage blends the indicator from component statuses while an incident's impact
+ * can be set by override, so a page can read `none` or `maintenance` beside an open incident
+ * rated major. An incident rated `none` (an advisory) or `maintenance` (a window listed as an
+ * incident) never raises it, so a window never counts as an outage, and an incident never
+ * lowers what the vendor published. The vendors this rates minor or worse are exactly the
+ * ones {@link buildSuggestActionSuggestions} suggests. `indicator` itself stays as published.
+ */
+export function vendorRating(result: VendorResult): VendorResult['indicator'] {
+  let rating = result.indicator;
+  for (const { impact } of result.active_incidents) {
+    if (isProblemSeverity(impact) && RATING_RANK[impact] > RATING_RANK[rating]) rating = impact;
+  }
+  return rating;
 }
 
 /** Component names named in a reason before the rest are counted instead. */
@@ -541,25 +610,44 @@ export type VendorSummary = {
 };
 
 /**
- * Count vendors into the five aggregate buckets.
+ * The bucket a checked vendor's rating counts in — a record, so a new indicator value is a
+ * compile error here rather than a vendor silently left out of the totals.
+ */
+const RATING_BUCKET: Record<
+  VendorResult['indicator'],
+  Exclude<keyof VendorSummary, 'total' | 'unavailable'>
+> = {
+  none: 'operational',
+  minor: 'degraded',
+  major: 'degraded',
+  critical: 'down',
+  maintenance: 'maintenance',
+};
+
+/**
+ * Count vendors into the five aggregate buckets, each vendor in exactly one.
  *
  * One definition for both tools: a vendor carrying `error` — unresolvable slug,
- * blocked target, or failed fetch — is `unavailable`, never `operational`, so
- * `operational + degraded + down + maintenance + unavailable === total` always
- * holds. `maintenance` is its own bucket rather than folded into `degraded`:
- * the vendor published a planned window, and counting it as a fault would put a
- * scheduled window in the same number as an outage. Every indicator maps to a
- * bucket — a vendor absent from all of them would silently leave the totals.
+ * blocked target, or failed fetch — is `unavailable`, never `operational`, and every
+ * other vendor counts at its {@link vendorRating}, so
+ * `operational + degraded + down + maintenance + unavailable === total` always holds.
+ * `maintenance` is its own bucket rather than folded into `degraded`: the vendor
+ * published a planned window, and counting it as a fault would put a scheduled window
+ * in the same number as an outage.
  */
 export function summarizeVendorResults(results: readonly VendorResult[]): VendorSummary {
-  return {
+  const summary: VendorSummary = {
     total: results.length,
-    operational: results.filter((r) => r.indicator === 'none' && !r.error).length,
-    degraded: results.filter((r) => r.indicator === 'minor' || r.indicator === 'major').length,
-    down: results.filter((r) => r.indicator === 'critical').length,
-    maintenance: results.filter((r) => r.indicator === 'maintenance').length,
-    unavailable: results.filter((r) => r.error !== undefined).length,
+    operational: 0,
+    degraded: 0,
+    down: 0,
+    maintenance: 0,
+    unavailable: 0,
   };
+  for (const r of results) {
+    summary[r.error === undefined ? RATING_BUCKET[vendorRating(r)] : 'unavailable'] += 1;
+  }
+  return summary;
 }
 
 /** A vendor input that resolved to a fetchable target. */
@@ -635,7 +723,12 @@ export type ComponentOptions = {
   mode: 'summary' | 'detailed';
   /** Maximum components to include per vendor in detailed mode. */
   componentLimit: number;
-  /** Case-insensitive substring narrowing the component list before the cap. */
+  /**
+   * Components skipped per vendor in detailed mode, after the filter and before the limit.
+   * devops_watch_stack takes no offset and always passes 0.
+   */
+  componentOffset: number;
+  /** Case-insensitive substring narrowing the component list before the offset and cap. */
   componentFilter?: string | undefined;
 };
 
@@ -661,17 +754,32 @@ export type BuildVendorResultArgs = ComponentOptions & {
  */
 export type BuiltVendorResult = {
   result: VendorResult;
-  /** Components matching the filter before the cap. 0 in summary mode. */
+  /** Components matching the filter before the offset and cap. 0 in summary mode. */
   componentsMatched: number;
   /** Components included in the result. 0 in summary mode. */
   componentsShown: number;
+  /**
+   * Matching components after the returned page — what `next_component_offset` continues
+   * with. Those skipped before the page are never counted. 0 in summary mode.
+   */
+  componentsPast: number;
   /** Components the page publishes, groups excluded — what a filter could have matched. */
   componentsPublished: number;
 };
 
 /** Build a VendorResult from a Statuspage summary response. */
 export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResult {
-  const { vendorInput, url, name, data, cached, mode, componentLimit, componentFilter } = args;
+  const {
+    vendorInput,
+    url,
+    name,
+    data,
+    cached,
+    mode,
+    componentLimit,
+    componentOffset,
+    componentFilter,
+  } = args;
   const now = new Date().toISOString();
   // A group is a container, never a component a caller checks; its name labels its leaves.
   const groupNames = new Map(data.components.filter((c) => c.group).map((c) => [c.id, c.name]));
@@ -716,6 +824,7 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
       result,
       componentsMatched: 0,
       componentsShown: 0,
+      componentsPast: 0,
       componentsPublished: leaves.length,
     };
   }
@@ -723,7 +832,7 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
   result.scheduled_maintenances = (data.scheduled_maintenances ?? []).map((m) => ({
     name: m.name,
     scheduled_for: m.scheduled_for ?? '',
-    scheduled_until: m.scheduled_until ?? '',
+    scheduled_until: m.scheduled_until ?? null,
     status: m.status,
   }));
 
@@ -735,7 +844,9 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
           (group?.toLowerCase().includes(filter) ?? false),
       )
     : leaves;
-  const shown = matched.slice(0, componentLimit);
+  const pageEnd = componentOffset + componentLimit;
+  const shown = matched.slice(componentOffset, pageEnd);
+  const componentsPast = Math.max(matched.length - pageEnd, 0);
 
   result.all_components = shown.map(({ component, group }) => ({
     name: component.name,
@@ -746,13 +857,29 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
     description: component.description ?? null,
   }));
   result.all_components_total = matched.length;
+  if (componentsPast > 0) result.next_component_offset = pageEnd;
 
   return {
     result,
     componentsMatched: matched.length,
     componentsShown: shown.length,
+    componentsPast,
     componentsPublished: leaves.length,
   };
+}
+
+/**
+ * The `notice` sentence for a vendor whose registry entry reads an umbrella page — one
+ * that publishes no components and only cross-product incidents — naming the entries
+ * that read its products' own pages. Undefined for every vendor without `product_slugs`.
+ * Shared by every tool that serves such a vendor, and always the last sentence of the
+ * composed notice.
+ */
+export function productSlugsNotice(
+  vendor: Pick<ResolvedVendor, 'slug' | 'product_slugs'>,
+): string | undefined {
+  if (!vendor.product_slugs) return undefined;
+  return `${vendor.slug} reads an umbrella status page that publishes no components and only cross-product incidents; product outages are posted on each product's own page — check those by slug: ${vendor.product_slugs.join(', ')}.`;
 }
 
 /**
@@ -767,6 +894,26 @@ function filterMissNotice(filter: string, missed: readonly BuiltVendorResult[]):
     `component_filter ${JSON.stringify(filter)} matched no component of ${vendors}. ` +
     'It matches component and group names as a case-insensitive substring; call again without component_filter to list them.'
   );
+}
+
+/**
+ * The notice for a component_offset at or past the end of one or more checked vendors'
+ * lists, which leaves their all_components empty. A vendor the filter matched nothing of
+ * is a filter miss instead, and one that errored is left out.
+ */
+function offsetPastEndNotice(
+  offset: number,
+  filtered: boolean,
+  past: readonly BuiltVendorResult[],
+): string {
+  const matching = filtered ? ' matching component_filter' : '';
+  const vendors = past
+    .map(
+      (p) =>
+        `${p.result.vendor} (${p.componentsMatched} component${p.componentsMatched === 1 ? '' : 's'}${matching})`,
+    )
+    .join(', ');
+  return `component_offset ${offset} is past the last component of ${vendors}, so all_components is empty there. Pass a smaller component_offset, or 0 to start from the first component.`;
 }
 
 /**
@@ -795,6 +942,7 @@ export async function fetchVendorResults(
           result: vendorErrorResult(p.input, p.name, p.url, p.message),
           componentsMatched: 0,
           componentsShown: 0,
+          componentsPast: 0,
           componentsPublished: 0,
         };
       }
@@ -812,29 +960,51 @@ export async function fetchVendorResults(
 
   let componentsMatched = 0;
   let componentsShown = 0;
+  let componentsPast = 0;
   const built: BuiltVendorResult[] = [];
   for (const s of settled) {
     if (s.status !== 'fulfilled') continue;
     built.push(s.value);
     componentsMatched += s.value.componentsMatched;
     componentsShown += s.value.componentsShown;
+    componentsPast += s.value.componentsPast;
   }
 
-  // `notice` is last-wins across enrich calls, so every reason composes into one string.
+  /**
+   * `notice` is last-wins across enrich calls, so every reason composes into one string,
+   * in a fixed order: the caller's lead notices, truncation with its continuation, an
+   * offset past the end, a filter miss, and the umbrella pointer last.
+   */
   const notices = [...leadNotices];
-  const truncated = componentsShown < componentsMatched;
+  const filter = options.componentFilter?.trim();
+  // Truncation follows the page: only components after it count, never those skipped before it.
+  const truncated = componentsPast > 0;
   if (truncated) {
+    const after = options.componentOffset > 0 ? ' after this page' : '';
+    // The offset indexes the filtered list, so a continuation that drops the filter lands elsewhere.
+    const sameFilter = filter ? ' the same component_filter,' : '';
     // At the maximum there is no higher limit to point at.
     const raise = options.componentLimit < MAX_COMPONENT_LIMIT ? ', or raise component_limit' : '';
     notices.push(
-      `${componentsMatched - componentsShown} of ${componentsMatched} components are not shown — component lists are capped at ${options.componentLimit} per vendor. Set component_filter to reach a specific component${raise}.`,
+      `${componentsPast} of ${componentsMatched} components${after} are not shown — component lists are capped at ${options.componentLimit} per vendor. Continue a capped list with devops_status_check, passing that vendor, mode: "detailed",${sameFilter} and its next_component_offset as component_offset. Set component_filter to reach a specific component${raise}.`,
     );
   }
-  const filter = options.componentFilter?.trim();
-  if (options.mode === 'detailed' && filter) {
-    const missed = built.filter((b) => b.result.error === undefined && b.componentsMatched === 0);
-    if (missed.length > 0) notices.push(filterMissNotice(filter, missed));
+  if (options.mode === 'detailed') {
+    const checked = built.filter((b) => b.result.error === undefined);
+    const missed = filter ? checked.filter((b) => b.componentsMatched === 0) : [];
+    const pastEnd =
+      options.componentOffset > 0
+        ? checked.filter((b) => b.componentsShown === 0 && !missed.includes(b))
+        : [];
+    if (pastEnd.length > 0) {
+      notices.push(offsetPastEndNotice(options.componentOffset, Boolean(filter), pastEnd));
+    }
+    if (filter && missed.length > 0) notices.push(filterMissNotice(filter, missed));
   }
+  // An entry is the umbrella whether or not its page answered, so a failed fetch keeps the pointer.
+  notices.push(
+    ...new Set(prepared.flatMap((p) => (p.ok ? (productSlugsNotice(p.target) ?? []) : []))),
+  );
 
   if (truncated) {
     ctx.enrich.total(componentsMatched);

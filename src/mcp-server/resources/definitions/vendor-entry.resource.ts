@@ -44,6 +44,12 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
       .describe(
         'Present when the vendor publishes on a status page it shares with other products: only components whose name, or whose group name, starts with this prefix belong to the vendor, and the status tools report those components and the incidents and maintenance windows touching them. Absent when the entry reads its whole page.',
       ),
+    product_slugs: z
+      .array(z.string().describe('Slug of an entry that reads one product page.'))
+      .optional()
+      .describe(
+        "Present when the entry reads an umbrella page that publishes no components and only cross-product incidents: the slugs of the entries that read each product's own page, where product outages are posted. Absent on every other entry.",
+      ),
   }),
 
   handler(params) {
@@ -63,6 +69,7 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
       ...(entry.component_scope_prefix && {
         component_scope_prefix: entry.component_scope_prefix,
       }),
+      ...(entry.product_slugs && { product_slugs: [...entry.product_slugs] }),
     };
   },
 });

@@ -11,9 +11,17 @@ import {
   getEnrichment,
   runToolContract,
 } from '@cyanheads/mcp-ts-core/testing';
+import MarkdownIt from 'markdown-it';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { devopsStatusCheck } from '@/mcp-server/tools/definitions/devops-status-check.tool.js';
 import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
+import {
+  buildSuggestActionSuggestions,
+  type PreparedVendor,
+  summarizeVendorResults,
+  type VendorResult,
+  vendorRating,
+} from '@/mcp-server/tools/definitions/devops-vendor-result.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
 import {
   getVendorRegistryService,
@@ -216,6 +224,22 @@ function pageWithDegradedFleet(): StatuspageSummaryResponse {
     ],
   };
 }
+
+/**
+ * content[] as a reader sees it: parsed as CommonMark, with escapes resolved and code
+ * spans and block quotes reduced to their text, one line per paragraph or heading.
+ */
+function readable(markdown: string): string {
+  return new MarkdownIt()
+    .parse(markdown, {})
+    .filter((token) => token.type === 'inline')
+    .map((token) => (token.children ?? []).map((child) => child.content).join(''))
+    .join('\n');
+}
+
+/** The sentence a notice ends with wherever a tool serves the `atlassian` umbrella entry (#74). */
+const ATLASSIAN_POINTER =
+  "atlassian reads an umbrella status page that publishes no components and only cross-product incidents; product outages are posted on each product's own page — check those by slug: jira, confluence, bitbucket, jira-service-management, atlassian-compass, atlassian-developer, trello, opsgenie, atlassian-statuspage, atlassian-guard.";
 
 beforeAll(() => {
   initVendorRegistryService();
@@ -680,6 +704,238 @@ describe('devopsStatusCheck', () => {
     expect(() => effectiveOutput.parse({ ...result, ...getEnrichment(ctx) })).not.toThrow();
   });
 
+  /**
+   * Paging past the per-call cap (#82): component_offset skips a vendor's components after
+   * component_filter and before component_limit, and next_component_offset says where its
+   * list continues. The truncation signal, its counts, and the notice follow the page.
+   */
+  describe('component_offset (#82)', () => {
+    const TOTAL = 542;
+    const ALL_NAMES = Array.from(
+      { length: TOTAL },
+      (_, i) => `Component ${String(i + 1).padStart(3, '0')}`,
+    );
+    const CONTINUE =
+      'Continue a capped list with devops_status_check, passing that vendor, mode: "detailed", and its next_component_offset as component_offset.';
+
+    /** 542 leaves in one group — one degraded on the first page, one past 500 — and an open incident. */
+    function largePage(): StatuspageSummaryResponse {
+      const base = pageWithComponents(TOTAL);
+      const degraded: Record<string, Component['status']> = {
+        'Component 003': 'degraded_performance',
+        'Component 520': 'major_outage',
+      };
+      return {
+        ...base,
+        status: { indicator: 'minor', description: 'Minor Service Disruption' },
+        components: base.components.map((c) =>
+          degraded[c.name] ? { ...c, status: degraded[c.name]! } : c,
+        ),
+        incidents: [incident('Trace ingestion delays', 'minor', '2025-03-01T10:00:00Z')],
+      };
+    }
+
+    type PagedResult = {
+      results: VendorResult[];
+      notice?: string;
+      truncated?: boolean;
+      shown?: number;
+      cap?: number;
+      totalCount?: number;
+    };
+
+    beforeEach(async () => {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockResolvedValue({ data: largePage(), cached: false });
+    });
+
+    async function check(args: Record<string, unknown>) {
+      const result = await runToolContract(devopsStatusCheck, {
+        vendors: ['grafana-cloud'],
+        mode: 'detailed',
+        ...args,
+      } as never);
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      const structured = result.structuredContent as PagedResult;
+      return { result, structured, vendor: structured.results[0]!, text: readable(text) };
+    }
+
+    it('pages a list past the 500 cap so every component is listed exactly once', async () => {
+      const first = await check({ component_limit: 500 });
+      expect(first.vendor.all_components).toHaveLength(500);
+      expect(first.vendor.all_components_total).toBe(TOTAL);
+      expect(first.vendor.next_component_offset).toBe(500);
+      expect(first.structured).toMatchObject({
+        truncated: true,
+        shown: 500,
+        cap: 500,
+        totalCount: TOTAL,
+      });
+
+      const last = await check({
+        component_limit: 500,
+        component_offset: first.vendor.next_component_offset,
+      });
+      expect(last.vendor.all_components).toHaveLength(42);
+      expect(last.vendor.all_components_total).toBe(TOTAL);
+      expect(last.vendor).not.toHaveProperty('next_component_offset');
+      expect(last.structured.truncated).toBeUndefined();
+      expect(last.structured.notice).toBeUndefined();
+
+      const listed = [...first.vendor.all_components!, ...last.vendor.all_components!];
+      expect(listed.map((c) => c.name)).toEqual(ALL_NAMES);
+    });
+
+    it('follows next_component_offset across several pages of the same list', async () => {
+      const pages: Array<[number, number, number | undefined, boolean | undefined]> = [];
+      const names: string[] = [];
+      let offset: number | undefined = 0;
+      while (offset !== undefined && pages.length < 10) {
+        const { structured, vendor }: Awaited<ReturnType<typeof check>> = await check({
+          component_limit: 200,
+          component_offset: offset,
+        });
+        pages.push([
+          offset,
+          vendor.all_components!.length,
+          vendor.next_component_offset,
+          structured.truncated,
+        ]);
+        names.push(...vendor.all_components!.map((c) => c.name));
+        offset = vendor.next_component_offset;
+      }
+      expect(pages).toEqual([
+        [0, 200, 200, true],
+        [200, 200, 400, true],
+        [400, 142, undefined, undefined],
+      ]);
+      expect(names).toEqual(ALL_NAMES);
+    });
+
+    it('pages within the component_filter set, and all_components_total stays its size', async () => {
+      // "component 1" matches Component 100 through Component 199.
+      const middle = await check({
+        component_filter: 'component 1',
+        component_limit: 30,
+        component_offset: 30,
+      });
+      expect(middle.vendor.all_components!.map((c) => c.name)).toEqual(
+        Array.from({ length: 30 }, (_, i) => `Component ${130 + i}`),
+      );
+      expect(middle.vendor.all_components_total).toBe(100);
+      expect(middle.vendor.next_component_offset).toBe(60);
+      expect(middle.structured).toMatchObject({ truncated: true, shown: 30, totalCount: 100 });
+      // The continuation keeps the filter, or the offset would index a different list.
+      expect(middle.structured.notice).toBe(
+        '40 of 100 components after this page are not shown — component lists are capped at 30 per vendor. Continue a capped list with devops_status_check, passing that vendor, mode: "detailed", the same component_filter, and its next_component_offset as component_offset. Set component_filter to reach a specific component, or raise component_limit.',
+      );
+
+      const last = await check({
+        component_filter: 'component 1',
+        component_limit: 30,
+        component_offset: 90,
+      });
+      expect(last.vendor.all_components!.map((c) => c.name)).toEqual(
+        Array.from({ length: 10 }, (_, i) => `Component ${190 + i}`),
+      );
+      expect(last.vendor.all_components_total).toBe(100);
+      expect(last.vendor).not.toHaveProperty('next_component_offset');
+      expect(last.structured.notice).toBeUndefined();
+    });
+
+    it('counts only the components past the page in the notice, never those before it', async () => {
+      const { structured, vendor, text } = await check({
+        component_limit: 50,
+        component_offset: 100,
+      });
+      expect(vendor.all_components!.map((c) => c.name)).toEqual(ALL_NAMES.slice(100, 150));
+      expect(vendor.next_component_offset).toBe(150);
+      expect(structured).toMatchObject({ truncated: true, shown: 50, cap: 50, totalCount: TOTAL });
+      const notice = `392 of 542 components after this page are not shown — component lists are capped at 50 per vendor. ${CONTINUE} Set component_filter to reach a specific component, or raise component_limit.`;
+      expect(structured.notice).toBe(notice);
+      expect(text).toContain(notice);
+    });
+
+    it('returns an empty list and a notice for an offset at or past the end, without an error', async () => {
+      for (const offset of [TOTAL, 10_000]) {
+        const { result, structured, vendor, text } = await check({
+          component_limit: 50,
+          component_offset: offset,
+        });
+        expect(result.isError).toBeFalsy();
+        expect(vendor.error).toBeUndefined();
+        expect(vendor.all_components).toEqual([]);
+        expect(vendor.all_components_total).toBe(TOTAL);
+        expect(vendor).not.toHaveProperty('next_component_offset');
+        expect(structured.truncated).toBeUndefined();
+        const notice = `component_offset ${offset} is past the last component of grafana-cloud (542 components), so all_components is empty there. Pass a smaller component_offset, or 0 to start from the first component.`;
+        expect(structured.notice).toBe(notice);
+        expect(text).toContain(notice);
+      }
+
+      const filtered = await check({ component_filter: 'component 1', component_offset: 100 });
+      expect(filtered.vendor.all_components).toEqual([]);
+      expect(filtered.structured.notice).toBe(
+        'component_offset 100 is past the last component of grafana-cloud (100 components matching component_filter), so all_components is empty there. Pass a smaller component_offset, or 0 to start from the first component.',
+      );
+
+      // A filter that matches nothing is a filter miss, whatever the offset.
+      const missed = await check({ component_filter: 'zzz', component_offset: 10 });
+      expect(missed.structured.notice).toBe(
+        'component_filter "zzz" matched no component of grafana-cloud (542 published). It matches component and group names as a case-insensitive substring; call again without component_filter to list them.',
+      );
+    });
+
+    it('repeats degraded_components and active_incidents identically on every page', async () => {
+      const first = await check({ component_limit: 500 });
+      const last = await check({ component_limit: 500, component_offset: 500 });
+      expect(first.vendor.degraded_components.map((c) => c.name)).toEqual([
+        'Component 003',
+        'Component 520',
+      ]);
+      expect(first.vendor.active_incidents).toHaveLength(1);
+      expect(last.vendor.degraded_components).toEqual(first.vendor.degraded_components);
+      expect(last.vendor.active_incidents).toEqual(first.vendor.active_incidents);
+    });
+
+    it('is ignored in summary mode', async () => {
+      const plain = await check({ mode: 'summary' });
+      const offset = await check({ mode: 'summary', component_offset: 500 });
+      const comparable = (r: VendorResult) => ({ ...r, checked_at: '' });
+      expect(comparable(offset.vendor)).toEqual(comparable(plain.vendor));
+      expect(offset.vendor).not.toHaveProperty('all_components');
+      expect(offset.vendor).not.toHaveProperty('next_component_offset');
+      expect(offset.structured.notice).toBeUndefined();
+    });
+
+    it('renders the page range and next_component_offset in content[]', async () => {
+      const first = await check({ component_limit: 500 });
+      expect(first.text).toContain('Components (500 of 542):');
+      expect(first.text).toContain('next_component_offset: 500');
+
+      const middle = await check({ component_limit: 50, component_offset: 100 });
+      expect(middle.text).toContain('Components (101–150 of 542):');
+      expect(middle.text).toContain('next_component_offset: 150');
+
+      const last = await check({ component_limit: 500, component_offset: 500 });
+      expect(last.text).toContain('Components (501–542 of 542):');
+      expect(last.text).toContain('Core Services / Component 542: operational');
+      expect(last.text).not.toContain('next_component_offset');
+    });
+
+    it('defaults to 0 and rejects a negative or fractional offset', () => {
+      expect(devopsStatusCheck.input.parse({ vendors: ['github'] }).component_offset).toBe(0);
+      for (const component_offset of [-1, 1.5]) {
+        expect(
+          devopsStatusCheck.input.safeParse({ vendors: ['github'], component_offset }).success,
+        ).toBe(false);
+      }
+    });
+  });
+
   it('detailed mode adds all_components and scheduled_maintenances fields', async () => {
     const { _mockFetchSummary } = (await import(
       '@/services/statuspage/statuspage-service.js'
@@ -909,6 +1165,173 @@ describe('devopsStatusCheck', () => {
     expect(result.results[0]!.indicator).toBe('major');
     expect(result.summary.degraded).toBe(1);
     expect(result.summary.down).toBe(0);
+  });
+
+  /**
+   * A vendor is counted at the worse of its published indicator and its worst open incident
+   * rated minor or worse (#87). Statuspage blends the indicator from component statuses, so a
+   * page reads `none` beside an incident whose impact was set to minor or major by override.
+   * The rule is tabled here, at its seam; the per-tool cases below and in the watch-stack
+   * suite prove only the wiring.
+   */
+  describe('vendor rating: the worse of indicator and open incidents (#87)', () => {
+    type Indicator = VendorResult['indicator'];
+    type Bucket = 'operational' | 'degraded' | 'down' | 'maintenance';
+
+    function rated(indicator: Indicator, impacts: readonly Indicator[]): VendorResult {
+      return {
+        vendor: 'example',
+        name: 'Example',
+        indicator,
+        description: `Example is ${indicator}`,
+        degraded_components: [],
+        active_incidents: impacts.map((impact, i) => ({
+          id: `i${i}`,
+          name: `Incident ${i}`,
+          impact,
+          status: 'monitoring',
+          started_at: null,
+          latest_update: '',
+        })),
+        cached: false,
+        checked_at: '2026-10-30T00:00:00Z',
+        statuspage_url: 'https://status.example.test',
+      };
+    }
+
+    const PREPARED: PreparedVendor = {
+      ok: true,
+      input: 'example',
+      target: {
+        url: 'https://status.example.test',
+        name: 'Example',
+        slug: 'example',
+        api_type: 'statuspage',
+      },
+    };
+
+    const EMPTY_SUMMARY = {
+      total: 1,
+      operational: 0,
+      degraded: 0,
+      down: 0,
+      maintenance: 0,
+      unavailable: 0,
+    };
+
+    // [published indicator, open incident impacts, rating, bucket]
+    const TABLE: ReadonlyArray<readonly [Indicator, Indicator[], Indicator, Bucket]> = [
+      ['none', [], 'none', 'operational'],
+      // An informational notice and a window folded into the incident list never count.
+      ['none', ['none', 'maintenance'], 'none', 'operational'],
+      ['none', ['minor'], 'minor', 'degraded'],
+      ['none', ['major'], 'major', 'degraded'],
+      ['none', ['critical'], 'critical', 'down'],
+      // The worst open incident rates, wherever it is listed.
+      ['none', ['minor', 'critical', 'none'], 'critical', 'down'],
+      ['minor', ['major'], 'major', 'degraded'],
+      // An incident never lowers what the vendor published.
+      ['major', ['minor'], 'major', 'degraded'],
+      ['critical', ['minor', 'none'], 'critical', 'down'],
+      ['maintenance', [], 'maintenance', 'maintenance'],
+      ['maintenance', ['maintenance', 'none'], 'maintenance', 'maintenance'],
+      // An outage outranks a window.
+      ['maintenance', ['minor'], 'minor', 'degraded'],
+      ['maintenance', ['critical'], 'critical', 'down'],
+    ];
+
+    it.each(TABLE)(
+      'indicator %s with open incidents %j rates %s and counts as %s',
+      (indicator, impacts, rating, bucket) => {
+        const result = rated(indicator, impacts);
+
+        expect(vendorRating(result)).toBe(rating);
+        expect(summarizeVendorResults([result])).toEqual({ ...EMPTY_SUMMARY, [bucket]: 1 });
+        // A suggestion goes to exactly the vendors counted as a fault, never to one counted
+        // operational or in a window.
+        expect(buildSuggestActionSuggestions([PREPARED], [result])).toHaveLength(
+          bucket === 'degraded' || bucket === 'down' ? 1 : 0,
+        );
+      },
+    );
+
+    it('partitions a whole batch, with an unchecked vendor unavailable', () => {
+      const batch = [
+        ...TABLE.map(([indicator, impacts]) => rated(indicator, impacts)),
+        { ...rated('none', []), error: 'HTTP 503 from https://status.example.test' },
+      ];
+
+      expect(summarizeVendorResults(batch)).toEqual({
+        total: 14,
+        operational: 2,
+        degraded: 5,
+        down: 4,
+        maintenance: 2,
+        unavailable: 1,
+      });
+    });
+  });
+
+  describe('a vendor counted by an open incident under indicator none (#87)', () => {
+    /** linode on 2026-10-30: indicator none, one minor incident among impact-none advisories. */
+    const LINODE = page(
+      'Linode',
+      'none',
+      [component('ID-CGK (Jakarta)', 'operational')],
+      [
+        incident('Customer Security Advisory', 'none', '2026-10-30T18:10:58Z'),
+        incident('Connectivity Issue', 'minor', '2026-10-25T13:54:31Z', 'monitoring'),
+        incident('Planned upgrade', 'maintenance', '2026-10-28T20:17:01Z', 'in_progress'),
+      ],
+    );
+
+    async function serve(data: StatuspageSummaryResponse) {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      _mockFetchSummary.mockResolvedValue({ data, cached: false });
+    }
+
+    it('counts it degraded on both surfaces and keeps the published indicator', async () => {
+      await serve(LINODE);
+      const call = await runToolContract(devopsStatusCheck, { vendors: ['linode'] });
+
+      expect(call.isError).toBeFalsy();
+      const structured = call.structuredContent as {
+        results: VendorResult[];
+        summary: Record<string, number>;
+      };
+      expect(structured.results[0]!.indicator).toBe('none');
+      expect(structured.summary).toEqual({
+        total: 1,
+        operational: 0,
+        degraded: 1,
+        down: 0,
+        maintenance: 0,
+        unavailable: 0,
+      });
+
+      const text = readable(call.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n'));
+      expect(text).toContain('✅ 0 operational');
+      expect(text).toContain('⚠️ 1 degraded');
+      // The vendor's heading follows the rating, while its line still reports the indicator.
+      expect(text).toContain('⚠️ Linode (linode)');
+      expect(text).toContain('Indicator: none');
+    });
+
+    it('stays operational when its open incidents are rated none or maintenance', async () => {
+      await serve({
+        ...LINODE,
+        incidents: LINODE.incidents!.filter((i) => i.impact !== 'minor'),
+      });
+      const call = await runToolContract(devopsStatusCheck, { vendors: ['linode'] });
+
+      const structured = call.structuredContent as { summary: Record<string, number> };
+      expect(structured.summary.operational).toBe(1);
+      expect(structured.summary.degraded).toBe(0);
+      const text = readable(call.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n'));
+      expect(text).toContain('✅ Linode (linode)');
+    });
   });
 
   it('group components are excluded from degraded_components', async () => {
@@ -1181,11 +1604,15 @@ describe('devopsStatusCheck', () => {
           error: false,
         },
       ]);
-      // The buckets report each vendor's own indicator — npm stays operational.
+      /**
+       * npm reads none with open minor incidents, so it counts degraded beside the vendors
+       * degraded by indicator (#87); cloudflare's open incident is rated none and its
+       * component is in a window, so it stays operational.
+       */
       expect(result.summary).toEqual({
         total: 9,
-        operational: 2,
-        degraded: 3,
+        operational: 1,
+        degraded: 4,
         down: 1,
         maintenance: 1,
         unavailable: 2,
@@ -1796,7 +2223,7 @@ describe('devopsStatusCheck', () => {
       expect(matched).toBeGreaterThan(5);
       expect(structured.truncated).toBe(true);
       expect(structured.notice).toBe(
-        `${matched - 5} of ${matched} components are not shown — component lists are capped at 5 per vendor. Set component_filter to reach a specific component, or raise component_limit. component_filter "droplets" matched no component of auth0 (181 published). ${PUBLISHED_HINT}`,
+        `${matched - 5} of ${matched} components are not shown — component lists are capped at 5 per vendor. Continue a capped list with devops_status_check, passing that vendor, mode: "detailed", the same component_filter, and its next_component_offset as component_offset. Set component_filter to reach a specific component, or raise component_limit. component_filter "droplets" matched no component of auth0 (181 published). ${PUBLISHED_HINT}`,
       );
     });
 
@@ -1990,7 +2417,7 @@ describe('devopsStatusCheck', () => {
       'circleci',
       'travis-ci',
       'snyk',
-      'atlassian',
+      'bitbucket',
       'figma',
       'launchdarkly',
       'mongodb-atlas',
@@ -2003,7 +2430,11 @@ describe('devopsStatusCheck', () => {
       'Only the first 20 of 21 vendors were checked (20 per call); resend the 1 in deferred_vendors in another call.';
 
     type BoundsResult = {
-      results: Array<{ vendor: string; all_components?: unknown[] }>;
+      results: Array<{
+        vendor: string;
+        all_components?: unknown[];
+        next_component_offset?: number;
+      }>;
       summary: { total: number; operational: number; unavailable: number };
       deferred_vendors: string[];
       notice?: string;
@@ -2135,10 +2566,11 @@ describe('devopsStatusCheck', () => {
       expect(structured.results[0]!.all_components).toHaveLength(500);
       expect(structured).toMatchObject({ truncated: true, shown: 500, cap: 500 });
       const clamp = 'component_limit 501 is past the maximum of 500; 500 was used.';
-      // The cap cannot be raised past 500, so the truncation guidance points at the filter only.
+      // The cap cannot be raised past 500, so the guidance points at paging and the filter only.
       expect(structured.notice).toBe(
-        `${clamp} 10 of 510 components are not shown — component lists are capped at 500 per vendor. Set component_filter to reach a specific component.`,
+        `${clamp} 10 of 510 components are not shown — component lists are capped at 500 per vendor. Continue a capped list with devops_status_check, passing that vendor, mode: "detailed", and its next_component_offset as component_offset. Set component_filter to reach a specific component.`,
       );
+      expect(structured.results[0]!.next_component_offset).toBe(500);
       expect(text).toContain(clamp);
       expect(text).not.toContain('raise component_limit');
     });
@@ -2166,7 +2598,7 @@ describe('devopsStatusCheck', () => {
       ).toBe(false);
     });
 
-    it('composes the deferral, clamp, truncation, and filter-miss notices into one', async () => {
+    it('composes the deferral, clamp, truncation, filter-miss, and atlassian notices into one', async () => {
       const fetchSummary = await mockSummary();
       const githubUrl = getVendorRegistryService().getBySlug('github')!.statuspage_url;
       fetchSummary.mockImplementation((url: string) =>
@@ -2176,9 +2608,9 @@ describe('devopsStatusCheck', () => {
         }),
       );
 
-      const lead = ['github', 'npm', 'influxdb'];
+      const lead = ['github', 'npm', 'influxdb', 'atlassian'];
       const { structured, text } = await call({
-        vendors: [...lead, ...SLUGS.filter((s) => !lead.includes(s))],
+        vendors: [...lead, ...SLUGS.filter((s) => !lead.includes(s))].slice(0, 21),
         mode: 'detailed',
         component_filter: 'component',
         component_limit: 600,
@@ -2190,14 +2622,17 @@ describe('devopsStatusCheck', () => {
         'component_limit 600 is past the maximum of 500; 500 was used.',
         '10 of 510 components are not shown — component lists are capped at 500 per vendor.',
         'component_filter "component" matched no component of npm (1 published), influxdb (1 published)',
+        ATLASSIAN_POINTER,
       ];
+      const readableText = readable(text);
       for (const part of parts) {
         expect(notice).toContain(part);
-        expect(text).toContain(part);
+        expect(readableText).toContain(part);
       }
-      // One notice, in that order.
+      // One notice, in that order, with the atlassian pointer as its last sentence.
       const at = parts.map((p) => notice.indexOf(p));
       expect(at).toEqual([...at].sort((a, b) => a - b));
+      expect(notice.endsWith(ATLASSIAN_POINTER)).toBe(true);
       expect(structured.truncated).toBe(true);
     });
 
@@ -2211,6 +2646,167 @@ describe('devopsStatusCheck', () => {
       expect(structured).toMatchObject({ error: { data: { reason: 'vendor_not_found' } } });
       expect(text).toContain('None of the first 20 requested vendors could be checked.');
       expect(text).toContain('1 more past the first 20 was not checked: github.');
+    });
+  });
+
+  /**
+   * `atlassian` reads Atlassian's umbrella page, which publishes no components and posts
+   * only cross-product incidents; product outages land on the product pages the registry
+   * reads under their own slugs. The umbrella stays one entry, and every call that serves
+   * it ends its notice with a pointer to those slugs (#74).
+   */
+  describe('atlassian umbrella entry (#74)', () => {
+    const UMBRELLA = page('Atlassian', 'none');
+    const DEFERRAL_21 =
+      'Only the first 20 of 21 vendors were checked (20 per call); resend the 1 in deferred_vendors in another call.';
+
+    type UmbrellaResult = {
+      results: VendorResult[];
+      deferred_vendors: string[];
+      summary: { total: number; unavailable: number };
+      notice?: string;
+    };
+
+    /** Serve each registry slug's page from `pages` — an Error rejects that fetch — and every other page all-clear. */
+    async function serve(pages: Record<string, StatuspageSummaryResponse | Error>) {
+      const { _mockFetchSummary } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+      const registry = getVendorRegistryService();
+      const byUrl = new Map(
+        Object.entries(pages).map(([slug, data]) => [
+          registry.getBySlug(slug)!.statuspage_url,
+          data,
+        ]),
+      );
+      _mockFetchSummary.mockReset();
+      _mockFetchSummary.mockImplementation((url: string) => {
+        const data = byUrl.get(url) ?? ALL_OPERATIONAL;
+        return data instanceof Error
+          ? Promise.reject(data)
+          : Promise.resolve({ data, cached: false });
+      });
+      return _mockFetchSummary;
+    }
+
+    async function call(args: Record<string, unknown>) {
+      const result = await runToolContract(devopsStatusCheck, args as never);
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      return {
+        result,
+        structured: result.structuredContent as UmbrellaResult,
+        text: readable(text),
+      };
+    }
+
+    /** Statuspage-backed slugs other than atlassian, each on a page of its own. */
+    function otherSlugs(count: number): string[] {
+      return getVendorRegistryService()
+        .getAll()
+        .filter((v) => v.api_type === 'statuspage' && !v.component_scope_prefix)
+        .map((v) => v.slug)
+        .filter((slug) => slug !== 'atlassian')
+        .slice(0, count);
+    }
+
+    it.each(['summary', 'detailed'] as const)(
+      'serves atlassian as one umbrella row with the pointer as its notice, in %s mode',
+      async (mode) => {
+        await serve({ atlassian: UMBRELLA });
+        const { result, structured, text } = await call({ vendors: ['atlassian'], mode });
+
+        expect(result.isError).toBeFalsy();
+        expect(structured.results).toHaveLength(1);
+        expect(structured.results[0]).toMatchObject({
+          vendor: 'atlassian',
+          indicator: 'none',
+          degraded_components: [],
+          active_incidents: [],
+          statuspage_url: 'https://status.atlassian.com',
+        });
+        if (mode === 'detailed') {
+          expect(structured.results[0]).toMatchObject({
+            all_components: [],
+            all_components_total: 0,
+          });
+        }
+        expect(structured.summary.total).toBe(1);
+        expect(structured.notice).toBe(ATLASSIAN_POINTER);
+        expect(text).toContain(ATLASSIAN_POINTER);
+      },
+    );
+
+    it("checks product pages by slug, with each page's components and incidents and no pointer", async () => {
+      await serve({
+        bitbucket: page(
+          'Atlassian Bitbucket',
+          'critical',
+          [component('Git via SSH', 'major_outage'), component('Website', 'operational')],
+          [incident('Disrupted Bitbucket availability', 'critical', '2026-10-21T17:22:02.059Z')],
+        ),
+        jira: page('Jira Software', 'none', [component('Viewing content', 'operational')]),
+      });
+      const { structured, text } = await call({ vendors: ['bitbucket', 'jira'], mode: 'detailed' });
+
+      const [bitbucket, jira] = structured.results;
+      expect(bitbucket).toMatchObject({
+        vendor: 'bitbucket',
+        indicator: 'critical',
+        statuspage_url: 'https://bitbucket.status.atlassian.com',
+        degraded_components: [{ name: 'Git via SSH', group: null, status: 'major_outage' }],
+        all_components_total: 2,
+      });
+      expect(bitbucket!.active_incidents.map((i) => i.name)).toEqual([
+        'Disrupted Bitbucket availability',
+      ]);
+      expect(jira).toMatchObject({
+        vendor: 'jira',
+        indicator: 'none',
+        statuspage_url: 'https://jira-software.status.atlassian.com',
+        all_components_total: 1,
+      });
+      expect(structured.notice).toBeUndefined();
+      expect(text).not.toContain('umbrella');
+    });
+
+    it('names atlassian once however many times the batch lists it', async () => {
+      await serve({ atlassian: UMBRELLA });
+      const { structured } = await call({ vendors: ['atlassian', 'Atlassian', 'github'] });
+
+      expect(structured.results).toHaveLength(3);
+      expect(structured.notice).toBe(ATLASSIAN_POINTER);
+    });
+
+    it('keeps the pointer when the umbrella page cannot be fetched', async () => {
+      await serve({
+        atlassian: serviceUnavailable(
+          'HTTP 503 from https://status.atlassian.com/api/v2/summary.json',
+        ),
+      });
+      const { structured } = await call({ vendors: ['atlassian', 'github'] });
+
+      expect(structured.results[0]!.error).toBeDefined();
+      expect(structured.summary.unavailable).toBe(1);
+      expect(structured.notice).toBe(ATLASSIAN_POINTER);
+    });
+
+    it('counts atlassian once against the 20-vendor cap: a list of 20 holding it is checked whole', async () => {
+      const fetchSummary = await serve({ atlassian: UMBRELLA });
+      const vendors = [...otherSlugs(19), 'atlassian'];
+      const { structured } = await call({ vendors });
+
+      expect(structured.results.map((r) => r.vendor)).toEqual(vendors);
+      expect(structured.deferred_vendors).toEqual([]);
+      expect(fetchSummary).toHaveBeenCalledTimes(20);
+      expect(structured.notice).toBe(ATLASSIAN_POINTER);
+    });
+
+    it('carries no pointer when atlassian is deferred past the 20th vendor', async () => {
+      await serve({ atlassian: UMBRELLA });
+      const { structured } = await call({ vendors: [...otherSlugs(20), 'atlassian'] });
+
+      expect(structured.deferred_vendors).toEqual(['atlassian']);
+      expect(structured.notice).toBe(DEFERRAL_21);
     });
   });
 
@@ -2330,6 +2926,116 @@ describe('devopsStatusCheck', () => {
           { latest_update: '' },
         ],
       });
+    });
+  });
+
+  /**
+   * A maintenance window whose feed publishes no planned end reports scheduled_until null,
+   * and content[] says the end is not published; a window with an end renders as it did
+   * (#91). buildVendorResult and renderVendorBlock are shared with devops_watch_stack, so
+   * these cases table the mapping; the real Firehydrant and Status.io adapters run down to
+   * the fetch fake.
+   */
+  describe('maintenance window with no published end (#91)', () => {
+    const http = createFetchMock();
+    const md = new MarkdownIt();
+    const adapterFixture = (name: string) =>
+      JSON.parse(
+        readFileSync(
+          new URL(`../../../services/status-adapters/fixtures/${name}`, import.meta.url),
+          'utf-8',
+        ),
+      );
+
+    beforeEach(() => {
+      http.reset();
+      http.install();
+    });
+
+    afterEach(() => {
+      http.restore();
+    });
+
+    /** Both surfaces of a detailed check of one vendor — content[] as written, and each line as a CommonMark reader sees it. */
+    async function detailed(vendor: string) {
+      const call = await runToolContract(devopsStatusCheck, {
+        vendors: [vendor],
+        mode: 'detailed',
+      });
+      expect(call.isError).toBeFalsy();
+      const text = call.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      const read = md
+        .parse(text, {})
+        .filter((t) => t.type === 'inline')
+        .flatMap((t) =>
+          (t.children ?? [])
+            .map((c) => (c.type === 'softbreak' || c.type === 'hardbreak' ? '\n' : c.content))
+            .join('')
+            .split('\n'),
+        );
+      const { results } = call.structuredContent as {
+        results: Array<{ scheduled_maintenances?: Array<Record<string, unknown>> }>;
+      };
+      return { windows: results[0]!.scheduled_maintenances, text, read };
+    }
+
+    it('redis-cloud: an open window reads null and "end not published"', async () => {
+      // The capture's MAINTENANCE item reopened; the payload publishes no planned end.
+      const raw = adapterFixture('firehydrant-redis.json');
+      const item = raw.incidents.find(
+        (i: { id: string }) => i.id === '79a12500-5452-4148-a0e1-d3cbce47dbb1',
+      );
+      delete item.timestamps.resolved;
+      http.route({
+        match: 'https://status.redis.io/data/payload.json',
+        respond: () => Response.json(raw),
+      });
+
+      const { windows, read } = await detailed('redis-cloud');
+
+      expect(windows).toEqual([
+        {
+          name: item.title,
+          scheduled_for: '2026-02-24T04:52:19Z',
+          scheduled_until: null,
+          status: 'in_progress',
+        },
+      ]);
+      expect(read).toContain(
+        `Maintenance: ${item.title} [in_progress] 2026-02-24T04:52:19Z → end not published`,
+      );
+    });
+
+    it('gitlab: a window without datetime_planned_end reads null; one with it is unchanged', async () => {
+      const raw = adapterFixture('statusio-incident-doc-derived.json');
+      delete raw.result.maintenance.upcoming[0].datetime_planned_end;
+      http.route({
+        match: 'https://status-api.hostedstatus.com/1.0/status/5b36dc6502d06804c08349f7',
+        respond: () => Response.json(raw),
+      });
+
+      const { windows, text, read } = await detailed('gitlab');
+
+      expect(windows).toEqual([
+        {
+          name: 'Network Upgrade',
+          scheduled_for: '2021-12-06T16:50:00.000Z',
+          scheduled_until: '2021-12-06T17:50:00.000Z',
+          status: 'in_progress',
+        },
+        {
+          name: 'Mobile App Upgrade',
+          scheduled_for: '2021-12-22T15:00:00.000Z',
+          scheduled_until: null,
+          status: 'scheduled',
+        },
+      ]);
+      expect(text.split('\n')).toContain(
+        '**Maintenance:** Network Upgrade [in_progress] 2021-12-06T16:50:00.000Z → 2021-12-06T17:50:00.000Z',
+      );
+      expect(read).toContain(
+        'Maintenance: Mobile App Upgrade [scheduled] 2021-12-22T15:00:00.000Z → end not published',
+      );
     });
   });
 });

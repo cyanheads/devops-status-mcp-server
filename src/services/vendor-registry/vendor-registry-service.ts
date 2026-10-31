@@ -18,6 +18,8 @@ export type ResolvedVendor = {
   slug: string | null;
   /** The registry entry's component scope on a shared status page; absent when it has none. */
   component_scope_prefix?: string;
+  /** Slugs of the entries reading the products of the umbrella page this entry reads; absent otherwise. */
+  product_slugs?: readonly string[];
 } & (
   | { api_type: Exclude<VendorApiType, 'statusio'> }
   | { api_type: 'statusio'; statusio_page_id: string }
@@ -50,6 +52,7 @@ export class VendorRegistryService {
         ...(entry.component_scope_prefix && {
           component_scope_prefix: entry.component_scope_prefix,
         }),
+        ...(entry.product_slugs && { product_slugs: entry.product_slugs }),
       };
       return entry.api_type === 'statusio'
         ? { ...base, api_type: 'statusio', statusio_page_id: entry.statusio_page_id }

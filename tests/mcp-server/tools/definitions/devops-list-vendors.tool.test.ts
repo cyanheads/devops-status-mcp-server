@@ -54,6 +54,38 @@ describe('devopsListVendors', () => {
     expect(result.vendors.some((v) => v.slug === 'github')).toBe(true);
   });
 
+  it('lists the atlassian umbrella and its ten product entries for "atlassian" (#74)', async () => {
+    const result = await runToolContract(devopsListVendors, { query: 'atlassian' });
+    const structured = result.structuredContent as {
+      vendors: Array<{ slug: string; name: string }>;
+      total: number;
+    };
+    expect(structured.total).toBe(11);
+    expect(structured.vendors.map((v) => v.slug).sort()).toEqual(
+      [
+        'atlassian',
+        'atlassian-compass',
+        'atlassian-developer',
+        'atlassian-guard',
+        'atlassian-statuspage',
+        'bitbucket',
+        'confluence',
+        'jira',
+        'jira-service-management',
+        'opsgenie',
+        'trello',
+      ].sort(),
+    );
+    expect(structured.vendors.find((v) => v.slug === 'atlassian')?.name).toBe(
+      'Atlassian (cross-product incidents)',
+    );
+
+    const jira = await runToolContract(devopsListVendors, { query: 'jira' });
+    expect(
+      (jira.structuredContent as { vendors: Array<{ slug: string }> }).vendors.map((v) => v.slug),
+    ).toEqual(['jira', 'jira-service-management']);
+  });
+
   it('returns empty list for non-matching query', async () => {
     const ctx = createMockContext();
     const input = devopsListVendors.input.parse({ query: 'zzz-nonexistent-xyz-abc' });

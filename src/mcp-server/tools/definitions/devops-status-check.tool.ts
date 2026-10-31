@@ -26,7 +26,7 @@ import {
 
 export const devopsStatusCheck = tool('devops_status_check', {
   description:
-    'Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., "github", "aws", "gcp", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served by each vendor\'s native status API (Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Azure DevOps status, Firehydrant) and normalized to one shape. Returns per-vendor operational indicator (none = all clear, minor, major, critical, maintenance = scheduled window), degraded components, and active incidents. Use mode: "detailed" for component lists and maintenance windows, narrowed with component_filter and bounded by component_limit. Batch-friendly — pass a list to check your full stack in one call; up to 20 vendors are checked per call, and any past the 20th come back in deferred_vendors to resend. A vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions.',
+    'Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., "github", "aws", "gcp", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served by each vendor\'s native status API (Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Azure DevOps status, Firehydrant) and normalized to one shape. Returns per-vendor operational indicator as the vendor published it (none = no degradation reported, minor, major, critical, maintenance = scheduled window), degraded components, and active incidents; summary counts each vendor at the worse of its indicator and its worst open incident rated minor or worse. Use mode: "detailed" for component lists and maintenance windows, narrowed with component_filter, bounded by component_limit, and paged with component_offset. Batch-friendly — pass a list to check your full stack in one call; up to 20 vendors are checked per call, and any past the 20th come back in deferred_vendors to resend. A vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -52,7 +52,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
       .string()
       .optional()
       .describe(
-        'Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_limit, so it is the way to reach a component that the cap would otherwise omit. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.',
+        'Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_offset and component_limit, so it reaches a specific component without paging, and an offset pages within the filtered list. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.',
       ),
     component_limit: z
       .number()
@@ -60,7 +60,15 @@ export const devopsStatusCheck = tool('devops_status_check', {
       .min(1)
       .default(DEFAULT_COMPONENT_LIMIT)
       .describe(
-        `Maximum components returned per vendor in detailed mode, at least 1. A value above ${MAX_COMPONENT_LIMIT} is reduced to ${MAX_COMPONENT_LIMIT}, and notice says so. Large status pages publish hundreds of components, so a multi-vendor batch at a high limit returns a very large response; narrow with component_filter instead where possible.`,
+        `Maximum components returned per vendor in detailed mode, at least 1. A value above ${MAX_COMPONENT_LIMIT} is reduced to ${MAX_COMPONENT_LIMIT}, and notice says so; a longer list continues with component_offset. Large status pages publish hundreds of components, so a multi-vendor batch at a high limit returns a very large response; narrow with component_filter instead where possible.`,
+      ),
+    component_offset: z
+      .number()
+      .int()
+      .min(0)
+      .default(0)
+      .describe(
+        "Components to skip per vendor, after component_filter and before component_limit. Pass a vendor's next_component_offset to continue its list. An offset past a vendor's last component returns an empty list for it, and notice says so. Ignored in summary mode.",
       ),
   }),
 
@@ -80,13 +88,17 @@ export const devopsStatusCheck = tool('devops_status_check', {
         total: z
           .number()
           .describe('Total number of vendors checked — never counts deferred_vendors.'),
-        operational: z.number().describe('Vendors with indicator = none and no error.'),
-        degraded: z.number().describe('Vendors with indicator = minor or major.'),
-        down: z.number().describe('Vendors with indicator = critical.'),
+        operational: z
+          .number()
+          .describe(
+            'Vendors rated none — indicator none and no open incident rated minor or worse — and not errored.',
+          ),
+        degraded: z.number().describe('Vendors rated minor or major.'),
+        down: z.number().describe('Vendors rated critical.'),
         maintenance: z
           .number()
           .describe(
-            'Vendors with indicator = maintenance — in a scheduled window the vendor published. Counted apart from degraded and down, which are faults.',
+            'Vendors rated maintenance — in a scheduled window the vendor published, with no open incident rated minor or worse. Counted apart from degraded and down, which are faults.',
           ),
         unavailable: z
           .number()
@@ -95,20 +107,20 @@ export const devopsStatusCheck = tool('devops_status_check', {
           ),
       })
       .describe(
-        'Aggregate health counts across all checked vendors. Buckets partition the batch: operational + degraded + down + maintenance + unavailable = total.',
+        'Aggregate health counts across all checked vendors. Each vendor is rated by the worse of its indicator and its worst open incident rated minor or worse; an incident rated none or maintenance never raises the rating. Buckets partition the batch: operational + degraded + down + maintenance + unavailable = total.',
       ),
     nextToolSuggestions: NextToolSuggestionsSchema,
   }),
 
   enrichment: {
-    // Populated only via ctx.enrich when a component list is actually capped, or when
-    // component_filter matched nothing for a vendor — all fields must be optional so a
-    // plain result passes the effective-output parse.
+    // Populated only via ctx.enrich when a component list continues past its page, or when
+    // notice has something to say — all fields must be optional so a plain result passes
+    // the effective-output parse.
     truncated: z
       .boolean()
       .optional()
       .describe(
-        "True when at least one vendor's component list was capped at component_limit. Absent when nothing was capped.",
+        'True when at least one vendor has components past the returned page — those vendors carry next_component_offset. Absent otherwise, including on the last page of a list.',
       ),
     shown: z
       .number()
@@ -122,13 +134,13 @@ export const devopsStatusCheck = tool('devops_status_check', {
       .number()
       .optional()
       .describe(
-        'Components matching component_filter across all vendors before the cap. Present only when truncated.',
+        'Components matching component_filter across all vendors, before component_offset and the cap. Present only when truncated.',
       ),
     notice: z
       .string()
       .optional()
       .describe(
-        'Plain-language explanation of what this call left out or adjusted: vendors past the first 20 (listed in deferred_vendors), a component_limit above 500 reduced to 500, and in detailed mode how many components the cap omitted and how to reach them (component_filter to target one, or component_limit to raise a cap below 500), and which checked vendors component_filter matched no component of, with how many each publishes. Present only when one of these applies.',
+        'Plain-language explanation of what this call left out or adjusted, in this order: vendors past the first 20 (listed in deferred_vendors); a component_limit above 500 reduced to 500; in detailed mode, how many components lie past the returned page and how to reach them (this tool again with that vendor and its next_component_offset as component_offset, component_filter to target one, or component_limit to raise a cap below 500), which vendors component_offset ran past the end of, and which checked vendors component_filter matched no component of, with how many each publishes; and last, for a vendor whose entry reads an umbrella status page with no components (atlassian), the slugs of the entries reading its product pages. Present only when one of these applies.',
       ),
   },
 
@@ -186,6 +198,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
       {
         mode: input.mode,
         componentLimit: componentLimit.value,
+        componentOffset: input.component_offset,
         componentFilter: input.component_filter,
       },
       [batch.notice, componentLimit.notice].filter((n) => n !== undefined),

@@ -165,8 +165,8 @@ describe('VendorRegistryService', () => {
 });
 
 describe('VENDOR_REGISTRY integrity', () => {
-  it('has 53 entries with unique slugs', () => {
-    expect(VENDOR_REGISTRY).toHaveLength(53);
+  it('has 63 entries with unique slugs', () => {
+    expect(VENDOR_REGISTRY).toHaveLength(63);
     const slugs = VENDOR_REGISTRY.map((v) => v.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
   });
@@ -250,6 +250,116 @@ describe('VENDOR_REGISTRY integrity', () => {
     const unscoped = VENDOR_REGISTRY.filter((v) => v.component_scope_prefix === undefined);
     const urls = unscoped.map((v) => v.statuspage_url);
     expect(new Set(urls).size).toBe(urls.length);
+  });
+
+  /**
+   * status.atlassian.com is an umbrella page with no components; Atlassian posts product
+   * outages on per-product pages. Each product a software team ships on or runs incidents
+   * on gets its own entry, and `atlassian` stays on the umbrella, naming them (#74).
+   */
+  describe('Atlassian products (#74)', () => {
+    const PRODUCTS = [
+      ['jira', 'Atlassian Jira', 'dev-platform', 'https://jira-software.status.atlassian.com'],
+      [
+        'confluence',
+        'Atlassian Confluence',
+        'dev-platform',
+        'https://confluence.status.atlassian.com',
+      ],
+      [
+        'bitbucket',
+        'Atlassian Bitbucket',
+        'dev-platform',
+        'https://bitbucket.status.atlassian.com',
+      ],
+      [
+        'jira-service-management',
+        'Atlassian Jira Service Management',
+        'dev-platform',
+        'https://jira-service-management.status.atlassian.com',
+      ],
+      [
+        'atlassian-compass',
+        'Atlassian Compass',
+        'dev-platform',
+        'https://compass.status.atlassian.com',
+      ],
+      [
+        'atlassian-developer',
+        'Atlassian Developer',
+        'dev-platform',
+        'https://developer.status.atlassian.com',
+      ],
+      ['trello', 'Atlassian Trello', 'dev-platform', 'https://trello.status.atlassian.com'],
+      ['opsgenie', 'Atlassian Opsgenie', 'monitoring', 'https://opsgenie.status.atlassian.com'],
+      ['atlassian-statuspage', 'Atlassian Statuspage', 'monitoring', 'https://metastatuspage.com'],
+      ['atlassian-guard', 'Atlassian Guard', 'auth', 'https://guard.status.atlassian.com'],
+    ] as const;
+    const PRODUCT_SLUGS = PRODUCTS.map(([slug]) => slug);
+
+    it('registers each product page as its own Statuspage entry', () => {
+      const service = getVendorRegistryService();
+      for (const [slug, name, category, url] of PRODUCTS) {
+        expect(service.getBySlug(slug), slug).toEqual({
+          slug,
+          name,
+          category,
+          statuspage_url: url,
+          api_type: 'statuspage',
+        });
+        expect(service.resolve(slug), slug).toEqual({
+          url,
+          name,
+          slug,
+          api_type: 'statuspage',
+        });
+      }
+    });
+
+    it('keeps atlassian on the umbrella page, renamed, naming the product slugs', () => {
+      const service = getVendorRegistryService();
+      expect(service.getBySlug('atlassian')).toEqual({
+        slug: 'atlassian',
+        name: 'Atlassian (cross-product incidents)',
+        category: 'dev-platform',
+        statuspage_url: 'https://status.atlassian.com',
+        api_type: 'statuspage',
+        product_slugs: PRODUCT_SLUGS,
+      });
+      expect(service.resolve('Atlassian')).toEqual({
+        url: 'https://status.atlassian.com',
+        name: 'Atlassian (cross-product incidents)',
+        slug: 'atlassian',
+        api_type: 'statuspage',
+        product_slugs: PRODUCT_SLUGS,
+      });
+    });
+
+    it('declares product_slugs on atlassian alone, each naming a product entry', () => {
+      const service = getVendorRegistryService();
+      expect(
+        VENDOR_REGISTRY.filter((v) => v.product_slugs !== undefined).map((v) => v.slug),
+      ).toEqual(['atlassian']);
+      for (const slug of PRODUCT_SLUGS) {
+        expect(service.getBySlug(slug)?.product_slugs, slug).toBeUndefined();
+      }
+    });
+
+    it('finds the whole family by "atlassian", and each product by its own name', () => {
+      const service = getVendorRegistryService();
+      expect(
+        service
+          .search('atlassian')
+          .map((v) => v.slug)
+          .sort(),
+      ).toEqual(['atlassian', ...PRODUCT_SLUGS].sort());
+      expect(service.search('jira').map((v) => v.slug)).toEqual([
+        'jira',
+        'jira-service-management',
+      ]);
+      expect(service.getBySlugOrName('Jira')?.slug).toBe('jira');
+      expect(service.getBySlugOrName('Atlassian Bitbucket')?.slug).toBe('bitbucket');
+    });
   });
 
   it('every statusio entry carries a page ID', () => {

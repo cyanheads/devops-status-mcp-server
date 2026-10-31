@@ -4,11 +4,13 @@
  * through its adapter-appropriate endpoint (the same dispatch path the tools
  * use) and reports failures.
  *
- * Standalone by design: this hits ~50 live endpoints, so it is NOT part of
- * devcheck (which must stay offline). Run before releases or when a vendor
- * tool starts failing: `bun run verify:registry`
+ * Standalone by design: this hits one live endpoint per registry entry, so it is
+ * NOT part of devcheck (which must stay offline). Run before releases or when a
+ * vendor tool starts failing: `bun run verify:registry`
  *
- * Exit code: 0 when every entry responds with a parseable status, 1 otherwise.
+ * Exit code: 0 when every entry responds with a parseable status and every
+ * Statuspage entry lists at least one component (umbrella pages with
+ * `product_slugs` excepted), 1 otherwise.
  * @module scripts/verify-registry
  */
 
@@ -42,6 +44,14 @@ async function probe(slug: string): Promise<ProbeResult> {
         ok: false,
         detail: 'no status.indicator in response',
       };
+    }
+    /**
+     * A Statuspage summary with no components (after any component scope) can never report a
+     * degraded one. An umbrella page that sends readers to its products' entries publishes none
+     * by design. Native adapters are exempt: several publish components only during an incident.
+     */
+    if (target.api_type === 'statuspage' && data.components.length === 0 && !target.product_slugs) {
+      return { slug, api_type: target.api_type, ok: false, detail: 'no components published' };
     }
     return {
       slug,

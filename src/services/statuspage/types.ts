@@ -21,9 +21,9 @@ export interface StatuspagePage {
 /**
  * The severity ladder an outage is rated on; the native adapters rank incident
  * impacts on it. `maintenance` sits off the ladder: a Statuspage page publishes it
- * in its own `status` block, and the Status.io (overall code 200) and Firehydrant
- * (a started, unresolved MAINTENANCE item) adapters set it only while no open
- * incident rates — an outage outranks a window.
+ * in its own `status` block, and the Status.io (overall code 200), Firehydrant (a
+ * started, unresolved MAINTENANCE item), and Datadog (an in_progress window) adapters
+ * set it only while no open incident rates — an outage outranks a window.
  */
 export type StatuspageSeverityIndicator = 'none' | 'minor' | 'major' | 'critical';
 
@@ -90,9 +90,10 @@ export interface IncidentUpdate {
 
 export interface StatuspageIncident {
   /**
-   * Regions the incident lists apart from its components, currently affected first.
-   * Only the Google Cloud adapter sets it, and only when the incident lists at least
-   * one location; Statuspage publishes no such field.
+   * Regions the incident lists apart from its components, currently affected first. The
+   * Google Cloud adapter sets it from the incident's location lists and the AWS adapter
+   * from the one region its event ARN names, each only when there is at least one
+   * location; Statuspage publishes no such field.
    */
   affected_locations?: { current: boolean; id: string; name: string }[];
   components: StatuspageComponent[];
@@ -187,8 +188,8 @@ export interface StatuspageSummaryResponse {
 /**
  * Runtime gate for a raw Statuspage response body.
  *
- * The four native adapters normalize their upstreams through hand-written
- * defensive mappers, so a surprising payload can't reach a consumer. The
+ * The native adapters normalize their upstreams through hand-written defensive
+ * mappers, so a surprising payload can't reach a consumer. The
  * Statuspage path passes the body straight through to those consumers, which is
  * why a 200 carrying some other service's JSON has to be rejected here rather
  * than dereferenced downstream.

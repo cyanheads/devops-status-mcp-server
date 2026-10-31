@@ -25,6 +25,14 @@
  *   'critical' is intentionally never emitted — every feed event is
  *   region/service-scoped, so even the most severe published event is a
  *   partial outage of AWS as a whole, not a complete outage.
+ * - Every event names one region in its ARN's region field
+ *   (`arn:aws:health:me-central-1::event/…`), or `global` for a global service
+ *   such as CloudFront or Route 53. It becomes the incident's one
+ *   `affected_locations` entry: `id` is that field, `name` the event's
+ *   `region_name`, `current` true until the event resolves. A global event can
+ *   carry no `region_name`; AWS's own dashboard then shows "Global", and so do
+ *   the location, the incident title, and the summary component name. An event
+ *   with no ARN, or an empty region field, lists no location.
  * @module services/status-adapters/aws-adapter
  */
 
@@ -158,6 +166,26 @@ function buildPage(target: AwsTarget): StatuspagePage {
 }
 
 /**
+ * The region field of an ARN (`arn:aws:health:me-central-1::event/…`): a region code,
+ * or `global` for a global service. No match for an empty field.
+ */
+const ARN_REGION_RE = /^arn:[^:]*:[^:]*:([^:]+):/;
+
+/**
+ * The region an event names. `code` is the region code (or `global`) its ARN carries,
+ * undefined when it names none. `name` is its `region_name`, or "Global" for a global event
+ * that carries none — what AWS's own dashboard shows for it; undefined for a regional
+ * event with no `region_name`.
+ */
+function eventRegion(event: AwsEvent | undefined): {
+  code: string | undefined;
+  name: string | undefined;
+} {
+  const code = event?.arn?.match(ARN_REGION_RE)?.[1];
+  return { code, name: code === 'global' ? event?.region_name || 'Global' : event?.region_name };
+}
+
+/**
  * Normalize one AWS event into a Statuspage incident. The feed has no lifecycle
  * field beyond resolution, so an open event maps to the generic active state and a
  * resolved one takes its resolution time from its newest log entry.
@@ -175,10 +203,11 @@ export function mapAwsEvent(event: AwsEvent, target: AwsTarget): StatuspageIncid
       old_status: '',
     }))
     .filter((a) => a.name);
+  const { code, name } = eventRegion(event);
 
   return {
     id: event.arn ?? `${event.service ?? 'aws'}-${event.date ?? 'unknown'}`,
-    name: `${event.summary ?? 'AWS event'} — ${event.service_name ?? 'Unknown service'} (${event.region_name ?? 'Unknown region'})`,
+    name: `${event.summary ?? 'AWS event'} — ${event.service_name ?? 'Unknown service'} (${name ?? 'Unknown region'})`,
     impact: resolved ? reachedImpact(log) : statusToImpact(event.status),
     status: resolved ? 'resolved' : 'investigating',
     created_at: epochSecondsToIso(event.date),
@@ -195,22 +224,22 @@ export function mapAwsEvent(event: AwsEvent, target: AwsTarget): StatuspageIncid
       display_at: epochSecondsToIso(entry.timestamp),
       affected_components: i === log.length - 1 && affected.length > 0 ? affected : null,
     })),
+    ...(code === undefined
+      ? {}
+      : { affected_locations: [{ id: code, name: name || code, current: !resolved }] }),
   };
 }
-
-/** The region field of an ARN (`arn:aws:health:me-central-1::event/…`). */
-const ARN_REGION_RE = /^arn:[^:]*:[^:]*:([^:]+):/;
 
 /**
  * The component name for an open event: `<service> (<region name>, <region code>)`. The
  * display name alone is ambiguous where AWS names two regions alike, and it is not what a
- * caller filters on; the code comes from the event ARN, and an ARN with no region (a
- * global event) leaves the name as `<service> (<region name>)`.
+ * caller filters on. The code comes from the event ARN, which carries `global` for a
+ * global service (`Amazon CloudFront (Global, global)`); an ARN with an empty region
+ * field, or none, leaves the name as `<service> (<region name>)`.
  */
 function componentName(event: AwsEvent | undefined): string {
-  const regionName = event?.region_name ?? 'Unknown region';
-  const code = event?.arn?.match(ARN_REGION_RE)?.[1];
-  return `${event?.service_name ?? 'Unknown service'} (${code ? `${regionName}, ${code}` : regionName})`;
+  const { code, name = 'Unknown region' } = eventRegion(event);
+  return `${event?.service_name ?? 'Unknown service'} (${code ? `${name}, ${code}` : name})`;
 }
 
 /**

@@ -18,7 +18,9 @@ import {
   mapAwsEvent,
   mapAwsSummary,
 } from '@/services/status-adapters/aws-adapter.js';
+import type { StatuspageIncident } from '@/services/statuspage/types.js';
 import { clearFetchCache } from '@/utils/cached-fetch.js';
+import { hasEveryTerm, toTerms } from '@/utils/word-match.js';
 
 vi.mock('@/config/server-config.js', () => ({
   getServerConfig: () => ({
@@ -194,6 +196,19 @@ describe('mapAwsEvent', () => {
     expect(last.affected_components?.length).toBeGreaterThan(0);
   });
 
+  it('titles a regional event `<summary> — <service> (<region name>)`, Unknown region when it names none', () => {
+    expect(liveEvents().map((e) => mapAwsEvent(e, AWS).name)).toEqual([
+      'Increased Error Rates — Multiple services (UAE)',
+      'Increased Error Rates — Multiple services (Bahrain)',
+    ]);
+    const { region_name: _drop, ...unnamed } = OPEN_EVENT;
+    const event: AwsEvent = { ...unnamed, arn: 'arn:aws:health:us-east-1::event/S3/X' };
+    expect(mapAwsEvent(event, AWS).name).toBe('Increased Error Rates — Amazon S3 (Unknown region)');
+    expect(mapAwsSummary([event], AWS).components.map((c) => c.name)).toEqual([
+      'Amazon S3 (Unknown region, us-east-1)',
+    ]);
+  });
+
   it('maps a status-0 event to a resolved incident, dated by its newest log entry', () => {
     const inc = mapAwsEvent(RESOLVED_EVENT, AWS);
     expect(inc.status).toBe('resolved');
@@ -289,6 +304,116 @@ describe('mapAwsEvent', () => {
       AWS,
     );
     expect(inc.incident_updates[0]!.body).toBe(message);
+  });
+});
+
+/**
+ * Each event names one region in its ARN's region field — or `global` for a global
+ * service — which becomes the incident's one affected location (#95).
+ */
+describe('affected_locations (#95)', () => {
+  /** A global event as AWS's history data lists them: `global` in the ARN, no region_name. */
+  const GLOBAL_EVENT: AwsEvent = {
+    arn: 'arn:aws:health:global::event/CLOUDFRONT/AWS_CLOUDFRONT_OPERATIONAL_ISSUE/X',
+    status: '2',
+    service_name: 'Amazon CloudFront',
+    date: '1772050000',
+    summary: 'Change Propagation Delays',
+    event_log: [{ status: 2, message: 'Investigating.', timestamp: 1772050000 }],
+  };
+
+  it('gives each live event the region its ARN names, under its region_name, current while open', () => {
+    expect(liveEvents().map((e) => mapAwsEvent(e, AWS).affected_locations)).toEqual([
+      [{ id: 'me-central-1', name: 'UAE', current: true }],
+      [{ id: 'me-south-1', name: 'Bahrain', current: true }],
+    ]);
+  });
+
+  it('marks a resolved event’s region no longer current', () => {
+    const inc = mapAwsEvent(
+      { ...RESOLVED_EVENT, arn: 'arn:aws:health:us-east-1::event/EC2/AWS_EC2_OPERATIONAL_ISSUE/X' },
+      AWS,
+    );
+    expect(inc.status).toBe('resolved');
+    expect(inc.affected_locations).toEqual([
+      { id: 'us-east-1', name: 'N. Virginia', current: false },
+    ]);
+  });
+
+  it('names a global event that carries no region_name Global — location, title, and component', () => {
+    for (const event of [GLOBAL_EVENT, { ...GLOBAL_EVENT, region_name: '' }]) {
+      const inc = mapAwsEvent(event, AWS);
+      expect(inc.affected_locations, event.region_name).toEqual([
+        { id: 'global', name: 'Global', current: true },
+      ]);
+      expect(inc.name, event.region_name).toBe(
+        'Change Propagation Delays — Amazon CloudFront (Global)',
+      );
+      expect(
+        mapAwsSummary([event], AWS).components.map((c) => c.name),
+        event.region_name,
+      ).toEqual(['Amazon CloudFront (Global, global)']);
+    }
+  });
+
+  it('keeps a global event’s own region_name when it carries one', () => {
+    const inc = mapAwsEvent({ ...GLOBAL_EVENT, region_name: 'Worldwide' }, AWS);
+    expect(inc.affected_locations).toEqual([{ id: 'global', name: 'Worldwide', current: true }]);
+    expect(inc.name).toBe('Change Propagation Delays — Amazon CloudFront (Worldwide)');
+  });
+
+  it('names a regional location by its code when the event carries no region_name', () => {
+    const { region_name: _drop, ...unnamed } = OPEN_EVENT;
+    const arn = 'arn:aws:health:us-east-1::event/S3/X';
+    const events: AwsEvent[] = [
+      { ...unnamed, arn },
+      { ...unnamed, arn, region_name: '' },
+    ];
+    for (const event of events) {
+      expect(mapAwsEvent(event, AWS).affected_locations, event.region_name).toEqual([
+        { id: 'us-east-1', name: 'us-east-1', current: true },
+      ]);
+    }
+  });
+
+  it('lists no locations for an event with no ARN, an empty region field, or an id that is no ARN', () => {
+    const cases: Array<string | undefined> = [
+      undefined,
+      'open-arn',
+      'arn:aws:health:::event/MULTIPLE_SERVICES/X',
+    ];
+    for (const arn of cases) {
+      const { arn: _drop, ...rest } = OPEN_EVENT;
+      const inc = mapAwsEvent(arn === undefined ? rest : { ...rest, arn }, AWS);
+      expect(Object.hasOwn(inc, 'affected_locations'), String(arn)).toBe(false);
+    }
+  });
+
+  /**
+   * The capture's two events, read through the fields `match` reads — title, affected
+   * component names, location names and IDs. The me-central-1 event carries "eu" (inside
+   * "Prometheus") and "central-1" in separate fields; "eu-central-1" reads as one phrase,
+   * so it misses that event, and each code selects its own event only.
+   */
+  it('lets match select each live event by its region code, and no other (#95)', () => {
+    const incidents = liveEvents().map((e) => mapAwsEvent(e, AWS));
+    const fields = (inc: StatuspageIncident) => [
+      inc.name,
+      ...(inc.incident_updates.at(-1)?.affected_components ?? []).map((c) => c.name),
+      ...(inc.affected_locations ?? []).flatMap((l) => [l.name, l.id]),
+    ];
+    const selected = (match: string) =>
+      incidents
+        .filter((inc) => hasEveryTerm(toTerms(match), fields(inc)))
+        .map((inc) => inc.affected_locations?.[0]?.id);
+
+    expect(selected('me-central-1')).toEqual(['me-central-1']);
+    expect(selected('uae')).toEqual(['me-central-1']);
+    expect(selected('me-south-1')).toEqual(['me-south-1']);
+    expect(selected('bahrain')).toEqual(['me-south-1']);
+    expect(selected('south-1')).toEqual(['me-south-1']);
+    expect(selected('eu-central-1')).toEqual([]);
+    expect(selected('eu-central')).toEqual([]);
   });
 });
 

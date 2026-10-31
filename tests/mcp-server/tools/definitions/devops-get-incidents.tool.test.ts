@@ -16,6 +16,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { VENDOR_REGISTRY } from '@/data/vendor-registry.js';
 import { devopsGetIncidents } from '@/mcp-server/tools/definitions/devops-get-incidents.tool.js';
 import { productSlugsNotice } from '@/mcp-server/tools/definitions/devops-vendor-result.js';
+import { backendHistory, vendorHistory } from '@/services/status-adapters/status-dispatch.js';
 import type {
   StatuspageIncidentsResponse,
   StatuspageScheduledMaintenancesResponse,
@@ -65,6 +66,16 @@ vi.mock('@/services/status-adapters/aws-adapter.js', async (importOriginal) => {
 vi.mock('@/utils/ssrf-guard.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/ssrf-guard.js')>();
   return { ...actual, assertSafeUrl: vi.fn(actual.assertSafeUrl) };
+});
+
+/**
+ * vendorHistory answers from the real backend table; a case proving that a notice keys
+ * on a feed capability, not on the vendor, overrides one call's answer.
+ */
+vi.mock('@/services/status-adapters/status-dispatch.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/status-adapters/status-dispatch.js')>();
+  return { ...actual, vendorHistory: vi.fn(actual.vendorHistory) };
 });
 
 vi.mock('@/services/statuspage/statuspage-service.js', () => {
@@ -680,10 +691,12 @@ describe('devopsGetIncidents', () => {
 
       expect(structured.truncated).toBeUndefined();
       expect(structured.upstreamCeiling).toBe(50);
-      expect(structured.notice).toContain('50');
-      expect(structured.notice).toContain('https://www.githubstatus.com');
-      // Says the omitted incidents are unreachable by paging, not just "capped".
-      expect(structured.notice).toMatch(/offset/i);
+      // Says the omitted incidents are unreachable by paging, not just "capped", and, on a
+      // Statuspage page read without since, that since reaches them through its archive (#97),
+      // keeping the status page for a page that publishes none.
+      expect(structured.notice).toBe(
+        "The vendor's status API returns at most 50 incidents per fetch and offers no pagination, so incidents older than the oldest one it returned are not reachable at any offset. Set since to reach them through the status page's history archive, 24 months back at most, where the page publishes one; where it publishes none, see https://www.githubstatus.com for the older history.",
+      );
 
       // Control: one record short of the ceiling is the whole history, so claiming a
       // cap there would be as wrong as hiding it above.
@@ -1571,8 +1584,8 @@ describe('devopsGetIncidents', () => {
       const { structured, text } = await call({ vendor: 'gcp', match: 'tokyo' });
 
       const notice =
-        '2 incidents for Google Cloud matched filter "all", but none has every word of "tokyo" in its title, affected components, or affected locations. ' +
-        'Use fewer or broader words, or omit match. History-archive records, and vendors that publish no components, match on title only.';
+        '2 incidents for Google Cloud matched filter "all", but none has every term of "tokyo" in its title, affected components, or affected locations. ' +
+        'Use fewer or broader terms, or omit match. History-archive records, and vendors that publish no components, match on title only.';
       expect(structured).toMatchObject({ incidents: [], notice });
       expect(text.split(notice)).toHaveLength(2);
     });
@@ -1675,11 +1688,100 @@ describe('devopsGetIncidents', () => {
 
     it('names locations in the match and tool descriptions', () => {
       expect(devopsGetIncidents.input.shape.match.description).toContain(
-        'on Google Cloud, its affected location names and IDs',
+        'on Google Cloud and AWS, its affected location names and IDs',
       );
       expect(devopsGetIncidents.description).toContain(
-        'match (words in the title or affected component names, plus location names and IDs on Google Cloud)',
+        'match (terms in the title or affected component names, plus location names and IDs on Google Cloud and AWS)',
       );
+    });
+  });
+
+  /**
+   * The real AWS adapter runs down to the fetch fake, serving the recorded capture: two
+   * open events, in me-central-1 ("UAE") and me-south-1 ("Bahrain"), each listing the one
+   * region its ARN names. The phrase rule itself is tabled in tests/utils/word-match.test.ts;
+   * these prove that match reads AWS locations and that its notice names them (#95).
+   */
+  describe('AWS affected locations (#95)', () => {
+    const http = createFetchMock();
+    const capture = readFileSync(
+      new URL(
+        '../../../services/status-adapters/fixtures/aws-currentevents.utf16be.bin',
+        import.meta.url,
+      ),
+    );
+    const ME_SOUTH =
+      'arn:aws:health:me-south-1::event/MULTIPLE_SERVICES/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE/AWS_MULTIPLE_SERVICES_OPERATIONAL_ISSUE_E6426_01AD72B4E1E';
+
+    beforeEach(async () => {
+      http.reset();
+      http.install();
+      http.route({
+        match: (req) => new URL(req.url).origin === 'https://health.aws.amazon.com',
+        respond: () => new Response(capture),
+      });
+      const aws = await import('@/services/status-adapters/aws-adapter.js');
+      const actual = await vi.importActual<typeof aws>('@/services/status-adapters/aws-adapter.js');
+      vi.mocked(aws.fetchAwsIncidents).mockImplementation(actual.fetchAwsIncidents);
+    });
+
+    afterEach(async () => {
+      http.restore();
+      const aws = await import('@/services/status-adapters/aws-adapter.js');
+      vi.mocked(aws.fetchAwsIncidents).mockReset();
+    });
+
+    /** One call through the production contract, with each surface as the caller receives it. */
+    async function call(match: string) {
+      const result = await runToolContract(devopsGetIncidents, { vendor: 'aws', match });
+      expect(result.isError).toBeFalsy();
+      return {
+        structured: result.structuredContent as {
+          incidents: { id: string; affected_locations?: unknown }[];
+          notice?: string;
+        },
+        text: result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n'),
+      };
+    }
+
+    it('selects the me-south-1 event by its region code or its region name, location on both surfaces', async () => {
+      for (const match of ['me-south-1', 'bahrain']) {
+        const { structured, text } = await call(match);
+
+        expect(
+          structured.incidents.map((i) => i.id),
+          match,
+        ).toEqual([ME_SOUTH]);
+        expect(structured.incidents[0]!.affected_locations).toEqual([
+          { id: 'me-south-1', name: 'Bahrain', current: true },
+        ]);
+        expect(text.split('\n')).toContain('**Locations (current):** Bahrain `me-south-1`');
+        expect(structured.notice).toBeUndefined();
+      }
+    });
+
+    it("selects nothing for another region's code, and says a hyphenated term needs its words together", async () => {
+      // Read word by word, "eu" inside "Amazon Managed Service for Prometheus" and the
+      // me-central-1 location would select that event.
+      const { structured, text } = await call('eu-central-1');
+
+      const notice =
+        '2 incidents for Amazon Web Services matched filter "all", but none has every term of "eu-central-1" in its title, affected components, or affected locations. ' +
+        'A hyphenated term matches only where its words appear together, in that order, within the title, one component name, or one location name or ID; spaces between its words let each match on its own. ' +
+        'Use fewer or broader terms, or omit match. History-archive records, and vendors that publish no components, match on title only.';
+      expect(structured).toMatchObject({ incidents: [], notice });
+      expect(text.split(notice)).toHaveLength(2);
+    });
+
+    it('names affected locations when a one-word match empties an AWS result', async () => {
+      const { structured } = await call('tokyo');
+
+      expect(structured).toMatchObject({
+        incidents: [],
+        notice:
+          '2 incidents for Amazon Web Services matched filter "all", but none has every term of "tokyo" in its title, affected components, or affected locations. ' +
+          'Use fewer or broader terms, or omit match. History-archive records, and vendors that publish no components, match on title only.',
+      });
     });
   });
 
@@ -1961,6 +2063,16 @@ describe('devopsGetIncidents', () => {
       }
     }
 
+    /** The ceiling notice where since cannot reach past it, so the status page is the way (#25). */
+    const pageCeiling = (url: string) =>
+      `The vendor's status API returns at most 50 incidents per fetch and offers no pagination, so incidents older than the oldest one it returned are not reachable through this tool at any offset. See ${url} for the older history.`;
+    /**
+     * The ceiling notice on GitHub's Statuspage page read without since, which reaches past it
+     * where the page publishes an archive; the status page stays for one that publishes none (#97).
+     */
+    const SINCE_CEILING =
+      "The vendor's status API returns at most 50 incidents per fetch and offers no pagination, so incidents older than the oldest one it returned are not reachable at any offset. Set since to reach them through the status page's history archive, 24 months back at most, where the page publishes one; where it publishes none, see https://www.githubstatus.com for the older history.";
+
     it('github, resolved, one year back: reaches records older than the oldest v2 record', async () => {
       routeGithub();
       const { result, structured } = await call({
@@ -2210,6 +2322,144 @@ describe('devopsGetIncidents', () => {
         expect(structured.upstreamCeiling).toBe(50);
         expect(structured.notice).toContain('returns at most 50 incidents per fetch');
       });
+
+      /**
+       * At Twilio's 50-record ceiling, an empty "all" says the records the feed returned
+       * hold nothing in SendGrid's scope, and leaves the way to older SendGrid incidents to
+       * the ceiling notice, which names the status page (#99). Below the ceiling the feed's
+       * whole record was read, so the nothing-published sentence stands.
+       */
+      it('says an empty "all" at the ceiling found nothing in scope, naming the status page once (#99)', async () => {
+        routeSendgrid(fixture('twilio-incidents.json') as Feed);
+
+        const result = await runToolContract(devopsGetIncidents, { vendor: 'sendgrid' });
+
+        const notice = `None of the incidents or maintenance windows SendGrid's status feed returned touch SendGrid's components, so the narrower filters have nothing to return either. ${pageCeiling(TWILIO)}`;
+        expect(result.structuredContent).toMatchObject({
+          incidents: [],
+          upstreamCeiling: 50,
+          notice,
+        });
+        expect(notice.split(TWILIO)).toHaveLength(2);
+        const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+        expect(text.split(notice)).toHaveLength(2);
+      });
+
+      it('keeps the nothing-published sentence for an empty "all" below the ceiling (#99)', async () => {
+        const feed = fixture('twilio-incidents.json') as Feed;
+        feed.incidents.pop();
+        routeSendgrid(feed);
+
+        const { result, structured } = await call({ vendor: 'sendgrid' });
+
+        expect(result.incidents).toEqual([]);
+        expect(structured.upstreamCeiling).toBeUndefined();
+        expect(structured.notice).toBe(
+          `SendGrid currently lists no incidents and no maintenance windows at all. Filter "all" already spans everything its status feed publishes, so the narrower filters have nothing to return either. See ${TWILIO} to confirm on the vendor's own status page.`,
+        );
+      });
+
+      it('keeps the status-page pointer at the ceiling without since: no archive is read for it (#97)', async () => {
+        const feed = fixture('twilio-incidents.json') as Feed;
+        const smtp = twilioSummary().components.find((c) => c.name === 'SMTP')!;
+        feed.incidents[3] = { ...feed.incidents[3]!, components: [smtp] };
+        routeSendgrid(feed);
+
+        const { result, structured } = await call({ vendor: 'sendgrid' });
+
+        expect(result.incidents.map((i) => i.id)).toEqual([feed.incidents[3]!.id]);
+        expect(structured.upstreamCeiling).toBe(50);
+        expect(structured.notice).toBe(pageCeiling(TWILIO));
+      });
+    });
+
+    /**
+     * On a Statuspage page the history archive reaches past the status API's 50-record
+     * ceiling, so a call that read none says since reaches the older incidents. Where since
+     * cannot — an entry scoped to part of a shared page, an until older than the archive
+     * floor, or a call whose archive walk stopped short — the status page stays the way (#97).
+     */
+    describe('the ceiling notice names since where since reaches past it (#97)', () => {
+      it('names since and its 24-month reach on a Statuspage page read without since, on both surfaces', async () => {
+        routeGithub();
+        const result = await runToolContract(devopsGetIncidents, {
+          vendor: 'github',
+          limit: 1,
+          offset: 49,
+        });
+
+        expect(historyRequests()).toEqual([]);
+        // 50 v2 incidents and 3 maintenance windows match "all".
+        const notice = `Showing incidents 50–50 of 53. Call again with offset: 50 for the next page, or narrow with filter, since, until, or match. ${SINCE_CEILING}`;
+        expect(result.structuredContent).toMatchObject({
+          totalCount: 53,
+          nextOffset: 50,
+          upstreamCeiling: 50,
+          notice,
+        });
+        const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+        expect(text.split(notice)).toHaveLength(2);
+        expect(notice).not.toContain('through this tool');
+        // The status page is named once, for a page with no archive behind since.
+        expect(notice.split(GITHUB)).toHaveLength(2);
+
+        // An until the archive floor (2024-09-25 on this clock) does not pass still lets since reach.
+        http.reset();
+        routeGithub();
+        const until = await call({ vendor: 'github', until: '2026-09-01' });
+        expect(until.result.total_returned).toBeGreaterThan(0);
+        expect(until.structured.upstreamCeiling).toBe(50);
+        expect(until.structured.notice?.endsWith(SINCE_CEILING)).toBe(true);
+      });
+
+      it('keeps the status-page pointer under a filter that rejects since', async () => {
+        routeGithub();
+        const { structured } = await call({ vendor: 'github', filter: 'active' });
+
+        // Every recorded GitHub incident is resolved, so "active" is empty; the ceiling still binds.
+        expect(structured.upstreamCeiling).toBe(50);
+        expect(structured.notice?.endsWith(pageCeiling(GITHUB))).toBe(true);
+        expect(structured.notice).not.toContain('since');
+      });
+
+      it('leaves a Statuspage until-only notice as it was when no ceiling follows', async () => {
+        const page = (fixture('github-incidents.json') as StatuspageIncidentsResponse).page;
+        const record = {
+          ...RESOLVED_INCIDENT.incidents[0]!,
+          id: 'only',
+          created_at: '2026-08-10T10:00:00Z',
+          started_at: '2026-08-10T10:00:00Z',
+        };
+        const route = () =>
+          http.route(
+            {
+              match: `${GITHUB}/api/v2/incidents.json`,
+              respond: () => Response.json({ page, incidents: [record] }),
+            },
+            {
+              match: `${GITHUB}/api/v2/scheduled-maintenances.json`,
+              respond: () => Response.json({ page, scheduled_maintenances: [] }),
+            },
+          );
+
+        route();
+        const inside = await call({ vendor: 'github', until: '2026-08-01' });
+        expect(inside.structured.upstreamCeiling).toBeUndefined();
+        expect(inside.structured.notice).toBe(
+          'No incidents matching filter "all" for GitHub started on or before 2026-08-01: all 1 match started after it. ' +
+            "Add since (up to 24 months back) to also read the status page's history archive, which reaches incidents older than the ones its status API returns.",
+        );
+
+        http.reset();
+        route();
+        const older = await call({ vendor: 'github', until: '2024-01-01' });
+        expect(older.structured.notice).toBe(
+          'No incidents matching filter "all" for GitHub started on or before 2024-01-01: all 1 match started after it. ' +
+            "The status page's history archive is read back 24 months at most, to 2024-09-25, so since cannot reach incidents that started on or before 2024-01-01. " +
+            `See ${GITHUB} for earlier history.`,
+        );
+        expect(historyRequests()).toEqual([]);
+      });
     });
 
     it('an offset past the merged list names the valid range', async () => {
@@ -2341,6 +2591,9 @@ describe('devopsGetIncidents', () => {
       expect(structured.upstreamCeiling).toBe(50);
       expect(structured.notice).toContain('2026-07-01');
       expect(structured.notice).toMatch(/timed out/i);
+      // since was set and its walk stopped short, so the status page stays the way (#97).
+      expect(structured.notice).toContain(pageCeiling(GITHUB));
+      expect(structured.notice).not.toContain('Set since');
     });
 
     it('a page that is not a history payload stops the walk with the gap named', async () => {
@@ -2724,6 +2977,9 @@ describe('devopsGetIncidents', () => {
           ),
         ).toBe(true);
         expect(structured.notice ?? '').not.toMatch(/months back|read back to/);
+        // since cannot reach a range that ends before the floor, so the ceiling keeps the
+        // status page as the way to older incidents (#97).
+        expect(structured.notice?.endsWith(pageCeiling(GITHUB))).toBe(true);
         const content = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
         expect(content).toContain('GitHub Importer Maintenance');
       });
@@ -2964,7 +3220,7 @@ describe('devopsGetIncidents', () => {
 
     /**
      * match and until narrow the matches before offset/limit, so the paging fields and
-     * the offset guidance count the narrowed set (#71). The word reading itself is
+     * the offset guidance count the narrowed set (#71). The term reading itself is
      * pinned in tests/utils/word-match.test.ts; these prove the wiring.
      */
     describe('match and until (#71)', () => {
@@ -3042,6 +3298,18 @@ describe('devopsGetIncidents', () => {
             affected_components: [],
           }),
         ]);
+
+        // The offset guidance reads match back as its terms, a joined phrase kept whole (#95).
+        const past = await call({
+          vendor: 'github',
+          filter: 'resolved',
+          since: '2026-07-01',
+          match: 'Hosted-Runners',
+          offset: 1,
+        });
+        expect(past.structured.notice).toContain(
+          'with match "hosted-runners" matched 1 incident for GitHub',
+        );
       });
 
       it('returns the one day when until equals since', async () => {
@@ -3055,7 +3323,7 @@ describe('devopsGetIncidents', () => {
         expect(result.incidents.map((i) => i.id)).toEqual(['bk7zgdcq7s9t', 'qwdwmtqghpk5']);
       });
 
-      it('until alone reads no history archive and points at since when it left nothing', async () => {
+      it('until alone reads no history archive and points at since, once, when it left nothing', async () => {
         routeGithub();
         const result = await runToolContract(devopsGetIncidents, {
           vendor: 'github',
@@ -3065,21 +3333,15 @@ describe('devopsGetIncidents', () => {
 
         expect(historyRequests()).toEqual([]);
         expect(result.isError).toBeFalsy();
-        const notice =
-          'No incidents matching filter "resolved" for GitHub started on or before 2026-07-01: all 50 matches started after it. ' +
-          "Add since (up to 24 months back) to also read the status page's history archive, which reaches incidents older than the ones its status API returns.";
-        // The feed's own 50-record ceiling still bounds what until could see, so it follows.
-        expect(result.structuredContent).toMatchObject({
-          incidents: [],
-          notice: expect.stringMatching(/^No incidents matching .* returns at most 50 incidents/),
-        });
-        expect((result.structuredContent as { notice: string }).notice.startsWith(notice)).toBe(
-          true,
-        );
+        // The feed's own 50-record ceiling bounds what until could see, and its notice is the
+        // one that names since (#97), so the range sentence does not name it again.
+        const notice = `No incidents matching filter "resolved" for GitHub started on or before 2026-07-01: all 50 matches started after it. ${SINCE_CEILING}`;
+        expect(result.structuredContent).toMatchObject({ incidents: [], notice });
+        expect(notice.match(/since/g)).toHaveLength(1);
         expect(text(result.content).split(notice)).toHaveLength(2);
       });
 
-      it('until alone on a vendor with no archive says the feed holds nothing older', async () => {
+      it('until alone on a vendor with no archive names where its feed starts, on both surfaces (#94)', async () => {
         http.route({
           match: 'https://status.cloud.google.com/incidents.json',
           respond: () =>
@@ -3095,13 +3357,22 @@ describe('devopsGetIncidents', () => {
               },
             ]),
         });
-        const { structured } = await call({ vendor: 'gcp', until: '2026-09-01' });
+        const result = await runToolContract(devopsGetIncidents, {
+          vendor: 'gcp',
+          until: '2026-09-01',
+        });
 
-        expect(structured.notice).toContain(
-          'started on or before 2026-09-01: all 1 match started after it.',
-        );
-        expect(structured.notice).toContain('returns nothing older that this tool can read');
-        expect(structured.notice).not.toContain('Add since');
+        // gcp-1 is the one record the feed returned, so its start is where the feed starts.
+        const notice =
+          'No incidents matching filter "all" for Google Cloud started on or before 2026-09-01: all 1 match started after it. ' +
+          "The oldest record Google Cloud's status feed returned starts on 2026-09-20. This tool reads no history archive for Google Cloud, so it cannot return incidents that started before then. " +
+          'See https://status.cloud.google.com for earlier history.';
+        expect(result.structuredContent).toMatchObject({
+          incidents: [],
+          total_returned: 0,
+          notice,
+        });
+        expect(text(result.content).split(notice)).toHaveLength(2);
       });
 
       it('names since and until separately when the range left nothing', async () => {
@@ -3130,8 +3401,8 @@ describe('devopsGetIncidents', () => {
 
         // 13 September v2 incidents start on or after the floor; no archive-only record does.
         const notice =
-          '13 incidents for GitHub matched filter "resolved" (since 2026-09-01), but none has every word of "quantum teleporter" in its title or affected components. ' +
-          'Use fewer or broader words, or omit match. History-archive records, and vendors that publish no components, match on title only.';
+          '13 incidents for GitHub matched filter "resolved" (since 2026-09-01), but none has every term of "quantum teleporter" in its title or affected components. ' +
+          'Use fewer or broader terms, or omit match. History-archive records, and vendors that publish no components, match on title only.';
         expect(result.structuredContent).toMatchObject({ incidents: [], notice });
         expect(text(result.content).split(notice)).toHaveLength(2);
       });
@@ -3204,13 +3475,19 @@ describe('devopsGetIncidents', () => {
           expect(result.isError).toBeFalsy();
           expect(historyRequests()).toEqual([]);
           // The recorded maintenance list starts in 2025, so nothing here started that early.
+          // The 50-record ceiling follows and names the status page, so the floor sentence
+          // leaves the page to it: the result names it once (#97).
           const notice =
             'No incidents matching filter "all" for GitHub started on or before 2024-09-24: all 53 matches started after it. ' +
-            "The status page's history archive is read back 24 months at most, to 2024-09-25, so since cannot reach incidents that started on or before 2024-09-24.";
-          expect(result.structuredContent).toMatchObject({ incidents: [], total_returned: 0 });
-          expect((result.structuredContent as { notice: string }).notice.startsWith(notice)).toBe(
-            true,
-          );
+            "The status page's history archive is read back 24 months at most, to 2024-09-25, so since cannot reach incidents that started on or before 2024-09-24. " +
+            pageCeiling(GITHUB);
+          expect(result.structuredContent).toMatchObject({
+            incidents: [],
+            total_returned: 0,
+            upstreamCeiling: 50,
+            notice,
+          });
+          expect(notice.split(GITHUB)).toHaveLength(2);
           expect(text(result.content)).toContain('No incidents matched this filter.');
           expect(text(result.content).split(notice)).toHaveLength(2);
         });
@@ -3609,6 +3886,198 @@ describe('devopsGetIncidents', () => {
           );
         });
       });
+
+      /**
+       * until with no since leaves the range open below, so on a recent-window feed with no
+       * history archive it always reaches past the oldest record the feed returned: the
+       * notice names that record's start, on populated and empty results alike (#94). A feed
+       * that carries its page's whole history names where that history starts only when an
+       * empty range ends before it, since set or not.
+       */
+      describe('an until with no since, and where a whole-history feed starts (#94)', () => {
+        const GCP_URL = 'https://status.cloud.google.com';
+        const REDIS_URL = 'https://status.redis.io';
+        const start = (name: string, date: string, url?: string) =>
+          `The oldest record ${name}'s status feed returned starts on ${date}. This tool reads no history archive for ${name}, so it cannot return incidents that started before then.${url === undefined ? '' : ` See ${url} for earlier history.`}`;
+        const whole = (name: string, date: string) =>
+          `${name}'s status feed carries its status page's whole history, which starts on ${date}; the page publishes nothing older.`;
+
+        type RedisPayload = {
+          incidents: Array<{ id: string; timestamps: Record<string, string> }>;
+        };
+        /** The recorded Redis Cloud payload: three incidents and one maintenance window, the oldest begun 2026-01-08. */
+        function routeRedis(edit: (payload: RedisPayload) => void = () => {}) {
+          const payload = JSON.parse(
+            readFileSync(
+              new URL(
+                '../../../services/status-adapters/fixtures/firehydrant-redis.json',
+                import.meta.url,
+              ),
+              'utf-8',
+            ),
+          ) as RedisPayload;
+          edit(payload);
+          http.route({
+            match: `${REDIS_URL}/data/payload.json`,
+            respond: () => Response.json(payload),
+          });
+        }
+        const OLDEST_REDIS = 'c41455be-535b-4bdf-8194-97305b6a03d5';
+
+        it('names the oldest start on a populated result, on both surfaces', async () => {
+          routeGcpFixture();
+          const result = await runToolContract(devopsGetIncidents, {
+            vendor: 'gcp',
+            until: '2026-03-01',
+          });
+
+          const structured = result.structuredContent as {
+            incidents: { id: string }[];
+            notice?: string;
+          };
+          // 41E5S3mkTGDfkZuJZH5k, begun 2026-02-27T12:37Z, is the one record on or before until.
+          expect(structured.incidents.map((i) => i.id)).toEqual(['41E5S3mkTGDfkZuJZH5k']);
+          expect(structured.notice).toBe(start('Google Cloud', '2026-02-27', GCP_URL));
+          expect(quotedText(result.content).at(-1)).toBe(structured.notice);
+        });
+
+        it('names the status page once where the ceiling notice already does (sendgrid)', async () => {
+          const summary = JSON.parse(
+            readFileSync(
+              new URL(
+                '../../../services/status-adapters/fixtures/statuspage-twilio-summary.json',
+                import.meta.url,
+              ),
+              'utf-8',
+            ),
+          ) as { components: Array<{ id: string; name: string }> };
+          const smtp = summary.components.find((c) => c.name === 'SMTP')!;
+          const feed = fixture('twilio-incidents.json') as {
+            incidents: Array<{ id: string; components: unknown[] }>;
+          };
+          // rn73nh540rz6 started 2026-09-23; Twilio's whole feed starts at g88dj9p99bqh, 2026-09-16.
+          feed.incidents[3] = { ...feed.incidents[3]!, components: [smtp] };
+          const route = () =>
+            http.route(
+              { match: `${TWILIO}/api/v2/summary.json`, respond: () => Response.json(summary) },
+              { match: `${TWILIO}/api/v2/incidents.json`, respond: () => Response.json(feed) },
+              {
+                match: `${TWILIO}/api/v2/scheduled-maintenances.json`,
+                respond: json('twilio-scheduled-maintenances.json'),
+              },
+            );
+
+          route();
+          const empty = await runToolContract(devopsGetIncidents, {
+            vendor: 'sendgrid',
+            until: '2000-01-01',
+          });
+          const notice = `No incidents matching filter "all" for SendGrid started on or before 2000-01-01: all 1 match started after it. ${pageCeiling(TWILIO)} ${start('SendGrid', '2026-09-16')}`;
+          expect(empty.structuredContent).toMatchObject({
+            incidents: [],
+            upstreamCeiling: 50,
+            notice,
+          });
+          expect(notice.split(TWILIO)).toHaveLength(2);
+          expect(quotedText(empty.content)).toEqual([notice]);
+
+          http.reset();
+          route();
+          const populated = await call({ vendor: 'sendgrid', until: '2026-10-01' });
+          expect(populated.result.incidents.map((i) => i.id)).toEqual(['rn73nh540rz6']);
+          expect(populated.structured.notice).toBe(
+            `${pageCeiling(TWILIO)} ${start('SendGrid', '2026-09-16')}`,
+          );
+        });
+
+        it('names where a whole-history feed starts when an empty range ends before it, since set or not', async () => {
+          routeRedis();
+          const untilOnly = await runToolContract(devopsGetIncidents, {
+            vendor: 'redis-cloud',
+            until: '2026-01-07',
+          });
+          const notice = `No incidents matching filter "all" for Redis Cloud started on or before 2026-01-07: all 4 matches started after it. ${whole('Redis Cloud', '2026-01-08')}`;
+          expect(untilOnly.structuredContent).toMatchObject({ incidents: [], notice });
+          expect(quotedText(untilOnly.content)).toEqual([notice]);
+          expect(notice).not.toContain(REDIS_URL);
+
+          // Nothing older than the history exists, so there is no "Widen the range" either.
+          const range = await call({
+            vendor: 'redis-cloud',
+            since: '2025-01-01',
+            until: '2025-06-30',
+          });
+          expect(range.structured.notice).toBe(
+            `No incidents matching filter "all" for Redis Cloud started between 2025-01-01 and 2025-06-30; 4 later matches were left out by until. ${whole('Redis Cloud', '2026-01-08')}`,
+          );
+        });
+
+        it('adds nothing on a whole-history feed when the range reaches where it starts', async () => {
+          routeRedis();
+          // A populated result: until on the day the history starts.
+          const populated = await call({ vendor: 'redis-cloud', until: '2026-01-08' });
+          expect(populated.result.incidents.map((i) => i.id)).toEqual([OLDEST_REDIS]);
+          expect(populated.structured.notice).toBeUndefined();
+
+          // An empty range inside the history keeps its advice to widen it.
+          const gap = await call({
+            vendor: 'redis-cloud',
+            since: '2026-01-09',
+            until: '2026-01-10',
+          });
+          expect(gap.structured.notice).toBe(
+            'No incidents matching filter "all" for Redis Cloud started between 2026-01-09 and 2026-01-10; 1 earlier match was left out by since and 3 later matches were left out by until. ' +
+              'Widen the range, or omit since and until for the most recent incidents regardless of date.',
+          );
+
+          // An until-only range that the filter, not the history, emptied: the records on or
+          // before it are open, so filter "resolved" left them out. The page shows nothing more.
+          http.reset();
+          routeRedis((payload) => {
+            const oldest = payload.incidents.find((i) => i.id === OLDEST_REDIS)!;
+            delete oldest.timestamps.resolved;
+          });
+          const filtered = await call({
+            vendor: 'redis-cloud',
+            filter: 'resolved',
+            until: '2026-02-01',
+          });
+          expect(filtered.structured.notice).toBe(
+            'No incidents matching filter "resolved" for Redis Cloud started on or before 2026-02-01: all 2 matches started after it.',
+          );
+        });
+
+        /**
+         * The wording follows the feed's wholeHistory capability, never the vendor or its
+         * api_type: a recent-window backend answered as whole-history gets the whole-history
+         * wording, and a whole-history backend answered as a recent window gets the window's.
+         */
+        it("keys the wording on the feed's wholeHistory capability, not on the vendor", async () => {
+          const answerWith = (wholeHistory: boolean) =>
+            vi.mocked(vendorHistory).mockImplementationOnce((vendor) => ({
+              ...backendHistory(vendor.api_type),
+              wholeHistory,
+            }));
+
+          routeGcpFixture();
+          answerWith(true);
+          const gcpEmpty = await call({ vendor: 'gcp', until: '2026-01-15' });
+          expect(gcpEmpty.structured.notice).toBe(
+            `No incidents matching filter "all" for Google Cloud started on or before 2026-01-15: all 4 matches started after it. ${whole('Google Cloud', '2026-02-27')}`,
+          );
+          answerWith(true);
+          const gcpPopulated = await call({ vendor: 'gcp', until: '2026-03-01' });
+          expect(gcpPopulated.result.total_returned).toBe(1);
+          expect(gcpPopulated.structured.notice).toBeUndefined();
+
+          routeRedis();
+          answerWith(false);
+          const redis = await call({ vendor: 'redis-cloud', until: '2026-01-07' });
+          expect(redis.structured.notice).toBe(
+            `No incidents matching filter "all" for Redis Cloud started on or before 2026-01-07: all 4 matches started after it. ${start('Redis Cloud', '2026-01-08', REDIS_URL)}`,
+          );
+        });
+      });
     });
   });
 
@@ -3686,6 +4155,13 @@ describe('devopsGetIncidents', () => {
         feed: 'https://status.redis.io/data/payload.json',
         body: () => Response.json({ incidents: [], components: [] }),
         notice: retry('Redis Cloud', '"all" or "resolved" or "scheduled"'),
+      },
+      {
+        backend: 'datadog',
+        vendor: 'datadog',
+        feed: 'https://status.datadoghq.com/config.json',
+        body: () => Response.json({ components: [], incidents: [], maintenances: null }),
+        notice: retry('Datadog US1', '"all" or "resolved" or "scheduled"'),
       },
       {
         backend: 'azure',
@@ -4228,8 +4704,8 @@ describe('devopsGetIncidents', () => {
 
       expect(structured.incidents).toEqual([]);
       expect(structured.notice).toBe(
-        '2 incidents for Atlassian (cross-product incidents) matched filter "all", but none has every word of "bitbucket" in its title or affected components. ' +
-          'Use fewer or broader words, or omit match. History-archive records, and vendors that publish no components, match on title only. ' +
+        '2 incidents for Atlassian (cross-product incidents) matched filter "all", but none has every term of "bitbucket" in its title or affected components. ' +
+          'Use fewer or broader terms, or omit match. History-archive records, and vendors that publish no components, match on title only. ' +
           pointer,
       );
     });
@@ -4244,11 +4720,26 @@ describe('devopsGetIncidents', () => {
   it('names the backends whose scheduled filter lists completed maintenance windows (#85)', () => {
     const filter = devopsGetIncidents.input.shape.filter.description ?? '';
     expect(filter).toContain(
-      'scheduled: only maintenance windows — upcoming and in-progress ones, plus completed ones on Atlassian Statuspage and Firehydrant ("redis-cloud") vendors; Status.io vendors ("gitlab", "neon") list upcoming and in-progress windows only.',
+      'scheduled: only maintenance windows — upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, Firehydrant ("redis-cloud"), and Datadog ("datadog", "datadog-eu1") vendors; Status.io vendors ("gitlab", "neon") list upcoming and in-progress windows only.',
     );
     expect(devopsGetIncidents.description).toContain(
-      'or maintenance windows: upcoming and in-progress ones, plus completed ones on Atlassian Statuspage and Firehydrant vendors (Status.io vendors list upcoming and in-progress only).',
+      'or maintenance windows: upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, Firehydrant, and Datadog vendors (Status.io vendors list upcoming and in-progress only).',
     );
     expect(devopsGetIncidents.description).not.toContain('upcoming maintenance windows');
+  });
+
+  it('says where a whole-history feed gets its start date, in the since and until descriptions alike (#94)', () => {
+    const { since, until } = devopsGetIncidents.input.shape;
+    const whole =
+      'A feed that carries its page\'s whole history (such as "redis-cloud" or "datadog")';
+    expect(since.description).toContain(
+      `${whole} holds nothing older, so it gets that date only on an empty result whose until is earlier than it.`,
+    );
+    expect(until.description).toContain(
+      `${whole} gets that date only on an empty result whose until is earlier than it.`,
+    );
+    for (const description of [since.description, until.description]) {
+      expect(description).not.toContain('on most is a recent window');
+    }
   });
 });

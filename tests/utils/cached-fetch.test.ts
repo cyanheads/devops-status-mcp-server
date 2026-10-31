@@ -6,6 +6,7 @@
  * @module tests/utils/cached-fetch.test
  */
 
+import { lookup } from 'node:dns/promises';
 import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -14,10 +15,13 @@ import {
   FETCH_CACHE_MAX_ENTRY_BYTES,
   fetchCached,
   fetchCacheStats,
-  fetchJsonCached,
   MAX_RESPONSE_BODY_BYTES,
 } from '@/utils/cached-fetch.js';
 import { assertSafeUrl } from '@/utils/ssrf-guard.js';
+
+/** A JSON read through the cache, the way the status adapters perform one. */
+const fetchJsonCached = <T>(url: string, ttlMs: number, timeoutMs: number) =>
+  fetchCached<T>(url, ttlMs, timeoutMs, (res) => res.json() as Promise<T>);
 
 /**
  * The guard itself is covered in ssrf-guard.test.ts. Mocking it here keeps these
@@ -32,7 +36,14 @@ vi.mock('@/utils/ssrf-guard.js', async (importOriginal) => ({
   assertSafeResolverIp: vi.fn(),
 }));
 
+/** The resolver answer the real guard reads, for the cases that run it on a hop. */
+vi.mock('node:dns/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:dns/promises')>()),
+  lookup: vi.fn(),
+}));
+
 const mockAssertSafeUrl = vi.mocked(assertSafeUrl);
+const mockLookup = vi.mocked(lookup);
 
 /** Each test uses a unique URL so the shared module-level cache never collides. */
 let urlCounter = 0;
@@ -153,6 +164,60 @@ describe('fetchCached redirect handling', () => {
     expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
     expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable', status: 302 });
     expect((err as McpError).message).toContain('Location');
+  });
+});
+
+/**
+ * The hop check through the real guard, with only the resolver answer mocked. A hop to a
+ * hostname is refused without the address the server's resolver returned for it; a hop to
+ * an IP literal keeps the address the Location header carried.
+ */
+describe('fetchCached redirect hops through the real guard', () => {
+  const POLICY =
+    'Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.';
+
+  beforeEach(async () => {
+    const actual =
+      await vi.importActual<typeof import('@/utils/ssrf-guard.js')>('@/utils/ssrf-guard.js');
+    mockAssertSafeUrl.mockImplementation(actual.assertSafeUrl);
+    mockLookup.mockReset();
+  });
+
+  it('refuses a hop to a hostname without naming the address it resolved to', async () => {
+    const url = freshUrl();
+    const target = 'https://intranet.example/summary.json';
+    mockLookup.mockResolvedValueOnce([{ address: '10.0.0.7', family: 4 }] as never);
+    const fetchMock = vi.fn().mockResolvedValueOnce(redirectResponse(target));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const err = await fetchJsonCached(url, 60_000, 5_000).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(McpError);
+    expect((err as McpError).code).toBe(JsonRpcErrorCode.ValidationError);
+    expect((err as McpError).data).toEqual({ reason: 'target_blocked', url: target });
+    expect((err as McpError).message).toBe(
+      `Redirect from ${url} blocked: URL "${target}" resolves to a non-public address. ${POLICY}`,
+    );
+    expect((err as McpError).message).not.toContain('10.0.0.7');
+    expect((err as McpError).message).not.toContain('(private (RFC 1918))');
+    expect(mockLookup).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the address of a hop to an IP literal', async () => {
+    const url = freshUrl();
+    const target = 'http://169.254.169.254/latest/meta-data/';
+    const fetchMock = vi.fn().mockResolvedValueOnce(redirectResponse(target));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const err = await fetchJsonCached(url, 60_000, 5_000).catch((e: unknown) => e);
+
+    expect((err as McpError).data).toEqual({ reason: 'target_blocked', url: target });
+    expect((err as McpError).message).toBe(
+      `Redirect from ${url} blocked: URL "${target}" resolves to 169.254.169.254 (link-local / cloud-metadata). ${POLICY}`,
+    );
+    expect(mockLookup).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

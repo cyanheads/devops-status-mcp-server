@@ -105,7 +105,7 @@ describe('assertSafeResolverIp (synchronous, no DNS)', () => {
 
   it('rejects a resolver that is not an IP literal rather than passing it to setServers (#29)', () => {
     expect(() => assertSafeResolverIp('localhost')).toThrow(/not a valid IP address/);
-    expect(() => assertSafeResolverIp('dns.internal.corp')).toThrow(/not a valid IP address/);
+    expect(() => assertSafeResolverIp('resolver.example')).toThrow(/not a valid IP address/);
     expect(() => assertSafeResolverIp('')).toThrow(/not a valid IP address/);
     // Decimal- and hex-shaped near-misses that the octet parser would coerce.
     expect(() => assertSafeResolverIp('0x7f.0.0.1')).toThrow(/not a valid IP address/);
@@ -334,12 +334,14 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
 
   it('blocks a URL resolving to the IPv6 unspecified address (#29)', async () => {
     mockAddresses([{ address: '::', family: 6 }]);
-    await expect(assertSafeUrl('http://all-interfaces.example')).rejects.toThrow(/unspecified/);
+    await expect(assertSafeUrl('http://all-interfaces.example')).rejects.toThrow(
+      'resolves to a non-public address',
+    );
   });
 
   it('blocks a URL resolving to RFC 1918 private IP', async () => {
     mockAddresses([{ address: '10.0.0.50', family: 4 }]);
-    await expect(assertSafeUrl('https://internal.corp')).rejects.toThrow('SSRF_BLOCKED');
+    await expect(assertSafeUrl('https://private-host.example')).rejects.toThrow('SSRF_BLOCKED');
   });
 
   it('blocks a URL whose host is a known internal hostname even when DNS cannot answer', async () => {
@@ -397,7 +399,7 @@ describe('assertSafeUrl (async, mocked DNS)', () => {
   it('blocks a resolved IPv4-mapped private address by the embedded IPv4 (#38)', async () => {
     mockAddresses([{ address: '::ffff:169.254.169.254', family: 6 }]);
     await expect(assertSafeUrl('http://mapped-metadata.example')).rejects.toThrow(
-      /IPv4-mapped link-local \/ cloud-metadata/,
+      'resolves to a non-public address',
     );
   });
 
@@ -455,12 +457,12 @@ describe('assertSafeDomain (async, mocked DNS)', () => {
 
   it('blocks a domain resolving to cloud-metadata IP', async () => {
     mockAddresses([{ address: '169.254.169.254', family: 4 }]);
-    await expect(assertSafeDomain('metadata.internal')).rejects.toThrow('SSRF_BLOCKED');
+    await expect(assertSafeDomain('metadata-host.example')).rejects.toThrow('SSRF_BLOCKED');
   });
 
   it('blocks a domain resolving to private RFC 1918 range', async () => {
     mockAddresses([{ address: '192.168.100.50', family: 4 }]);
-    await expect(assertSafeDomain('intranet.corp')).rejects.toThrow('SSRF_BLOCKED');
+    await expect(assertSafeDomain('private-host.example')).rejects.toThrow('SSRF_BLOCKED');
   });
 
   /**
@@ -488,6 +490,101 @@ describe('assertSafeDomain (async, mocked DNS)', () => {
   });
 });
 
+/** The policy sentences every range-check rejection closes with. */
+const POLICY =
+  'Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.';
+
+/** The message a guard check rejected with, or a failure if it passed. */
+async function rejectionMessage(check: Promise<void>): Promise<string> {
+  try {
+    await check;
+  } catch (err) {
+    return (err as Error).message;
+  }
+  throw new Error('the guard did not reject');
+}
+
+/**
+ * For a hostname, the address the guard range-checks is the server resolver's answer — it
+ * belongs to the server's network, not to the caller's input. The rejection names the input
+ * and says it resolves to a non-public address, never which address or which range.
+ */
+describe('a hostname rejection names the input, not the resolved address', () => {
+  const answers: Array<[string, 4 | 6, string]> = [
+    ['10.0.0.5', 4, 'private (RFC 1918)'],
+    ['127.0.0.1', 4, 'loopback'],
+    ['169.254.169.254', 4, 'link-local / cloud-metadata'],
+    ['0.0.0.0', 4, 'unspecified / this network (RFC 1122)'],
+    ['::1', 6, 'loopback'],
+    ['fe80::1', 6, 'link-local'],
+    ['fd00::1', 6, 'unique local (RFC 4193)'],
+    ['::ffff:169.254.169.254', 6, 'IPv4-mapped link-local / cloud-metadata'],
+    ['::', 6, 'unspecified (routes to the local host)'],
+  ];
+
+  it.each(answers)('assertSafeDomain, answer %s', async (address, family, label) => {
+    mockAddresses([{ address, family }]);
+    const message = await rejectionMessage(assertSafeDomain('db.example'));
+    expect(message).toBe(
+      `SSRF_BLOCKED: Domain "db.example" resolves to a non-public address. ${POLICY}`,
+    );
+    expect(message).not.toContain(address);
+    expect(message).not.toContain(`(${label})`);
+  });
+
+  it.each(answers)('assertSafeUrl, answer %s', async (address, family, label) => {
+    mockAddresses([{ address, family }]);
+    const url = 'https://intranet.example/api/v2/summary.json';
+    const message = await rejectionMessage(assertSafeUrl(url));
+    expect(message).toBe(`SSRF_BLOCKED: URL "${url}" resolves to a non-public address. ${POLICY}`);
+    expect(message).not.toContain(address);
+    expect(message).not.toContain(`(${label})`);
+  });
+
+  it('names neither answer when one of several is non-public', async () => {
+    mockAddresses([
+      { address: '93.184.216.34', family: 4 },
+      { address: '10.20.30.40', family: 4 },
+    ]);
+    const message = await rejectionMessage(assertSafeDomain('db.example'));
+    expect(message).toBe(
+      `SSRF_BLOCKED: Domain "db.example" resolves to a non-public address. ${POLICY}`,
+    );
+    expect(message).not.toContain('93.184.216.34');
+    expect(message).not.toContain('10.20.30.40');
+  });
+});
+
+/** An IP literal is the caller's own text, so its rejection keeps the address and its range. */
+describe('an IP-literal rejection keeps the address the caller wrote', () => {
+  it.each([
+    [
+      'https://169.254.169.254/latest/meta-data/',
+      () => assertSafeUrl('https://169.254.169.254/latest/meta-data/'),
+      'URL "https://169.254.169.254/latest/meta-data/" resolves to 169.254.169.254 (link-local / cloud-metadata).',
+    ],
+    [
+      'http://[::1]:8080/',
+      () => assertSafeUrl('http://[::1]:8080/'),
+      'URL "http://[::1]:8080/" resolves to ::1 (loopback).',
+    ],
+    [
+      '10.0.0.5',
+      () => assertSafeDomain('10.0.0.5'),
+      'Domain "10.0.0.5" resolves to 10.0.0.5 (private (RFC 1918)).',
+    ],
+    [
+      'fd00::1',
+      () => assertSafeDomain('fd00::1'),
+      'Domain "fd00::1" resolves to fd00::1 (unique local (RFC 4193)).',
+    ],
+  ])('%s', async (_input, check, sentence) => {
+    mockLookup.mockRejectedValue(new Error('lookup must not be reached for an IP literal'));
+    expect(await rejectionMessage(check())).toBe(`SSRF_BLOCKED: ${sentence} ${POLICY}`);
+    expect(mockLookup).not.toHaveBeenCalled();
+  });
+});
+
 describe('ssrfRejectionMessage', () => {
   /** The error a real guard rejection throws, or a failure if the guard passed. */
   async function rejectionOf(check: () => unknown): Promise<unknown> {
@@ -509,7 +606,11 @@ describe('ssrfRejectionMessage', () => {
       ],
       [
         () => assertSafeUrl('https://intranet.example'),
-        'URL "https://intranet.example" resolves to 10.0.0.5 (private (RFC 1918)). Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.',
+        'URL "https://intranet.example" resolves to a non-public address. Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.',
+      ],
+      [
+        () => assertSafeUrl('https://10.0.0.5'),
+        'URL "https://10.0.0.5" resolves to 10.0.0.5 (private (RFC 1918)). Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.',
       ],
       [
         () => assertSafeDomain('localhost'),

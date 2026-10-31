@@ -223,9 +223,15 @@ function checkIp(ip: string): string | null {
   return isPrivateIPv4(address);
 }
 
-function blocked(context: string, address: string, label: string): Error {
+/**
+ * A range-check rejection, saying what `context` resolves to. For an IP literal that is the
+ * address and its range, both the caller's own input. For a hostname it is only "a non-public
+ * address": the resolved address belongs to the server's network, not the caller's input, so
+ * neither it nor its range leaves the server.
+ */
+function blocked(context: string, resolvedTo: string): Error {
   return new Error(
-    `SSRF_BLOCKED: ${context} resolves to ${address} (${label}). ` +
+    `SSRF_BLOCKED: ${context} resolves to ${resolvedTo}. ` +
       `Requests to private, loopback, or cloud-metadata addresses are not permitted. ` +
       `Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.`,
   );
@@ -258,7 +264,7 @@ async function resolveAndCheck(hostname: string, context: string): Promise<void>
   const literal = stripPort(hostname);
   if (isIP(literal) !== 0) {
     const label = checkIp(literal);
-    if (label) throw blocked(context, literal, label);
+    if (label) throw blocked(context, `${literal} (${label})`);
     return;
   }
 
@@ -271,9 +277,8 @@ async function resolveAndCheck(hostname: string, context: string): Promise<void>
     return;
   }
 
-  for (const { address } of addresses) {
-    const label = checkIp(address);
-    if (label) throw blocked(context, address, label);
+  if (addresses.some(({ address }) => checkIp(address) !== null)) {
+    throw blocked(context, 'a non-public address');
   }
 }
 

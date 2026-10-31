@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-10-14 21:19:07
+Generated on: 2026-10-31 00:29:06
 
 ```text
 devops-status-mcp-server/
@@ -46,6 +46,8 @@ devops-status-mcp-server/
 │   ├── add-resource/
 │   │   └── SKILL.md
 │   ├── add-service/
+│   │   └── SKILL.md
+│   ├── add-skill/
 │   │   └── SKILL.md
 │   ├── add-test/
 │   │   └── SKILL.md
@@ -144,6 +146,9 @@ devops-status-mcp-server/
 │   ├── release-github.ts
 │   ├── tree.ts
 │   └── verify-registry.ts
+├── skills/
+│   └── devops-status-guide/
+│       └── SKILL.md
 ├── src/
 │   ├── config/
 │   │   └── server-config.ts
@@ -196,6 +201,7 @@ devops-status-mcp-server/
 │   │   ├── domain-input.ts
 │   │   ├── html-to-text.ts
 │   │   ├── input-bounds.ts
+│   │   ├── markdown-literal.ts
 │   │   ├── ssrf-guard.ts
 │   │   ├── vendor-markdown.ts
 │   │   └── word-match.ts
@@ -224,6 +230,8 @@ devops-status-mcp-server/
 │   │           └── tool-surface.test.ts
 │   ├── prompts/
 │   ├── resources/
+│   ├── scripts/
+│   │   └── bundle-agent-docs.test.ts
 │   ├── services/
 │   │   ├── cert/
 │   │   │   ├── cert-service.test.ts
@@ -309,7 +317,9 @@ devops-status-mcp-server/
 ├── Dockerfile
 ├── LICENSE
 ├── manifest.json
+├── mcp.json
 ├── package.json
+├── plugin.json
 ├── README.md
 ├── server.json
 ├── tsconfig.build.json

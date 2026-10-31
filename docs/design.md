@@ -6,7 +6,7 @@
 
 | Name | Description | Key Inputs | Annotations |
 |:-----|:------------|:-----------|:------------|
-| `devops_status_check` | Check current health status for one or more vendors. Returns per-vendor operational indicator, affected components, and active incident summaries. Accepts registered vendor names or raw Statuspage base URLs. Batch-friendly — pass a list to check your full stack in one call. | `vendors: string[]` (20 checked per call, 100 accepted), `mode?: 'summary' \| 'detailed'` | `readOnlyHint`, `openWorldHint: true` |
+| `devops_status_check` | Check current health status for one or more vendors. Returns per-vendor operational indicator, affected components, and active incident summaries. Accepts registered vendor names or raw Statuspage base URLs. Batch-friendly — pass a list to check your full stack in one call. | `vendors: string[]` (20 checked per call, 100 accepted), `mode?: 'summary' \| 'detailed'`, `component_filter?: string`, `component_limit?: number`, `component_offset?: number` | `readOnlyHint`, `openWorldHint: true` |
 | `devops_get_incidents` | Fetch incident history for a vendor — active, resolved, or scheduled maintenance windows. Returns full timeline of updates (created → investigating → monitoring → resolved), affected components, and postmortem links. `since` reads a Statuspage page's quarterly history archive past the status API's 50-record ceiling. | `vendor: string`, `filter?: 'all' \| 'active' \| 'resolved' \| 'scheduled'`, `limit?: number`, `offset?: number`, `since?: string` (YYYY-MM-DD), `until?: string` (YYYY-MM-DD), `match?: string`, `full_updates?: boolean` | `readOnlyHint`, `openWorldHint: true` |
 | `devops_watch_stack` | Register a named vendor list as your "stack" and get a unified health snapshot across all entries. Saves the stack in tenant-scoped state where the tenant identifies the caller (stdio; HTTP with jwt/oauth), so subsequent calls omit the list; on HTTP with auth `none` nothing is saved and `vendors` is required. Use for morning checks or pre-deploy status sweeps. Returns an aggregate health rollup plus per-vendor detail. | `vendors?: string[]` (20 checked or saved per call, 100 accepted), `stack_name?: string`, `mode?: 'summary' \| 'detailed'` | `readOnlyHint: false` (saves the stack), `idempotentHint`, `openWorldHint: true` |
 | `devops_check_certs` | Inspect SSL/TLS certificate health for one or more domains. Pure TypeScript — direct TLS handshake, no external API. Reports: days to expiry (flags < 30 and < 7), chain depth, TLS protocol version (flags 1.0/1.1), subject/issuer/SANs, and HSTS header presence when the port answers HTTP (via follow-up HTTP GET over the TLS connection). Works for any domain, not just registered vendors. | `domains: string[]` (10 inspected per call, 100 accepted), `port?: number` | `readOnlyHint`, `openWorldHint: true` |
@@ -18,7 +18,7 @@
 
 | URI Template | Description | Pagination |
 |:-------------|:------------|:-----------|
-| `devops-status://vendors/{name}` | Full registry entry for a vendor by slug — Statuspage base URL, category, API type, and `component_scope_prefix` for an entry scoped to part of a shared page. Read-only, stable. | None — single record |
+| `devops-status://vendors/{name}` | Full registry entry for a vendor by slug — Statuspage base URL, category, API type, `component_scope_prefix` for an entry scoped to part of a shared page, and `product_slugs` for an umbrella page with no components (`atlassian`). Read-only, stable. | None — single record |
 
 Resources are supplementary. All data is reachable through tools; tool-only agents are fully supported.
 
@@ -70,6 +70,9 @@ type VendorEntry = {
   component_scope_prefix?: string; // set when the vendor publishes on a status page it shares with
                                    // other products: only components whose name, or whose group's
                                    // name, starts with this prefix belong to it
+  product_slugs?: readonly string[]; // set on an entry reading an umbrella page that publishes no
+                                     // components and only cross-product incidents: the slugs of the
+                                     // entries reading its products' own pages
 } & (
   | { api_type: 'statuspage' | 'slack' | 'aws' | 'gcp' | 'azure' | 'azure-devops' | 'firehydrant' }
   | { api_type: 'statusio'; statusio_page_id: string } // keys the Status.io Public Status API
@@ -86,19 +89,19 @@ type VendorCategory =
   | 'ai';
 ```
 
-**Vendor list (53 entries):**
+**Vendor list (63 entries):**
 
-Every entry is verified against its live status source (`bun run verify:registry` probes them all). 45 run on Atlassian Statuspage; the other eight are served by native-API adapters in `src/services/status-adapters/` that normalize into the Statuspage shapes: `aws` (AWS Health), `gcp` (Google Cloud Service Health), `azure` (Azure status RSS feed), `azure-devops` (Azure DevOps health API and status RSS feed), `gitlab` and `neon` (Status.io), `slack` (Slack status API), and `redis-cloud` (FireHydrant). Vendors with no public machine-readable status source this server can read (Hetzner, Railway, Fastly, PagerDuty, Okta, Docker Hub, CockroachDB) are not in the registry; see Known Limitations.
+Every entry is verified against its live status source (`bun run verify:registry` probes them all). 55 run on Atlassian Statuspage; the other eight are served by native-API adapters in `src/services/status-adapters/` that normalize into the Statuspage shapes: `aws` (AWS Health), `gcp` (Google Cloud Service Health), `azure` (Azure status RSS feed), `azure-devops` (Azure DevOps health API and status RSS feed), `gitlab` and `neon` (Status.io), `slack` (Slack status API), and `redis-cloud` (FireHydrant). Vendors with no public machine-readable status source this server can read (Hetzner, Railway, Fastly, PagerDuty, Okta, Docker Hub, CockroachDB) are not in the registry; see Known Limitations.
 
 | Category | Vendors |
 |:---------|:--------|
 | cloud | digitalocean, linode, aws, gcp, azure |
 | cdn-edge | cloudflare, akamai |
-| dev-platform | gitlab, github, azure-devops, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, figma, launchdarkly |
+| dev-platform | gitlab, github, azure-devops, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, jira, confluence, bitbucket, jira-service-management, atlassian-compass, atlassian-developer, trello, figma, launchdarkly |
 | data | mongodb-atlas, planetscale, supabase, neon, redis-cloud, elastic, influxdb, upstash, cloudinary, segment |
 | comms | slack, discord, twilio, sendgrid, mailgun, hubspot, brevo, courier, loops |
-| auth | auth0, clerk, workos |
-| monitoring | datadog, sentry, new-relic, grafana-cloud, honeycomb |
+| auth | auth0, clerk, workos, atlassian-guard |
+| monitoring | datadog, sentry, new-relic, grafana-cloud, honeycomb, opsgenie, atlassian-statuspage |
 | ai | openai, anthropic, elevenlabs, pinecone, cohere |
 
 Notes on specific entries:
@@ -110,6 +113,8 @@ Notes on specific entries:
 - `azure` — `statuspage_url` is the public page `https://azure.status.microsoft/en-us/status/`; the adapter reads the RSS feed that page links (see Live API Shapes).
 - `azure-devops` — `statuspage_url` is `https://status.dev.azure.com` (display only); the adapter reads that portal's Health API and `_rss` feed at fixed endpoints (see Live API Shapes).
 - `sendgrid` — `statuspage_url` is `https://status.twilio.com` with `component_scope_prefix: 'SendGrid'`: `status.sendgrid.com` redirects to Twilio's page, and the entry reports only SendGrid's components (see Design Decisions).
+- `atlassian` — `https://status.atlassian.com` is an umbrella page: no components, and only incidents Atlassian posts across products. Product outages are posted on each product's own page, which the registry reads as `jira` (`jira-software.status.atlassian.com`), `confluence`, `bitbucket`, `jira-service-management`, `atlassian-compass`, `atlassian-developer`, `trello`, `opsgenie`, `atlassian-statuspage` (`metastatuspage.com`), and `atlassian-guard`. The umbrella entry is named `Atlassian (cross-product incidents)` and carries those slugs in `product_slugs` (see Design Decisions).
+- Atlassian product hosts are the redirect targets, as with `akamai`: `status.bitbucket.org`, `www.trellostatus.com`, `status.opsgenie.com`, and `status.developer.atlassian.com` each 302 to the `*.status.atlassian.com` host the registry uses.
 
 Vendor registry is the source of truth for `devops_list_vendors`. Any tool accepting a vendor name resolves it by slug (case-insensitive) against the registry first; if no match and the input looks like a URL, it's treated as a raw Statuspage base URL.
 
@@ -139,7 +144,7 @@ All Statuspage vendors respond to `{base_url}/api/v2/{endpoint}.json` — no aut
 }
 ```
 
-**Indicator enum:** `none` (all operational), `minor`, `major`, `critical`, plus `maintenance` while a window is open (verified live on brevo — `{"description":"Under Maintenance","indicator":"maintenance"}`). `maintenance` sits outside the severity ladder: it is a window the vendor scheduled, not a fault.
+**Indicator enum:** `none` (no component degraded), `minor`, `major`, `critical`, plus `maintenance` while a window is open (verified live on brevo — `{"description":"Under Maintenance","indicator":"maintenance"}`). `maintenance` sits outside the severity ladder: it is a window the vendor scheduled, not a fault.
 
 ### `GET /api/v2/components.json`
 
@@ -206,7 +211,7 @@ Same shape as incidents; additional fields: `scheduled_for`, `scheduled_until`. 
 
 ### `GET {base_url}/history.json?page=N` (undocumented)
 
-The JSON behind a page's "Incident History" view — not in the page's own `/api` endpoint list. Served per host, not per backend: 7 of the registry's 45 Statuspage hosts answer 404 (`cloudflare` with a JSON error body; `planetscale`, `brevo`, `clerk`, `openai`, `elevenlabs`, `cohere` with an HTML 404 — they serve an Atlassian-compatible `/api/v2` only).
+The JSON behind a page's "Incident History" view — not in the page's own `/api` endpoint list. Served per host, not per backend: 7 of the registry's 55 Statuspage entries answer 404 (`cloudflare` with a JSON error body; `planetscale`, `brevo`, `clerk`, `openai`, `elevenlabs`, `cohere` with an HTML 404 — they serve an Atlassian-compatible `/api/v2` only).
 
 ```jsonc
 {
@@ -255,7 +260,7 @@ Keyless, `content-type: application/json`, no auth and no rate limit. The body i
   "affected_products": [                 // the component concept
     { "id": "…", "title": "Vertex Gemini API", "current_title": "Gemini on Agent Platform" }
   ],
-  "currently_affected_locations": [],    // region pairs; no normalized counterpart, not mapped
+  "currently_affected_locations": [],    // { title, id } pairs, listed apart from products → `affected_locations`
   "previously_affected_locations": [{ "title": "Netherlands (europe-west4)", "id": "europe-west4" }],
   "updates": [{                          // newest-first; re-sorted oldest-first when normalized
     "when": "2026-07-25T13:16:55+00:00",
@@ -280,10 +285,11 @@ Keyless, `content-type: application/json`, no auth and no rate limit. The body i
 | `begin` / `created` | `started_at` / `created_at` | |
 | `uri` | `shortlink` | resolved against the dashboard base into an absolute URL |
 | `affected_products[]` | `affected_components` on the latest update, and summary `components` | display name from `current_title`, falling back to `title` |
+| `currently_affected_locations[]`, `previously_affected_locations[]` | `affected_locations` (`id`, `name`, `current`) | current entries first, each list in feed order; de-duplicated by `id`, the current entry kept; `name` from `title`, falling back to `id`; an entry with no `id` is skipped; omitted when the incident lists none |
 | `updates[].status` | update `status` | `AVAILABLE` → `available`, `SERVICE_DISRUPTION` → `disruption`, `SERVICE_INFORMATION` → `information` |
 | — | `scheduled_maintenances` | always empty; Google Cloud publishes no maintenance feed |
 
-**Not mapped:** `currently_affected_locations` / `previously_affected_locations` / `updates[].affected_locations` (no normalized counterpart), `most_recent_update` (duplicates `updates[0]`), `number` / `service_key` / `service_name` (deprecated upstream). Summary `components` cover only the products named by currently-open incidents — the feed carries no product health table, so unmentioned products are absent rather than asserted operational.
+**Not mapped:** `updates[].affected_locations` (each update's own list, which can name locations absent from the incident-level lists), `most_recent_update` (duplicates `updates[0]`), `number` / `service_key` / `service_name` (deprecated upstream). Summary `components` cover only the products named by currently-open incidents — the feed carries no product health table, so unmentioned products are absent rather than asserted operational.
 
 ### `GET https://rssfeed.azure.status.microsoft/en-us/status/feed/` (Azure)
 
@@ -379,7 +385,8 @@ One converter, `htmlToText` (`src/utils/html-to-text.ts`), runs once per body wh
 - Inline values (incident and component names, statuses, timestamps, maintenance names and statuses, the page name and status description, component descriptions, the `**Why:**` suggestion reason) have CR/LF runs flattened to one space, so a newline in vendor text cannot open a heading or list item.
 - Update bodies (`devops_get_incidents`) and `latest_update` (`devops_status_check`, `devops_watch_stack` — both render through `renderVendorBlock`) render as a blockquote indented two spaces, every line prefixed `  >`, under their update line; a blank line follows the quote where the next line would otherwise continue it. An empty body renders no quote.
 - `devops_get_incidents` update lines read `- [created_at] status:` followed by the quoted body, and a blank line precedes `[Incident page](…)`. The incident id in the heading stays in a code span (which renders `<` and `&` literally); only line breaks are flattened there.
-- Text that comes from the probed target rather than a status page renders the same way, as inline values: `devops_check_dns` record values on the domain-level, per-resolver, and resolver-disagreement lines, and `devops_check_certs` subject, SANs, issuer, and hostname-mismatch message. So does the caller's `vendor` in the `devops_suggest_action` heading, trimmed, and its `affected_components` line; its `incident_summary` renders as a quoted body. `structuredContent` keeps all of them as received.
+- Text that comes from the probed target rather than a status page renders as code spans instead: each `devops_check_dns` record value on the domain-level, per-resolver, and resolver-disagreement lines, and the `devops_check_certs` subject, each SAN, the issuer, and the hostname-mismatch message, is one span sized by the framework's `markdown().inlineCode()`, line breaks flattened to a space first, values joined with `, ` outside the spans, and `(empty)` for an empty value. A CommonMark parse reads each span back as the `structuredContent` string (a line break as a space, NUL as U+FFFD). The caller's own entry in those two tools renders the same way — the result heading and each `deferred_domains` and `deferred_resolvers` entry as a span — and the `**Error:**` text goes through the framework's `escapeMarkdownInline`.
+- The caller's `vendor` in the `devops_suggest_action` heading, trimmed, and its `affected_components` line render as inline vendor values; its `incident_summary` renders as a quoted body. `structuredContent` keeps all of them as received.
 
 ---
 
@@ -387,7 +394,7 @@ One converter, `htmlToText` (`src/utils/html-to-text.ts`), runs once per body wh
 
 ### `devops_status_check`
 
-**Description:** Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., `"github"`, `"cloudflare"`) or raw Statuspage base URLs. Returns per-vendor operational indicator (`none` = all clear, `minor`, `major`, `critical`, `maintenance` = scheduled window), a list of degraded components with their current status, and summaries of any active incidents. Use `mode: "detailed"` to include component lists even when all are operational, and to surface scheduled maintenance windows. Up to 20 vendors are checked per call; entries past the 20th come back in `deferred_vendors` to resend.
+**Description:** Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., `"github"`, `"cloudflare"`) or raw Statuspage base URLs. Returns per-vendor operational indicator as the vendor published it (`none` = no degradation reported, `minor`, `major`, `critical`, `maintenance` = scheduled window), a list of degraded components with their current status, and summaries of any active incidents; `summary` counts each vendor at the worse of its indicator and its worst open incident rated `minor` or worse. Use `mode: "detailed"` to include component lists even when all are operational, and to surface scheduled maintenance windows. Up to 20 vendors are checked per call; entries past the 20th come back in `deferred_vendors` to resend.
 
 **Input:**
 ```ts
@@ -398,9 +405,11 @@ z.object({
   mode: z.enum(['summary', 'detailed']).default('summary')
     .describe('summary: indicator + degraded components + active incidents only. detailed: adds the component list and scheduled maintenance windows. Summary is faster; use detailed when preparing an incident report or checking maintenance schedules.'),
   component_filter: z.string().optional()
-    .describe('Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_limit, so it is the way to reach a component that the cap would otherwise omit. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.'),
+    .describe('Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_offset and component_limit, so it reaches a specific component without paging, and an offset pages within the filtered list. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.'),
   component_limit: z.number().int().min(1).default(50)
-    .describe('Maximum components returned per vendor in detailed mode, at least 1. A value above 500 is reduced to 500, and notice says so.'),
+    .describe('Maximum components returned per vendor in detailed mode, at least 1. A value above 500 is reduced to 500, and notice says so; a longer list continues with component_offset.'),
+  component_offset: z.number().int().min(0).default(0)
+    .describe("Components to skip per vendor, after component_filter and before component_limit. Pass a vendor's next_component_offset to continue its list. An offset past a vendor's last component returns an empty list for it, and notice says so. Ignored in summary mode."),
 })
 ```
 
@@ -410,7 +419,7 @@ z.object({
   results: z.array(z.object({
     vendor: z.string().describe('Vendor slug or URL as provided.'),
     name: z.string().describe('Display name from registry or Statuspage page.name.'),
-    indicator: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']).describe('Overall health indicator from Statuspage status.json. maintenance = scheduled window in progress, planned rather than a fault.'),
+    indicator: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']).describe('Overall health indicator, as the vendor published it (Statuspage status.json). maintenance = scheduled window in progress, planned rather than a fault. Can read none or maintenance while active_incidents lists an open incident rated minor or worse; summary and the devops_watch_stack health rate the vendor by the worse of the two.'),
     description: z.string().describe('Human-readable status description (e.g., "All Systems Operational").'),
     degraded_components: z.array(z.object({
       name: z.string().describe('Component name as the status page publishes it — the leaf alone, without its group. Several leaves can share a name (one per region or product); group tells them apart.'),
@@ -420,7 +429,7 @@ z.object({
     active_incidents: z.array(z.object({
       id: z.string(),
       name: z.string(),
-      impact: z.enum(['none', 'minor', 'major', 'critical']),
+      impact: z.enum(['none', 'minor', 'major', 'critical', 'maintenance']),
       status: z.string(),
       started_at: z.string().describe("ISO 8601, with the vendor's UTC offset."),
       latest_update: z.string().describe('Most recent update text, as plain text: HTML markup the vendor published is converted, and any other < is text the vendor wrote.'),
@@ -428,7 +437,7 @@ z.object({
     scheduled_maintenances: z.array(z.object({
       name: z.string(),
       scheduled_for: z.string(),
-      scheduled_until: z.string(),
+      scheduled_until: z.string().nullable().describe("Null when the vendor's feed publishes no planned end (FireHydrant never does; Status.io when datetime_planned_end is absent)."),
       status: z.string(),
     })).optional().describe('Upcoming or in-progress maintenance windows. Present in detailed mode only.'),
     all_components: z.array(z.object({
@@ -436,11 +445,13 @@ z.object({
       group: z.string().nullable(),
       status: z.string(),
       description: z.string().nullable(),
-    })).optional().describe('Components, narrowed by component_filter (matched against name and group) and capped at component_limit. Present in detailed mode only.'),
+    })).optional().describe('Components, narrowed by component_filter (matched against name and group), starting at component_offset (devops_status_check only), at most component_limit. Present in detailed mode only.'),
     all_components_total: z.number().optional()
-      .describe('Components matching component_filter for this vendor before the cap. Present in detailed mode only.'),
-    cached: z.boolean().describe('True when this result was served from the 60s in-memory cache.'),
-    checked_at: z.string().describe('ISO 8601 UTC timestamp of this check.'),
+      .describe('Components matching component_filter for this vendor, before component_offset and component_limit — the whole list all_components is a page of. Present in detailed mode only.'),
+    next_component_offset: z.number().int().optional()
+      .describe('Where this vendor\'s list continues: pass it as component_offset to devops_status_check, with this vendor, mode "detailed", and the same component_filter. Present in detailed mode only when components remain past the page.'),
+    cached: z.boolean().describe('True when this result was served from the in-memory status cache, shared across callers (60 s TTL by default), so its data can be up to that TTL older than checked_at.'),
+    checked_at: z.string().describe('ISO 8601 UTC timestamp of this check — when this result was built, not when the status data was fetched; see cached.'),
     statuspage_url: z.string().describe('Statuspage base URL used. Empty for a vendor entry that resolved to no target.'),
     error: z.string().optional().describe('Why this vendor could not be checked. Absent on success.'),
   })).describe('Per-vendor status results for the vendors checked, in the same order as the input vendors list.'),
@@ -452,7 +463,7 @@ z.object({
     down: z.number(),
     maintenance: z.number(),
     unavailable: z.number(),
-  }).describe('Aggregate health counts across all checked vendors — never counts deferred_vendors. Buckets partition the batch: operational + degraded + down + maintenance + unavailable = total.'),
+  }).describe('Aggregate health counts across all checked vendors — never counts deferred_vendors. Each vendor is rated by the worse of its indicator and its worst open incident rated minor or worse; an incident rated none or maintenance never raises the rating. Buckets partition the batch: operational + degraded + down + maintenance + unavailable = total.'),
   nextToolSuggestions: z.array(z.object({
     toolName: z.string(),        // always "devops_suggest_action"
     reason: z.string(),
@@ -461,7 +472,7 @@ z.object({
 })
 ```
 
-**`nextToolSuggestions`:** a vendor qualifies when its `indicator` is `minor`, `major`, or `critical`, or when it has an open incident of one of those impacts — a page can read `none` while such an incident is open. A vendor carrying `error` never qualifies. Arguments are built per vendor, one entry per distinct `args.vendor`, in results order:
+**`nextToolSuggestions`:** a vendor qualifies when its `indicator` is `minor`, `major`, or `critical`, or when it has an open incident of one of those impacts — a page can read `none` while such an incident is open. These are exactly the vendors `summary` counts as `degraded` or `down` (`vendorRating()`). A vendor carrying `error` never qualifies. Arguments are built per vendor, one entry per distinct `args.vendor`, in results order:
 
 | Arg | Value |
 |:----|:------|
@@ -472,9 +483,11 @@ z.object({
 
 `VendorResult.vendor` echoes the caller's input, so the builder pairs each result with its `PreparedVendor` (index-aligned) to read `target.slug`. `format()` renders the list under a `## Recommended Next Steps` heading in `devops_suggest_action`'s layout, only when it is non-empty.
 
-**Enrichment:** `truncated` / `shown` / `cap` / `totalCount`, written once after the fan-out when at least one vendor's component list was capped. `buildVendorResult()` runs per vendor with no `ctx`, so it returns the matched and shown component counts and the handler aggregates them into a single `ctx.enrich.truncated()` call for the whole batch.
+**Paging:** `component_offset` applies per vendor in detailed mode, after `component_filter` and before `component_limit`. A vendor with components past the returned page gets `next_component_offset` (the offset where its next page starts); the last page has none. `degraded_components` and `active_incidents` are built from every leaf, so they are identical on every page. `format()` titles a page after the first by its range (`Components (501–542 of 542)`) and adds a `next_component_offset` line under a capped list.
 
-`notice` carries, in this order and as one string (the framework's `notice` is last-wins across `ctx.enrich` calls), the deferral notice, the `component_limit` clamp notice, then the component truncation and filter-miss notices. `fetchVendorResults(prepared, ctx, options, leadNotices)` takes the tool's own notices and composes them with its component notices. The truncation notice drops "or raise component_limit" when the effective limit is already 500. In detailed mode it is also written when `component_filter` matched no component of one or more checked (non-errored) vendors. Pinned text: `component_filter "<filter>" matched no component of <vendor> (<N> published)[, <vendor> (<N> published)…]. It matches component and group names as a case-insensitive substring; call again without component_filter to list them.` `<vendor>` is the vendor input as the caller passed it; `<N>` counts the page's non-group components (0 for a page with none, e.g. azure, slack, a healthy aws). When a list was also capped, the truncation guidance comes first and the filter sentence follows. Summary mode never writes it.
+**Enrichment:** `truncated` / `shown` / `cap` / `totalCount`, written once after the fan-out when at least one vendor has components past its returned page (carries `next_component_offset`) — a last page is never truncated. `buildVendorResult()` runs per vendor with no `ctx`, so it returns the matched, shown, and past-the-page component counts and the handler aggregates them into a single `ctx.enrich.truncated()` call for the whole batch. `totalCount` counts matches before the offset; the truncation notice counts only components past the page, never those skipped before it.
+
+`notice` carries, in this order and as one string (the framework's `notice` is last-wins across `ctx.enrich` calls): the deferral notice, the `component_limit` clamp notice, the truncation notice with its continuation sentence, the offset-past-the-end notice, the filter-miss notice, and last the umbrella pointer. `fetchVendorResults(prepared, ctx, options, leadNotices)` takes the tool's own notices and composes them with its component notices. Pinned truncation text: `<P> of <M> components[ after this page] are not shown — component lists are capped at <limit> per vendor. Continue a capped list with devops_status_check, passing that vendor, mode: "detailed",[ the same component_filter,] and its next_component_offset as component_offset. Set component_filter to reach a specific component[, or raise component_limit].` "after this page" appears when `component_offset` is above 0, "the same component_filter" when a filter is set (the offset indexes the filtered list), and "or raise component_limit" only below 500. `devops_watch_stack` shares the sentence, which is why it names `devops_status_check`. An offset at or past a checked vendor's last matching component returns an empty `all_components` with no error and the pinned text `component_offset <offset> is past the last component of <vendor> (<N> components[ matching component_filter])[, …], so all_components is empty there. Pass a smaller component_offset, or 0 to start from the first component.`; a vendor the filter matched nothing of gets the filter-miss notice instead. The umbrella pointer is `productSlugsNotice(vendor)`, written once per distinct served entry carrying `product_slugs` (today only `atlassian`), whether or not its page answered: `atlassian reads an umbrella status page that publishes no components and only cross-product incidents; product outages are posted on each product's own page — check those by slug: jira, confluence, ….` A deferred `atlassian` is not served and carries no pointer. The filter-miss notice is written in detailed mode when `component_filter` matched no component of one or more checked (non-errored) vendors. Pinned text: `component_filter "<filter>" matched no component of <vendor> (<N> published)[, <vendor> (<N> published)…]. It matches component and group names as a case-insensitive substring; call again without component_filter to list them.` `<vendor>` is the vendor input as the caller passed it; `<N>` counts the page's non-group components (0 for a page with none, e.g. azure, slack, a healthy aws). When a list was also capped, the truncation guidance comes first and the filter sentence follows. Summary mode never writes it.
 
 **Errors:**
 ```ts
@@ -506,7 +519,7 @@ The same rule covers a vendor entry that never reaches a fetch: an unresolvable 
 
 ### `devops_get_incidents`
 
-**Description:** Fetch incident history and scheduled maintenance windows for a vendor. Returns the full incident timeline — each investigator update, affected components at each step, and when the incident was resolved. Filter by status to focus on active incidents (use before deploy), resolved history (use for postmortem), or upcoming maintenance windows. Page long histories with `limit` + `offset`. `match` (words in the title or affected component names) and `since` / `until` (a start-date range) narrow before paging, so totals count only what they keep. Each response is held to 64,000 bytes per surface: a page can stop short of `limit` at that budget, and an incident too large on its own keeps only its newest updates (`updates_omitted` counts the rest; `full_updates: true` returns them all). On Statuspage vendors, `since` also reads the page's quarterly history archive back to that date, past the v2 feed's 50-record ceiling — except on a vendor that covers only part of a shared page (`sendgrid`), whose archive records carry no components to scope by.
+**Description:** Fetch incident history and scheduled maintenance windows for a vendor. Returns the full incident timeline — each investigator update, affected components at each step, and when the incident was resolved. Filter by status to focus on active incidents (use before deploy), resolved history (use for postmortem), or maintenance windows: upcoming and in-progress ones, plus completed ones on Atlassian Statuspage and Firehydrant vendors (Status.io vendors list upcoming and in-progress only). Page long histories with `limit` + `offset`. `match` (words in the title or affected component names, plus location names and IDs on Google Cloud) and `since` / `until` (a start-date range) narrow before paging, so totals count only what they keep. Each response is held to 64,000 bytes per surface: a page can stop short of `limit` at that budget, and an incident too large on its own keeps only its newest updates (`updates_omitted` counts the rest; `full_updates: true` returns them all). On Statuspage vendors, `since` also reads the page's quarterly history archive back to that date, past the v2 feed's 50-record ceiling — except on a vendor that covers only part of a shared page (`sendgrid`), whose archive records carry no components to scope by.
 
 Order of operations, binding everywhere it is described: status filter → `since`/`until` → `match` → sort (newest first when two lists were merged) → `offset`/`limit` → byte budget.
 
@@ -516,7 +529,7 @@ z.object({
   vendor: z.string().min(1)
     .describe('Vendor slug (e.g., "github") or raw Statuspage base URL. Use devops_list_vendors to find slugs.'),
   filter: z.enum(['all', 'active', 'resolved', 'scheduled']).default('all')
-    .describe('all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only scheduled maintenance windows. Not every backend serves every filter — an empty result names which case applied.'),
+    .describe('all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only maintenance windows — upcoming and in-progress ones, plus completed ones on Atlassian Statuspage and Firehydrant ("redis-cloud") vendors; Status.io vendors ("gitlab", "neon") list upcoming and in-progress windows only. Not every backend serves every filter — an empty result names which case applied.'),
   limit: z.number().int().min(1).default(20)
     .describe('Maximum incidents to return per call, at least 1. A value over 50 is served as 50, and the notice says so. Page through longer history with offset rather than raising this.'),
   offset: z.number().int().min(0).default(0)
@@ -526,7 +539,7 @@ z.object({
   until: z.union([z.literal(''), z.iso.date()]).optional()
     .describe('Latest start date (YYYY-MM-DD, UTC), the whole day; with filter all or resolved, on or after since. Reads no history archive on its own.'),
   match: z.string().max(200).refine(blank or at least one letter/digit).optional()
-    .describe('Words matched in the title and affected component names, ignoring case and punctuation; every word must appear. History records and component-less vendors match on title alone.'),
+    .describe('Words matched in the title, the affected component names, and, on Google Cloud, the affected location names and IDs, ignoring case and punctuation; every word must appear. History records and component-less vendors match on title alone.'),
   full_updates: z.boolean().default(false)
     .describe('Return every update of an incident too large for the response budget on its own.'),
 })
@@ -539,9 +552,9 @@ z.object({
 1. The v2 incident list is fetched as before. On a Statuspage backend the maintenance list is fetched too, under `resolved` as well as `all`, because a history record is added only when neither v2 list carries its `code`. Under `resolved` that match is its only use, so a failed maintenance read there skips the archive with a `notice` rather than failing the call; under `all` it fails the call, as it does without `since`.
 2. The history archive is read from page 1, one quarter per page, until a page's window starts at or before the floor (`since` at 00:00 UTC, or the date 24 months back when `since` is earlier). Each page must be exactly one quarter before the last; one that is not ends the walk. The walk also ends after one page per quarter from today's back to the floor's plus one at each end (the page counts quarters in its own zone), so an archive whose pages do not count back from today is cut off there rather than read indefinitely.
 3. History records join on `code` = v2 `id`, and the v2 record wins. Under `resolved`, only history records with an end are added.
-4. The merged list is narrowed to the date range on each record's start (`scheduled_for`, else `created_at`) — at or after `since` 00:00 UTC, before `until` + 1 day 00:00 UTC — then by `match`, sorted by `created_at` descending, windowed by `limit`/`offset`, and cut to the response budget.
+4. The merged list is narrowed to the date range on each record's start (`scheduled_for`, else the earlier of `started_at` and `created_at`, counting only a value that parses) — at or after `since` 00:00 UTC, before `until` + 1 day 00:00 UTC — then by `match`, sorted by `created_at` descending, windowed by `limit`/`offset`, and cut to the response budget. A record posted the day after it began is kept for the day it began and still sorts by its `created_at`.
 
-`until` alone filters what the status API returns and reads no archive (the walk is bounded by the date it reads back to). Non-Statuspage backends — and a Statuspage entry scoped to part of a shared page — apply the range and read no history. A history record maps as `id` = `code`; `name`, `impact` verbatim; `created_at`/`resolved_at` = the parsed start/end in UTC; `status` = `resolved` with an end, else `unknown`; `updates` = one entry carrying `message`, dated at the end (or the start); `shortlink` = `{base_url}/incidents/{code}`; `started_at`, `scheduled_for`, `scheduled_until`, `duration_minutes` null; `affected_components` empty; `source: 'history'`.
+`until` alone filters what the status API returns and reads no archive (the walk is bounded by the date it reads back to). Non-Statuspage backends — and a Statuspage entry scoped to part of a shared page — apply the range and read no history. On those feeds, except FireHydrant's (its payload is the whole history), a `since` earlier than the UTC start date of the oldest record the call read — the incident list in full (on a scoped entry, the shared page's whole list), plus the maintenance list under `all`, before `filter`, range, or `match` — adds a `notice` naming that date and pointing to the vendor's status page, on populated and empty results alike; the pointer is left to the ceiling notice when that one is present. A history record maps as `id` = `code`; `name`, `impact` verbatim; `created_at`/`resolved_at` = the parsed start/end in UTC; `status` = `resolved` with an end, else `unknown`; `updates` = one entry carrying `message`, dated at the end (or the start); `shortlink` = `{base_url}/incidents/{code}`; `started_at`, `scheduled_for`, `scheduled_until`, `duration_minutes` null; `affected_components` empty; `source: 'history'`.
 
 **Output:**
 ```ts
@@ -557,10 +570,15 @@ z.object({
     started_at: z.string().nullish().describe('Null/absent when the vendor does not set it, and always null on a history record.'),
     resolved_at: z.string().nullable(),
     scheduled_for: z.string().nullable().describe('Present for scheduled maintenances.'),
-    scheduled_until: z.string().nullable().describe('Present for scheduled maintenances.'),
+    scheduled_until: z.string().nullable().describe("Present for scheduled maintenances; null when the vendor's feed publishes no planned end."),
     duration_minutes: z.number().nullable().describe('Minutes from started_at to resolved_at. Null for active or scheduled incidents.'),
     shortlink: z.string().nullish().describe('Direct URL to the incident page, or null/absent if the vendor provides none.'),
     affected_components: z.array(z.string()).describe('Component names affected by this incident.'),
+    affected_locations: z.array(z.object({
+      id: z.string().describe('Provider location ID, e.g. "us-central1".'),
+      name: z.string().describe('Provider location name, e.g. "Iowa (us-central1)".'),
+      current: z.boolean().describe('True while the incident still affects this location; false once it has stopped affecting it.'),
+    })).optional().describe('Google Cloud regions and multi-regions the incident lists, currently affected first; absent when it lists none.'),
     updates: z.array(z.object({
       status: z.string(),
       body: z.string().describe('Update text from the vendor, as plain text: HTML markup the vendor published is converted (a link reads as its text, then its URL), and any other < is text the vendor wrote.'),
@@ -581,9 +599,9 @@ z.object({
 | `truncated`, `shown`, `cap`, `totalCount` | more incidents matched (after the filter, date range, and `match`) than this page returned — because of `limit`, or because the page stopped at the response size budget, where `shown` < `cap`. `cap` is the limit that was applied: the requested limit, or 50 when a larger one was requested |
 | `nextOffset` | same — the `offset` to pass next, already computed. Its absence is the stop condition for an agent paging in a loop |
 | `upstreamCeiling` | the vendor's own feed returned as many records as it will ever serve (see below). Independent of `truncated`: a full window can be the vendor's cap rather than this tool's. Absent when `since` was set and the history archive was read back to it (or to the 24-month floor, when `since` is earlier) |
-| `notice` | any of the above, a `limit` over 50 served as 50 (with the requested and effective values), a `since` older than the 24-month history-archive floor (with the date the archive was read back to), the page stopping at the response size budget, the first incident's oldest updates left out (naming `offset`, `limit: 1`, and `full_updates: true`), a date range or `match` emptying the result, an empty result, or a history walk that stopped short of `since` or the floor — naming the date it reached and why (no archive, a transport or shape failure, an unreadable timestamp, a page that did not step back a quarter, more pages than the floor needs, a failed maintenance-list read under `resolved`). Composed into one string because the framework's `notice` is last-wins across `ctx.enrich` calls |
+| `notice` | any of the above, a `limit` over 50 served as 50 (with the requested and effective values), a `since` older than the 24-month history-archive floor (with the date the archive was read back to), a `since` earlier than the oldest record a feed with no archive returned (with that record's start date), the page stopping at the response size budget, the first incident's oldest updates left out (naming `offset`, `limit: 1`, and `full_updates: true`), a date range or `match` emptying the result, an empty result, or a history walk that stopped short of `since` or the floor — naming the date it reached and why (no archive, a transport or shape failure, an unreadable timestamp, a page that did not step back a quarter, more pages than the floor needs, a failed maintenance-list read under `resolved`). On an entry that reads an umbrella page with no components (`atlassian`), its last sentence names the entry's `product_slugs` to check instead. Composed into one string because the framework's `notice` is last-wins across `ctx.enrich` calls |
 
-**Empty results** explain themselves through `notice`, in terms of the call that produced them: an `offset` past the end names the valid range, the filter, the range (`(since X, until Y)`), and the `match` words that defined the set; a `match` that emptied the result reports how many incidents it removed and suggests fewer or broader words (archive records and component-less vendors match on title only); a date range that left every match out reports what `since` and `until` each left out, adding on a Statuspage vendor whose range starts before the archive floor that only records the status API still returns are reachable before it; `until` alone on a Statuspage vendor suggests adding `since` to read the archive — or, for an `until` older than the floor, says the archive does not reach it — and on other backends says the feed returns nothing older; a filter the backend cannot satisfy says so; otherwise the message names only the filters that can return more than the one just used. `all` is offered only when another disjoint filter is — on a backend with no resolved history and no maintenance feed (`azure`), an empty `active` says the vendor lists no open incidents and suggests no retry.
+**Empty results** explain themselves through `notice`, in terms of the call that produced them: an `offset` past the end names the valid range, the filter, the range (`(since X, until Y)`), and the `match` words that defined the set; a `match` that emptied the result reports how many incidents it removed and suggests fewer or broader words (archive records and component-less vendors match on title only), naming the incident's affected locations among what it searched only on Google Cloud, the one backend that lists them; a date range that left every match out reports what `since` and `until` each left out, adding on a Statuspage vendor whose range starts before the archive floor that only records the status API still returns are reachable before it — and on a feed with no archive that starts after `since`, leaving out the advice to widen the range, since the notice that follows names where the feed starts; `until` alone on a Statuspage vendor suggests adding `since` to read the archive — or, for an `until` older than the floor, says the archive does not reach it — and on other backends says the feed returns nothing older; a filter the backend cannot satisfy says so; otherwise the message names only the filters that can return more than the one just used. `all` is offered only when another disjoint filter is — on a backend with no resolved history and no maintenance feed (`azure`), an empty `active` says the vendor lists no open incidents and suggests no retry.
 
 **Errors:**
 ```ts
@@ -632,14 +650,14 @@ Normalizing eight backends to the Statuspage shapes hides what each feed can act
 
 | Backend | Incident ceiling | Resolved history | Maintenance windows | History archive (`historyPages`) |
 |:---|:---|:---|:---|:---|
-| Statuspage | 50 per fetch, `?page=` ignored | full (within the ceiling) | yes | yes — read with `since`; per-host availability is disclosed per call |
+| Statuspage | 50 per fetch, `?page=` ignored | full (within the ceiling) | yes, completed included | yes — read with `since`; per-host availability is disclosed per call |
 | Slack | 50 per fetch, `?page=` ignored | full (within the ceiling) | none — empty with no network call | no |
 | AWS Health | unbounded (current events only) | current only — a resolved event (status `0`, summary prefixed `[RESOLVED]`) stays listed for hours, then drops off | none — empty with no network call | no |
 | Google Cloud | no record cap; query parameters ignored — a rolling recent window bounded by age, not by a count | full — resolution comes from each incident's `end` | none — empty with no network call | no |
 | Azure | unbounded (posted items only) | none — no lifecycle field, every item maps to `investigating` and leaves the feed when resolved | none — empty with no network call | no |
 | Azure DevOps | no record cap — a rolling recent window bounded by age | full — Resolved items stay in the feed | none — empty with no network call | no |
-| Status.io | unbounded (current incidents only) | current only — resolved incidents drop off the feed | yes | no |
-| FireHydrant | unbounded — the payload carries the whole history | full | yes | no |
+| Status.io | unbounded (current incidents only) | current only — resolved incidents drop off the feed | active and upcoming only | no |
+| FireHydrant | unbounded — the payload carries the whole history | full | yes, completed included | no |
 
 ---
 
@@ -661,17 +679,19 @@ z.object({
   mode: z.enum(['summary', 'detailed']).default('summary')
     .describe('summary: indicator + degraded components + active incidents. detailed: adds component lists and maintenance windows.'),
   component_filter: z.string().optional()
-    .describe('Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_limit, so it is the way to reach a component that the cap would otherwise omit. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.'),
+    .describe('Case-insensitive substring matched against component names and their group names in detailed mode (e.g., "api" to check just the API components, or a product or region a page groups components under). Applied before component_limit, so it reaches a specific component the cap would otherwise omit; a capped vendor\'s full list continues in devops_status_check from its next_component_offset. A filter that matches nothing for a vendor is reported in notice. Ignored in summary mode.'),
   component_limit: z.number().int().min(1).default(50)
     .describe('Maximum components returned per vendor in detailed mode, at least 1. A value above 500 is reduced to 500, and notice says so.'),
 })
 ```
 
+No `component_offset`: a stack-wide offset means nothing across vendors of different sizes, so a sweep always lists each vendor from its first component. A capped row still carries `next_component_offset` through the shared result schema, and the truncation notice's continuation sentence names `devops_status_check`.
+
 **Output:**
 ```ts
 z.object({
   stack_name: z.string(),
-  health: z.enum(['all_operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage', 'unknown']),
+  health: z.enum(['all_operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage', 'unknown']), // worst rung over each checked vendor's vendorRating(); unknown ranks above maintenance
   summary: z.object({ // total = vendors checked on this call, never counts deferred_vendors
     total: z.number(),
     operational: z.number(),
@@ -689,7 +709,7 @@ z.object({
 })
 ```
 
-**Enrichment:** `truncated` / `shown` / `cap` / `totalCount` and `notice`, identical to `devops_status_check` — both tools share `buildVendorResult()` and `fetchVendorResults()` and aggregate its component counts once after the fan-out. A saved stack holding more than 20 vendors adds its own sentence to `notice`: save them under several stack names of at most 20 each. `persistence_notice` (optional string, rendered as a blockquote in `content[]`) is separate and coexists with `notice`: "This deployment does not save stacks because callers are not authenticated — pass vendors on every call." Present on every successful call on HTTP with auth `none`, absent elsewhere.
+**Enrichment:** `truncated` / `shown` / `cap` / `totalCount` and `notice`, identical to `devops_status_check` — both tools share `buildVendorResult()` and `fetchVendorResults()` and aggregate its component counts once after the fan-out, and the `atlassian` pointer closes the notice here too. `atlassian` is one entry, so it counts once against the 20-vendor save and sweep caps. A saved stack holding more than 20 vendors adds its own sentence to `notice`, right after the deferral: save them under several stack names of at most 20 each. `persistence_notice` (optional string, rendered as a blockquote in `content[]`) is separate and coexists with `notice`: "This deployment does not save stacks because callers are not authenticated — pass vendors on every call." Present on every successful call on HTTP with auth `none`, absent elsewhere.
 
 **Errors:**
 ```ts
@@ -733,7 +753,7 @@ errors: [
 
 ### `devops_check_certs`
 
-**Description:** Inspect SSL/TLS certificate health for one or more domains by performing a real TLS handshake. Pure TypeScript — no external API. Reports: days to expiry (flagged at < 30 days warning and < 7 days critical), certificate subject and SANs, issuer, hostname coverage, chain-trust verification, chain depth where the runtime exposes it, TLS protocol version negotiated (flags TLS 1.0 and 1.1 as insecure; a server offering only those is still inspected and graded `critical`), cipher suite, and HSTS presence when the port answers HTTP (detected via an HTTP GET over the TLS socket to read the `Strict-Transport-Security` response header — reported in `flags` as "HSTS present" / "HSTS not configured"; a port that gives no HTTP reply reports `HSTS not checked — no HTTP response on port <port>`). Works for any internet-accessible domain, not just registered vendors. When a certificate fails to issue or renew, `devops_check_dns` with `record_types: ["CAA"]` shows which certificate authorities the domain allows.
+**Description:** Inspect SSL/TLS certificate health for one or more domains by performing a real TLS handshake. Pure TypeScript — no external API. Reports: days to expiry (flagged at < 30 days warning and < 7 days critical), certificate subject and SANs, issuer, hostname coverage, chain-trust verification, the length of the certificate chain the runtime assembled from the leaf, TLS protocol version negotiated (flags TLS 1.0 and 1.1 as insecure; a server offering only those is still inspected and graded `critical`), cipher suite, and HSTS presence when the port answers HTTP (detected via an HTTP GET over the TLS socket to read the `Strict-Transport-Security` response header — reported in `flags` as "HSTS present" / "HSTS not configured"; a port that gives no HTTP reply reports `HSTS not checked — no HTTP response on port <port>`). Works for any internet-accessible domain, not just registered vendors. When a certificate fails to issue or renew, `devops_check_dns` with `record_types: ["CAA"]` shows which certificate authorities the domain allows.
 
 **Input:**
 ```ts
@@ -765,8 +785,8 @@ z.object({
       valid_from: z.string().describe('ISO 8601 UTC.'),
       valid_until: z.string().describe('ISO 8601 UTC.'),
       days_until_expiry: z.number().int(),
-      chain_depth: z.number().int().nullable().describe('Number of certificates the server sent, counting the leaf. Null when the runtime does not expose the issuer chain. Not a self-signed indicator.'),
-      chain_depth_unavailable_reason: z.string().nullable().describe('Why chain_depth is null, or null when a depth was measured.'),
+      chain_depth: z.number().int().nullable().describe('Length of the chain this runtime assembled from the leaf, counting the leaf: served certificates on the leaf\'s issuer path, then trust-store issuers, up to a self-signed certificate or one whose issuer was not found. Can include a root the server never sent, so it can differ from the served count and between runtimes. Null when no issuer for the leaf was found. Not a self-signed indicator or a trust verdict.'),
+      chain_depth_unavailable_reason: z.string().nullable().describe('Why chain_depth is null (no issuer for the leaf among the served certificates or in the trust store), or null when a depth was measured.'),
       hostname_verification_error: z.string().nullable().describe('tls.checkServerIdentity() message when the requested hostname is not covered by the CN or SANs, else null.'),
       authorization_error: z.string().nullable().describe('OpenSSL chain-verification code (DEPTH_ZERO_SELF_SIGNED_CERT, SELF_SIGNED_CERT_IN_CHAIN, UNABLE_TO_VERIFY_LEAF_SIGNATURE, CERT_HAS_EXPIRED), else null. The authoritative chain-trust signal.'),
       serial: z.string(),
@@ -854,7 +874,9 @@ z.object({
 
 **Enrichment:** `notice`, present when the call was served at a bound: domains or resolvers past the per-call cap (named in `deferred_domains` and `deferred_resolvers`), or a `timeout_ms` over 10000 served as 10000. Several bounds on one call join into one notice.
 
-A domain rejected before any query (the SSRF guard, typically, or an entry that is not a domain name — including an IP address — whose message names the entry and the accepted shapes) reports the reason in `error` alone, without the internal `SSRF_BLOCKED: ` sentinel, and returns empty `records`, `resolver_results`, `propagation_discrepancies`, and `flags`, with `records_source: null`; `format()` omits the resolver header when there are no resolver results. The all-resolvers-failed case is different: its `NXDOMAIN from …` / `SERVFAIL from …` flag carries the operator explanation the `error` string lacks, so it keeps both.
+An entry rejected before any query — one that is not a domain name, including an IP address, whose message names the entry and the accepted shapes — reports the reason in `error` alone and returns empty `records`, `resolver_results`, `propagation_discrepancies`, and `flags`, with `records_source: null`; `format()` omits the resolver header when there are no resolver results. The all-resolvers-failed case is different: its `NXDOMAIN from …` / `SERVFAIL from …` flag carries the operator explanation the `error` string lacks, so it keeps both. Domains take no SSRF guard: a name whose records are private addresses is queried and reported like any other (see "Why `devops_check_dns` has no domain guard").
+
+An absence flag is raised only from a NODATA answer. `No MX records found` needs MX requested, no resolver returning MX, and at least one NODATA. The address flag names the requested address types some resolver answered NODATA for, in fixed A, AAAA order — `No A records found`, `No AAAA records found`, or `No A or AAAA records found` — and is raised only when no resolver returned records for any requested address type. A type that was not requested, or whose only outcomes were NXDOMAIN, SERVFAIL, REFUSED, timeout, or error, is left out of it and keeps its condition flag.
 
 **Errors:**
 ```ts
@@ -1064,7 +1086,7 @@ Saving the first 20 of a longer list would store a stack the caller didn't ask f
 
 ### Why one normalizer reads `domains` for both probe tools
 
-`src/utils/domain-input.ts` reads each `domains` entry as one host for both `devops_check_certs` and `devops_check_dns`. Forms with exactly one host reading (a bare name, `host:port`, a URL, an IP on certs) are normalized; everything else is an inline `error` row, so one bad entry never fails the batch. `""` stays a schema rejection (`.min(1)`), so the advertised input schema is unchanged. There is no `input` echo field: rows are positional and `domain` carries the applied host. The SSRF guard runs on the normalized host, so a URL wrapping a private or metadata address is rejected under that address. Domains longer than 253 characters, labels outside `[a-z0-9_-]{1,63}` or with a leading or trailing hyphen, and ports outside 1–65535 are invalid rows.
+`src/utils/domain-input.ts` reads each `domains` entry as one host for both `devops_check_certs` and `devops_check_dns`. Forms with exactly one host reading (a bare name, `host:port`, a URL, an IP on certs) are normalized; everything else is an inline `error` row, so one bad entry never fails the batch. `""` stays a schema rejection (`.min(1)`), so the advertised input schema is unchanged. There is no `input` echo field: rows are positional and `domain` carries the applied host. On `devops_check_certs` the SSRF guard runs on the normalized host, so a URL wrapping a private or metadata address is rejected under that address; `devops_check_dns` has no domain guard. Domains longer than 253 characters, labels outside `[a-z0-9_-]{1,63}` or with a leading or trailing hyphen, and ports outside 1–65535 are invalid rows.
 
 ### Why a wire client instead of `node:dns`
 
@@ -1073,6 +1095,12 @@ On Bun, `node:dns` splits multi-string TXT records into separate records (oven-s
 ### Why detailed-mode component lists are capped
 
 Component lists are unbounded upstream — a single large page publishes several hundred, and a full-stack detailed sweep runs to six figures of response bytes, most of it operational rows nobody asked about. `component_limit` (default 50) bounds it, `component_filter` reaches a specific component past the cap, and `ctx.enrich.truncated()` discloses what was dropped rather than silently returning a partial list. The disclosure is aggregated across the fan-out because `buildVendorResult()` has no `ctx`; it returns component counts and the handler emits one signal for the batch. `component_limit` clamps to 500 instead of rejecting: a larger value has one obvious reading ("as many as allowed"), so the call is served at 500 with a requested-vs-effective notice.
+
+500 bounds one call's response; it is not a ceiling on any page's size — `elastic` and `grafana-cloud` publish more than 500, and a cap has to keep the rest reachable. `component_filter` alone does not: it needs the names already, and a cut list's tail can be spread over dozens of groups. So `devops_status_check` pages with `component_offset` and a per-vendor `next_component_offset`, the shape `devops_get_incidents` already uses with `offset`/`nextOffset`. Raising the ceiling instead was rejected: it postpones the same failure as pages grow and lifts the per-call size the cap exists to bound. An integer offset over a positional list served from the 60-second cache needs no cursor token.
+
+### Why `atlassian` points at its products instead of expanding into them
+
+`status.atlassian.com` publishes no components and posts only incidents that span products, so read alone it reports all-clear through product outages. The products get their own entries, and `atlassian` stays one entry on the umbrella page with `product_slugs` and a closing `notice` sentence naming them. Expanding the slug into product rows was rejected: ten rows would break the 20-vendor caps (a saved 20-vendor stack holding it would defer entries on every sweep), put slugs the caller never sent in `results[]` and `deferred_vendors`, mean different things in different tools, and guess which products a team uses. Removing the entry would reject calls that work today. Rolling the product pages up into one row would need a multi-page fetch and cross-page incident dedup for one vendor.
 
 ### Why `group` is an additive field rather than `Group / Leaf` in `name`
 
@@ -1084,7 +1112,7 @@ Statuspage components carry a group (the product or region a page files them und
 
 - Summary: components, open incidents, and scheduled maintenances are kept only when they touch an in-scope component id; `page.name` = the registry name (`SendGrid`); `status` is re-derived from the scoped records: the worse of the worst open-incident impact (resolved/postmortem and impact `none`/`maintenance` don't rate) and the worst component status (`degraded_performance` → `minor`, `partial_outage` → `major`, `major_outage` → `critical`); `maintenance` when nothing rates but an in-scope window is open (a maintenance record `in_progress`/`verifying`, or an in-scope component `under_maintenance`); `none` otherwise. `status.description` uses Statuspage's own wording per indicator: none "All Systems Operational", minor "Partially Degraded Service", major "Partial System Outage", critical "Major System Outage", maintenance "Service Under Maintenance".
 - Incidents and scheduled maintenances (`devops_get_incidents`) are filtered by in-scope component id. Records carry component ids and group ids but no group names, so the scoped fetch also reads the page summary (cached, shared with the status check) for its component table; the two fetches run in parallel.
-- `fetchVendorIncidents` returns `upstreamCount` (records the feed returned before scoping); `devops_get_incidents` uses it for the ceiling check, so `upstreamCeiling: 50` is still disclosed when Twilio's unfiltered feed returned 50.
+- `fetchVendorIncidents` returns `upstreamIncidents` (records the feed returned before scoping); `devops_get_incidents` uses them for the ceiling check, so `upstreamCeiling: 50` is still disclosed when Twilio's unfiltered feed returned 50, and for the feed-start date a `since` before the feed's reach is told, so that date is the oldest start in Twilio's whole window, not the oldest SendGrid record's.
 - `vendorHistory(vendor)` = `backendHistory(api_type)` with `historyPages: false` for a scoped entry: history-archive records list no components, so `since` reads no archive for `sendgrid`.
 - Cost: `devops_get_incidents` for `sendgrid` is usually maintenance windows only — Twilio's 50-record v2 window covers about 9 days of mostly carrier incidents.
 
@@ -1093,6 +1121,10 @@ Statuspage components carry a group (the product or region a page files them und
 The IPv4 side of `ssrf-guard.ts` was always a bitwise CIDR table; the IPv6 side matched `normalized.startsWith(prefix)`, which fails in both directions. It under-blocks, because a range is only partly spelled by its leading characters — link-local is `fe80::/10`, spanning `fe80::`–`febf::`, so the `'fe80'` prefix left `fe90::` through `febf::` open, and multicast `ff00::/8` was absent entirely. It over-blocks, because a string prefix swallows anything that merely starts with those characters — `'::ffff:'` rejected every IPv4-mapped address including public ones, and `'::1'` reported `::1234:5678` as loopback when it is IPv4-compatible IPv6 (deprecated, RFC 4291), a different category with a different reason to be blocked.
 
 Both halves are now the same shape: parse to the 128-bit value, match `(value & mask) === base`. `::ffff:0:0/96` is checked ahead of the table because an IPv4-mapped address is classified by the IPv4 it embeds — `::ffff:8.8.8.8` is public, `::ffff:127.0.0.1` is not — and both encodings of the embedded address parse to the same value, so the hex spelling `::ffff:7f00:1` can no longer slip past a dotted-form regex. `node:net`'s `BlockList` handles mapped addresses natively, but adopting it would leave the file with two different matchers for the same job and would not carry the per-range labels the block message names; keeping one bitwise table for both families is worth more than the dependency saved. The parser fails closed: text it cannot parse returns a label rather than `null`, so an unparsable address is blocked rather than assumed public.
+
+### Why `devops_check_dns` has no domain guard
+
+`devops_check_dns` ran each domain through `assertSafeDomain`, the guard `devops_check_certs` runs before it connects. The DNS check never connects to the domain: every socket goes to a resolver IP, which keeps its own guard (lifted only by `DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS`), and the domain travels only inside the DNS question. The guard's host-side lookup therefore prevented no request. It only refused public answers — a record pointing at a private address, or a name the host's own resolver blocklists to `0.0.0.0` / `::`. The DNS path has no domain guard; `devops_check_certs`, which does connect to the host, keeps it.
 
 ### Why `degraded_components` is not capped
 
@@ -1109,7 +1141,8 @@ The only surface past the cap is the page's own `/history.json?page=N` archive, 
 - **A date floor, not a boolean or a page count.** A page past the end returns 200 with empty months, so there is no end signal: a boolean needs a hidden page cap, and a page count exposes quarter paging (page 1 is a partial quarter) as a caller concept. A floor maps to the question asked ("since last October"), fixes the page count, and gives `offset` a stable merged list. The 24-month bound keeps a call to at most ten pages (nine quarters, plus one when the page's zone puts the floor's quarter start after UTC midnight) — about 5 MB upstream on the heaviest registry page — and the walk enforces a page count derived from the floor, which no archive can extend.
 - **The 24-month bound limits the archive walk, never the records kept.** The v2 maintenance list keeps completed windows for years (GitHub's reaches 2018), so clamping `since` or answering an older `until` empty withheld records the call had already fetched, and made `until` 2023-01-01 return nothing while 2025-01-01 returned 2022 windows. `since` and `until` therefore filter as sent; only the walk stops at the floor, and the notice names the date it reached.
 - **Only with `all` or `resolved`.** `active` needs lifecycle stages the archive lacks, and `scheduled` is a forward-looking list that a creation-date floor would cut.
-- **Floored on start (`scheduled_for`, else `created_at`) at 00:00 UTC.** A maintenance created before the floor but scheduled after it stays in range.
+- **Floored on start (`scheduled_for`, else the earlier of `started_at` and `created_at`) at 00:00 UTC.** A maintenance created before the floor but scheduled after it stays in range. The event time sits in different fields per feed: Statuspage puts the entered time in `started_at` on a backdated post and in `created_at` on a retroactive one, and Google Cloud's `begin` precedes `created`, so the earlier of the two is the start; reading `started_at` first would misdate every retroactive post. Only a value that parses counts, so a record with no `started_at` (history-archive records, pages that publish none) filters on `created_at`. The `created_at` sort is kept, so a record admitted for the day it began sorts by the day it was posted.
+- **A feed with no archive says where it starts.** On a backend whose feed is a recent window (every non-Statuspage backend but FireHydrant, and a scoped Statuspage entry), the oldest record a call read is the only evidence of how far back the feed reaches, so a `since` earlier than its start date is disclosed with that date rather than returning a result that reads as "no incidents before then". It is taken over everything read before a component scope, `filter`, range, and `match` narrow it, so it describes the feed, not the result, and on the start `since` compares. An empty range in that case drops "Widen the range": no wider range reaches what the feed does not hold. FireHydrant's payload is the whole history, so nothing older exists to disclose.
 - **The v2 record wins, keyed on `code` across both v2 lists.** The archive carries records inside v2's own time range that neither list returns (mostly past maintenance), so a time boundary cannot dedupe; the join key can. History is read whenever `since` is set, even when v2 already reaches the floor, so the result does not depend on whether the ceiling was hit.
 - **`source` on every incident.** A history record carries less (no components, no timeline), and a consumer needs to know which shape it is holding. It costs about 30 bytes a record.
 - **`unknown`, not an inferred status.** A record with no end may be open, in progress, or a cancelled maintenance; the archive does not say which.
@@ -1120,11 +1153,11 @@ The only surface past the cap is the page's own `/history.json?page=N` archive, 
 
 ### Why `devops_get_incidents` has a response size budget
 
-`limit` counts incidents, but each carries every update and component, so one page reached 210 KB (circleci, limit 50; updates are 44–96% of a vendor's payload). Each surface is held to 64,000 bytes, measured as sent — the serialized incident and the `content[]` block `format()` renders, vendor text escaped — plus a fixed 1,024-byte reserve for the paging fields and paging/budget sentences, and the notices settled before the cut (ceiling, history gap) measured in full. Why a page budget and not a count cap: bodies run to 11 KB, so the newest 5 updates still left circleci at 105 KB for 20 incidents. Why cut between whole incidents: nothing becomes unreachable — the cut incident is the next page's first. Only an incident over the budget alone is trimmed, oldest updates first, disclosed per incident (`updates_omitted`) and in the notice; `full_updates: true` returns it whole (the caller asked for that record). `affected_components` are counted, never trimmed — they are small (≤ 3.4 KB measured), they are `match`'s key, and `devops_suggest_action` takes them as input. The newest update is never dropped, so an incident whose fields, components, and newest update alone exceed the budget is the one response that can still run past it.
+`limit` counts incidents, but each carries every update and component, so one page reached 210 KB (circleci, limit 50; updates are 44–96% of a vendor's payload). Each surface is held to 64,000 bytes, measured as sent — the serialized incident and the `content[]` block `format()` renders, vendor text escaped — plus a fixed 1,024-byte reserve for the paging fields and paging/budget sentences, and the notices settled before the cut (ceiling, history gap, umbrella-page pointer) measured in full. Why a page budget and not a count cap: bodies run to 11 KB, so the newest 5 updates still left circleci at 105 KB for 20 incidents. Why cut between whole incidents: nothing becomes unreachable — the cut incident is the next page's first. Only an incident over the budget alone is trimmed, oldest updates first, disclosed per incident (`updates_omitted`) and in the notice; `full_updates: true` returns it whole (the caller asked for that record). `affected_components` are counted, never trimmed — they are small (≤ 3.4 KB measured), they are `match`'s key, and `devops_suggest_action` takes them as input. Google Cloud's `affected_locations` are counted and never trimmed on the same grounds: they are `match`'s key too, and the heaviest record observed (61 locations, the 2025-06-12 global outage) adds 4,182 bytes to `structuredContent` and 2,293 to `content[]`. The newest update is never dropped, so an incident whose fields, components, locations, and newest update alone exceed the budget is the one response that can still run past it.
 
 ### Why `match` is a strict word match
 
-`match` normalizes to lowercase words (runs of letters and digits), and every query word must appear within a word of the title or a component name. A raw substring misses reordered or punctuated names (`git-operations` vs `Git Operations`). It is named `match`, not `component`, because it matches titles too. `devops_status_check`'s `component_filter` stays a raw case-insensitive substring over component name and group.
+`match` normalizes to lowercase words (runs of letters and digits), and every query word must appear within a word of the title, a component name, or, on Google Cloud, a location name or ID. A raw substring misses reordered or punctuated names (`git-operations` vs `Git Operations`). It is named `match`, not `component`, because it matches titles too. `devops_status_check`'s `component_filter` stays a raw case-insensitive substring over component name and group.
 
 ### Why empty-result guidance is enrichment, not output
 
@@ -1156,7 +1189,7 @@ Both were derived from a single resolver: `records` and the "no A or AAAA record
 
 ### Why `chain_depth` is nullable rather than defaulted to 1
 
-`inspectCert()` initialized depth to 1 and walked `getPeerCertificate(true).issuerCertificate`, but that link is not populated on every supported runtime — under Bun it is absent even for CA-issued chains, so an ordinary three-certificate chain collapsed to `chain_depth: 1` while the output contract documented `1` as self-signed. A consumer reading that for a major site concludes "leaf only, no intermediates", which is false. Reading the served chain another way would mean shelling out to `openssl` — a process dependency well out of proportion to one diagnostic field. So the field reports what it can actually measure: a count when the chain is traversable, `null` plus `chain_depth_unavailable_reason` when it is not. A missing number is honest; a wrong one is not. Self-signed detection is detached from depth entirely and now comes from `authorization_error`, which is populated regardless.
+`getPeerCertificate(true)` links each certificate to its issuer as the runtime assembled the chain: the certificates the server sent on the leaf's issuer path, then issuers from the runtime's own trust store, up to a self-issued certificate (linked to itself) or one whose issuer it cannot find. A self-signed leaf therefore has depth 1, and a leaf whose issuer was not found carries no link at all — the shape of a CA-issued leaf served without the certificate that issued it (`incomplete-chain.badssl.com`, on Bun and Node alike). Defaulting that leaf to `1` would read as self-signed, so it reports `null` plus `chain_depth_unavailable_reason`, a finding about the served chain. The depth is not the served count either: it can include a store root the server never sent (example.com serves 4 certificates; Bun walks 5, Node 4, since their trust stores differ). Neither runtime exposes the served list, renaming the field would break callers, and shelling out to `openssl` for the list is out of proportion to one diagnostic field, so the field is described as what it measures. Self-signed detection and chain trust come from `authorization_error`, never from depth.
 
 ### Why hostname and chain trust are read as two separate signals
 
@@ -1176,7 +1209,13 @@ A Statuspage page publishes `status.indicator: "maintenance"` while a window is 
 
 It gets a bucket of its own rather than joining `degraded` because `degraded` counts faults, and a scheduled window is not one — `degraded_components` already separates `under_maintenance` entries from genuine outages, and folding the indicator back together would undo that distinction one level up. The rollup rung sits below every outage rung and below `unknown` (an unchecked vendor is a bigger gap than a planned window) and above `all_operational`, which stays reserved for a stack with nothing open at all. The rendered icon is the 🛠️ the degraded-component list already uses, so a window reads the same wherever it appears.
 
-Only a Statuspage page reaches this state. The native adapters synthesize an indicator by ranking incident impacts and skip maintenance records while doing it, which `StatuspageSeverityIndicator` — the narrower type they return — states in the type system rather than in a comment.
+Two native backends publish a window too, and their adapters carry it the same way rather than reading it as all clear. Status.io's overall code 200 ("Planned Maintenance") reads `maintenance`; Firehydrant's started, unresolved `MAINTENANCE` item sets it, and the same start test (`timestamps.started`, else `detected`, not after now) decides the window's list status (`in_progress` or `scheduled`) and whether its components read `under_maintenance`, so a window that has not opened touches nothing. An outage outranks a window on both: Status.io's documented example publishes overall 200 beside an open incident at status 300, and rating that `maintenance` would file a live degradation as a planned window, so the worst open incident rates the page instead; on Firehydrant an active incident rates the indicator and, on a component both name, the component. The other native adapters see no window and rate only incident impacts, on `StatuspageSeverityIndicator`, the ladder type `maintenance` sits off.
+
+### Why a vendor is counted by its open incidents as well as its indicator
+
+Statuspage documents the status indicator as "the blended component status", while an incident's impact is "calculated from a blend of component statuses (or an optional override)". An overridden impact leaves every component operational, so a page reads `none` with a `minor` or `major` incident open (linode and mongodb-atlas on 2026-10-30). Bucketing on the indicator alone counted such a vendor `operational` and rolled the stack up `all_operational` while `nextToolSuggestions`, in the same response, sent it to `devops_suggest_action`. `vendorRating()` in `devops-vendor-result.ts` now rates each checked vendor at the worse of its indicator and its worst open incident rated `minor` or worse, on the ladder `none` < `maintenance` < `minor` < `major` < `critical`, and `summarizeVendorResults()`, `computeStackHealth()`, and the vendor heading icon in `format()` all read it, so the vendors counted `degraded` or `down` are exactly the ones with a suggestion.
+
+`indicator` stays as published: it is the vendor's own rating, and `devops_suggest_action`'s `vendor_indicator` echoes it. Incidents rated `none` (advisories) or `maintenance` never raise the rating, and `scheduled_maintenances` are not incidents, so a planned window never counts as an outage; an open incident rated `minor` or worse outranks a `maintenance` indicator, as it does inside the Status.io and Firehydrant adapters. An in-progress window under indicator `none` stays `operational`: the rule rates faults, and the window list is where a caller reads planned work.
 
 ### Why `SERVICE_INFORMATION` stays in the incident stream
 
@@ -1200,6 +1239,10 @@ Status bodies carry `<` as ordinary text — "(<1%)", "<30min", unfilled templat
 
 `structuredContent` keeps vendor strings as the vendor wrote them (after HTML-to-text normalization), so a client reading it gets the real text. `content[]` is rendered markdown, where vendor text could open a heading (a DigitalOcean postmortem's `## 2. Impact` used to appear as a top-level heading), a list item, or an HTML block, so escaping and containment happen at the render boundary only. Bodies are quoted rather than indented because an ATX heading may carry up to three spaces of indent and still interrupt a paragraph; every-line `>` contains it. Markdown punctuation beyond `<` and `&` is left alone so markdown bodies keep rendering usefully.
 
+### Why probe values render as code spans, not escaped text
+
+A DNS record value or a certificate name is data an agent copies — an SPF or DKIM record, a verification token, a CAA value, a SAN — so `content[]` must read it back exactly. Escaped the way vendor text is, `*`, `_`, `[text](url)`, and backticks stayed live: a TXT record could render as a link, and Node's own hostname-mismatch message lost every `*` of its wildcard SANs to emphasis. `escapeMarkdownInline` reads back correctly but writes backslashes into the raw text agents read — 8 across 67 live record values from google.com and github.com (Google's SPF ends `\~all`) — and would double the `\.`, `\\`, and `\DDD` that presentation-form names already carry. One code span per value adds nothing to the raw text and delimits each value, so a `, ` inside a TXT value no longer reads as two. The caller's own entries are spans for the same reason; the `**Error:**` line is a sentence that quotes the entry, so it is escaped instead.
+
 ### Why a resolved AWS event is history, not current health
 
 The AWS Health feed keeps an event listed for hours after it resolves, with event `status` `"0"` and a summary prefixed `[RESOLVED]`. In the archived captures every status-`0` event carries that prefix and no prefixed event carries another status, so `"0"` is read as resolution, not as an informational severity. Such an event maps to a resolved incident — `resolved_at` from its newest `event_log` entry, impact the highest its `event_log` reached — and stays out of the summary's components, incidents, indicator, and open-event count, so `devops_status_check` never reports a finished event as a degraded component or feeds it into a `devops_suggest_action` suggestion. Because resolved events are served only while listed, `backendHistory('aws')` declares `resolved: 'current'`.
@@ -1217,12 +1260,12 @@ Statuspage APIs are designed for polling (vendors use them for their own dashboa
 ## Known Limitations
 
 - **Non-Statuspage vendors:** Many major vendors do NOT use Atlassian Statuspage. AWS (health.aws.amazon.com), Google Cloud (status.cloud.google.com), Azure (azure.status.microsoft, RSS), Azure DevOps (status.dev.azure.com, health API + RSS), GitLab and Neon (Status.io), Slack (own status API), and Redis Cloud (FireHydrant) are served by native adapters in `src/services/status-adapters/`. Hetzner (status.hetzner.com), Railway (custom), Fastly (access-restricted), PagerDuty (custom endpoint), Okta (auth-gated), Docker Hub (custom), and CockroachDB (unreachable) have no adapter and are excluded from the built-in registry. Users can attempt raw URL passthrough for any that may use Statuspage under a different subdomain, but the server makes no guarantees.
-- **Upstream history ceilings:** Atlassian Statuspage and Slack both serve at most 50 incident records per fetch with no working pagination parameter, so `devops_get_incidents` cannot reach older incidents for those backends at any `offset`. It discloses the ceiling (`upstreamCeiling` + `notice`) when a call hits it rather than presenting the window as complete history. On Statuspage, `since` reads the page's history archive back up to 24 months; the archive is undocumented, is not served by every page, and its records are thinner than v2 (no components or update timeline, minute-precision times). Slack has no archive, so its older incidents remain on its own status page. AWS Health, Azure, Status.io, and FireHydrant have no such ceiling — see the backend history table under `devops_get_incidents`. Google Cloud and Azure DevOps have no record ceiling either, but their feeds are rolling recent windows: older incidents fall out of them by age, which no per-call count reveals, so nothing is disclosed and they remain reachable only on the vendor's own page. An entry scoped to part of a shared Statuspage page (`sendgrid`) reads no history archive, and its ceiling disclosure counts the page's unfiltered feed.
+- **Upstream history ceilings:** Atlassian Statuspage and Slack both serve at most 50 incident records per fetch with no working pagination parameter, so `devops_get_incidents` cannot reach older incidents for those backends at any `offset`. It discloses the ceiling (`upstreamCeiling` + `notice`) when a call hits it rather than presenting the window as complete history. On Statuspage, `since` reads the page's history archive back up to 24 months; the archive is undocumented, is not served by every page, and its records are thinner than v2 (no components or update timeline, minute-precision times). Slack has no archive, so its older incidents remain on its own status page. AWS Health, Azure, Status.io, and FireHydrant have no such ceiling — see the backend history table under `devops_get_incidents`. Google Cloud and Azure DevOps have no record ceiling either, but their feeds are rolling recent windows: older incidents fall out of them by age, which no per-call count reveals, and they remain reachable only on the vendor's own page. On every feed with no archive but FireHydrant's, a `since` earlier than the oldest record returned is disclosed in `notice` with that record's start date; a call without `since` discloses nothing. An entry scoped to part of a shared Statuspage page (`sendgrid`) reads no history archive, and its ceiling disclosure counts the page's unfiltered feed.
 - **Azure DevOps degraded, unhealthy, and unknown cells are unobserved:** every archived health capture is all-`healthy`, so those mappings come from the documented `ScopeHealth` enum, not from a live degraded response.
 - **Vendor text conversion:** named character references decode only for `lt`, `gt`, `amp`, `quot`, `apos`, and `nbsp` (plus every numeric reference); any other named reference in a vendor body stays as its literal text. Converted bodies flatten nested lists to one level, and the text inside `<script>`/`<style>` elements is kept as text (no vendor body has carried either).
 - **Azure status carries no severity or lifecycle:** every listed Azure item reads as an open `minor` incident, whatever its prose says, and its resolved history is not retrievable — a resolved item leaves the feed. The feed is empty whenever nothing is posted, so the adapter's mapping could only be verified against archived captures, not a live populated feed.
 - **Vendor self-reporting:** Statuspage data is vendor-published. Vendors may lag incident acknowledgment. `devops_check_certs` and `devops_check_dns` provide ground-truth checks that complement self-reported status.
 - **TLS inspection from server host:** `devops_check_certs` connects from wherever the MCP server runs. If the server is hosted, cert checks reflect connectivity from that host — a cert served correctly to the host may still be broken in a specific region. For complete coverage, run the server locally.
 - **DNS propagation scope:** `devops_check_dns` queries three public resolvers. Propagation completeness across all global resolvers requires a larger resolver set or a dedicated propagation service.
-- **Certificate chain depth:** `chain_depth` depends on `getPeerCertificate(true).issuerCertificate`, which the Bun runtime does not populate for a real handshake. On Bun the field is `null` with a reason rather than a count; chain validity is still reported in full via `authorization_error`.
+- **Certificate chain depth:** `chain_depth` counts the chain the runtime assembled through `getPeerCertificate(true).issuerCertificate`, not the certificates the server sent: it can include a root from the local trust store, so it can exceed the served count and differ between Bun and Node. Neither runtime exposes the served list. It is `null` when no issuer for the leaf was found; chain validity is reported in full via `authorization_error`.
 - **`ctx.state` scope:** Stack configuration persisted by `devops_watch_stack` is tenant-scoped (one tenant per stdio process; per token `tid` on HTTP with `jwt`/`oauth`). On HTTP with `MCP_AUTH_MODE=none` every caller runs as tenant `default`, so the tool reads and writes no state there. Stack configurations do not persist across server restarts in the default memory storage backend.

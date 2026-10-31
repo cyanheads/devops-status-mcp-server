@@ -7,7 +7,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/Version-0.10.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.3.1-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.3-blueviolet.svg?style=flat-square)](https://bun.sh/)
+[![Version](https://img.shields.io/badge/Version-0.10.0-blue.svg?style=flat-square)](./CHANGELOG.md) [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg?style=flat-square)](./LICENSE) [![Docker](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](https://github.com/users/cyanheads/packages/container/package/devops-status-mcp-server) [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-^2.4.0-green.svg?style=flat-square)](https://modelcontextprotocol.io/) [![npm](https://img.shields.io/npm/v/@cyanheads/devops-status-mcp-server?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@cyanheads/devops-status-mcp-server) [![TypeScript](https://img.shields.io/badge/TypeScript-^7.0.2-3178C6.svg?style=flat-square)](https://www.typescriptlang.org/) [![Bun](https://img.shields.io/badge/Bun-v1.4.4-blueviolet.svg?style=flat-square)](https://bun.sh/)
 
 </div>
 
@@ -29,7 +29,7 @@
 
 ## Overview
 
-Status pages for 53 vendors — AWS, Google Cloud, Azure, Slack, and more — in one normalized format. Check who's down, pull incident timelines, watch your stack, and get an incident-response playbook. Plus TLS certificate and DNS checks for any domain. No API keys required.
+Status pages for 63 vendors — AWS, Google Cloud, Azure, Slack, and more — in one normalized format. Check who's down, pull incident timelines, watch your stack, and get an incident-response playbook. Plus TLS certificate and DNS checks for any domain. No API keys required.
 
 ### Tools
 
@@ -59,7 +59,8 @@ All resource data is also reachable via tools. Tool-only agents are fully suppor
 
 - Optional free-text `query` (name and slug, case-insensitive) and optional `category`: `cloud`, `cdn-edge`, `dev-platform`, `data`, `comms`, `auth`, `monitoring`, `ai`
 - Returns slug (what to pass to other tools), display name, category, and status page URL; an empty result carries a `notice` naming what missed
-- 53 built-in entries, most on Atlassian Statuspage; `aws`, `gcp`, `azure`, `azure-devops`, `gitlab`, `neon`, `slack`, and `redis-cloud` use native-API adapters. Statuspage-compatible pages not in the registry work by passing a raw base URL to other tools
+- 63 built-in entries, most on Atlassian Statuspage; `aws`, `gcp`, `azure`, `azure-devops`, `gitlab`, `neon`, `slack`, and `redis-cloud` use native-API adapters. Statuspage-compatible pages not in the registry work by passing a raw base URL to other tools
+- These Atlassian products have their own entry (`jira`, `confluence`, `bitbucket`, `jira-service-management`, `atlassian-compass`, `atlassian-developer`, `trello`, `opsgenie`, `atlassian-statuspage`, `atlassian-guard`). `atlassian` reads the umbrella page, which publishes no components and only cross-product incidents; any tool serving it says so in `notice` and names those slugs
 
 Built-in vendor registry:
 
@@ -67,11 +68,11 @@ Built-in vendor registry:
 |:---------|:--------|
 | `cloud` | digitalocean, linode, aws, gcp, azure |
 | `cdn-edge` | cloudflare, akamai |
-| `dev-platform` | gitlab, github, azure-devops, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, figma, launchdarkly |
+| `dev-platform` | gitlab, github, azure-devops, npm, vercel, netlify, render, fly-io, circleci, travis-ci, snyk, atlassian, jira, confluence, bitbucket, jira-service-management, atlassian-compass, atlassian-developer, trello, figma, launchdarkly |
 | `data` | mongodb-atlas, planetscale, supabase, neon, redis-cloud, elastic, influxdb, upstash, cloudinary, segment |
 | `comms` | slack, discord, twilio, sendgrid, mailgun, hubspot, brevo, courier, loops |
-| `auth` | auth0, clerk, workos |
-| `monitoring` | datadog, sentry, new-relic, grafana-cloud, honeycomb |
+| `auth` | auth0, clerk, workos, atlassian-guard |
+| `monitoring` | datadog, sentry, new-relic, grafana-cloud, honeycomb, opsgenie, atlassian-statuspage |
 | `ai` | openai, anthropic, elevenlabs, pinecone, cohere |
 
 ---
@@ -80,19 +81,21 @@ Built-in vendor registry:
 
 - Accepts vendor slugs (e.g., `github`, `aws`) or raw Atlassian Statuspage base URLs, mixed freely. Up to 20 are checked per call; the rest come back in `deferred_vendors` with a `notice` to resend them. More than 100 entries is rejected (`invalid_arguments`)
 - `mode: "summary"` (default) returns the indicator, degraded components, and active incidents; `mode: "detailed"` adds the full component list (`component_limit`, default 50, clamped to 500) and scheduled maintenance windows. `component_filter` matches component or group names
+- A list longer than `component_limit` pages: each capped vendor returns `next_component_offset`, which you pass back as `component_offset` (applied after `component_filter`). `degraded_components` and `active_incidents` are complete on every page
 - One failing vendor never blocks the rest (per-vendor `error` field). Results are cached for 60 seconds (`cached: true`), and `summary` counts `operational` / `degraded` / `down` / `maintenance` / `unavailable`
-- `nextToolSuggestions` pre-fills a `devops_suggest_action` call for each vendor with an active problem
+- `indicator` is the vendor's own rating, and a Statuspage page can keep it at `none` while an incident it rated `minor` or worse is open. `summary` counts each vendor at the worse of the two; incidents rated `none` or `maintenance` and scheduled windows never count as an outage
+- `nextToolSuggestions` pre-fills a `devops_suggest_action` call for each vendor with an active problem — the vendors counted `degraded` or `down`
 
 ---
 
 ### `devops_get_incidents` <sub>tool</sub>
 
 - `filter`: `all` (default), `active`, `resolved`, or `scheduled` (maintenance windows only). `limit` (default 20, max 50) with `offset` for paging
-- Returns per-update bodies as plain text in chronological order, affected component names, duration in minutes for resolved incidents, and a shortlink. Each incident carries `source`: `api`, or `history` for an archive record (title, impact, times, and final message only)
-- `since` and `until` (`YYYY-MM-DD`, UTC) bound the start date and work with `filter: "all"` or `"resolved"`; `since` also reads the Statuspage history archive back up to 24 months, past the API's newest-50 limit. `match` keeps incidents whose title or component names contain every word given (up to 200 characters)
+- Returns per-update bodies as plain text in chronological order, affected component names, duration in minutes for resolved incidents, and a shortlink. Google Cloud incidents also carry `affected_locations` (region ID, name, and whether it is still affected). Each incident carries `source`: `api`, or `history` for an archive record (title, impact, times, and final message only)
+- `since` and `until` (`YYYY-MM-DD`, UTC) bound the start date and work with `filter: "all"` or `"resolved"`; `since` also reads the Statuspage history archive back up to 24 months, past the API's newest-50 limit. `match` keeps incidents whose title, component names, or (on Google Cloud) location names and IDs contain every word given (up to 200 characters)
 - Responses are capped at 64,000 bytes per surface; a cut page sets `truncated: true` and `nextOffset`. `full_updates: true` keeps every update on a single oversized incident
 - Errors: `invalid_since` and `invalid_until` (`filter: "active"` or `"scheduled"`, or `until` before `since`)
-- Feeds with no data for a filter return empty: `resolved` for Azure, `scheduled` for AWS, Azure, Azure DevOps, Google Cloud, and Slack
+- Feeds with no data for a filter return empty: `resolved` for Azure, `scheduled` for AWS, Azure, Azure DevOps, Google Cloud, and Slack. History is short where a vendor reads no archive: AWS keeps resolved events for a few hours, and Status.io (`gitlab`, `neon`) lists current incidents only. On those feeds a `since` earlier than the oldest record returned gets a `notice` naming the date the feed starts
 
 ---
 
@@ -100,7 +103,7 @@ Built-in vendor registry:
 
 - Pass `vendors` (up to 20) once to save the stack under `stack_name` (1-64 characters; several stacks can coexist, e.g. `"production"`); later calls can omit `vendors`. Over 20 is rejected with `stack_too_large`. Saving works on stdio and on HTTP with `MCP_AUTH_MODE=jwt|oauth`; with the default `in-memory` storage, saved stacks do not survive a restart
 - On HTTP with `MCP_AUTH_MODE=none` nothing is saved: a call with `vendors` runs the sweep and returns `stack_persisted: false`, and a call without `vendors` fails with `vendors_required`
-- Aggregate `health`: `all_operational` / `maintenance` / `degraded` / `partial_outage` / `major_outage` / `unknown` (a vendor could not be reached). `component_limit` and `nextToolSuggestions` work as in `devops_status_check`
+- Aggregate `health`: `all_operational` / `maintenance` / `degraded` / `partial_outage` / `major_outage` / `unknown` (a vendor could not be reached), rolled up from the same per-vendor rating as `summary`. `component_limit` and `nextToolSuggestions` work as in `devops_status_check`; there is no `component_offset`, so a capped vendor's `next_component_offset` continues in `devops_status_check`
 
 ---
 
@@ -132,7 +135,7 @@ Built-in vendor registry:
 
 ### `devops-status://vendors/{name}` <sub>resource</sub>
 
-- Returns the full registry entry for a vendor slug: status page URL, category, API type (`statuspage`, `statusio`, `slack`, `aws`, `gcp`, `azure`, `azure-devops`, `firehydrant`), and `component_scope_prefix` where a vendor covers part of a shared page (`sendgrid`)
+- Returns the full registry entry for a vendor slug: status page URL, category, API type (`statuspage`, `statusio`, `slack`, `aws`, `gcp`, `azure`, `azure-devops`, `firehydrant`), `component_scope_prefix` where a vendor covers part of a shared page (`sendgrid`), and `product_slugs` on an umbrella page that publishes no components (`atlassian`)
 - Cached publicly for 1 hour; the same data is reachable via `devops_list_vendors`
 
 ---
@@ -144,16 +147,20 @@ Built on [`@cyanheads/mcp-ts-core`](https://github.com/cyanheads/mcp-ts-core): s
 DevOps-status-specific:
 
 - **No API keys required** — every status backend is a public API; TLS and DNS use the Node.js standard library
-- 53-vendor built-in registry across eight categories; native adapters normalize Status.io, Slack, AWS Health, Google Cloud, Azure, Azure DevOps, and Firehydrant into the Statuspage shape
-- Vendor-authored text, DNS record values, and certificate names are escaped so they read as data, not markup
+- 63-vendor built-in registry across eight categories; native adapters normalize Status.io, Slack, AWS Health, Google Cloud, Azure, Azure DevOps, and Firehydrant into the Statuspage shape
+- Vendor-authored text is escaped so it reads as data, not markup; DNS record values and certificate names render as code spans that read back exactly as resolved
 - 60-second in-memory cache on status reads, shared across tenants
 - `devops_watch_stack` saves named vendor lists for repeat checks and pre-deploy sweeps
 - `devops_suggest_action` is deterministic, with no LLM sampling dependency
 
+Agent skill:
+
+- `devops-status-guide` carries the gates for using these tools together: what a status reading can and cannot establish, how far incident history reaches on each backend, where regions live, and how to diagnose a DNS change or a certificate failure. MCP clients read it from the server as `skill://devops-status-guide/SKILL.md`; it also ships in the npm package, the Docker image, and the `.mcpb` bundle, and plugin installs scan it from `skills/`.
+
 Agent-friendly output:
 
 - Batch tools never let one failing target block the rest; errors come back as inline `error` fields
-- `cached` and `checked_at` on every status result show when data was fetched
+- `checked_at` on every status result is the time of the check; `cached: true` marks a status read served from the cache, which can be up to the cache TTL (60 seconds by default) older
 - Fixed indicator and status enums (`none` / `minor` / `major` / `critical` / `maintenance`) let callers branch on data
 - `nextToolSuggestions` pre-fills follow-up tool arguments from incident context
 
@@ -161,115 +168,32 @@ Agent-friendly output:
 
 ## Getting started
 
-### Public Hosted Instance
+Connect to the hosted instance, no install:
 
-A public instance is available at `https://devops-status.caseyjhand.com/mcp` — no installation required. Point any MCP client at it via Streamable HTTP:
-
-```json
-{
-  "mcpServers": {
-    "devops-status-mcp-server": {
-      "type": "streamable-http",
-      "url": "https://devops-status.caseyjhand.com/mcp"
-    }
-  }
-}
+```sh
+claude mcp add --transport http devops-status-mcp-server https://devops-status.caseyjhand.com/mcp
 ```
 
-### Self-Hosted / Local
+Or run it locally:
 
-No API key required. Add the following to your MCP client configuration file:
-
-```json
-{
-  "mcpServers": {
-    "devops-status-mcp-server": {
-      "type": "stdio",
-      "command": "bunx",
-      "args": ["@cyanheads/devops-status-mcp-server@latest"],
-      "env": {
-        "MCP_TRANSPORT_TYPE": "stdio",
-        "MCP_LOG_LEVEL": "info"
-      }
-    }
-  }
-}
+```sh
+claude mcp add devops-status-mcp-server -- npx -y @cyanheads/devops-status-mcp-server
 ```
 
-Or with npx (no Bun required):
+For other clients, add this to the MCP config file:
 
 ```json
 {
   "mcpServers": {
     "devops-status-mcp-server": {
-      "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@cyanheads/devops-status-mcp-server@latest"],
-      "env": {
-        "MCP_TRANSPORT_TYPE": "stdio",
-        "MCP_LOG_LEVEL": "info"
-      }
+      "args": ["-y", "@cyanheads/devops-status-mcp-server"]
     }
   }
 }
 ```
 
-Or with Docker:
-
-```json
-{
-  "mcpServers": {
-    "devops-status-mcp-server": {
-      "type": "stdio",
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "-e", "MCP_TRANSPORT_TYPE=stdio",
-        "ghcr.io/cyanheads/devops-status-mcp-server:latest"
-      ]
-    }
-  }
-}
-```
-
-For Streamable HTTP, set the transport and start the server:
-
-```sh
-MCP_TRANSPORT_TYPE=http MCP_HTTP_PORT=3010 bun run start:http
-# Server listens at http://localhost:3010/mcp
-```
-
-### Prerequisites
-
-- [Bun v1.4.0](https://bun.sh/) or higher (or Node.js v24+).
-- No API keys or external accounts required.
-
-### Installation
-
-1. **Clone the repository:**
-
-```sh
-git clone https://github.com/cyanheads/devops-status-mcp-server.git
-```
-
-2. **Navigate into the directory:**
-
-```sh
-cd devops-status-mcp-server
-```
-
-3. **Install dependencies:**
-
-```sh
-bun install
-```
-
-4. **Configure environment:**
-
-```sh
-cp .env.example .env
-# edit .env if you want to override defaults
-```
+No API key required. For Docker or a source build, see [Running the server](#running-the-server).
 
 ---
 
@@ -283,7 +207,7 @@ No API keys required. All environment variables are optional.
 | `DEVOPS_STATUS_FETCH_TIMEOUT_MS` | Per-request timeout for vendor status API calls (all backends) in milliseconds. | `8000` |
 | `DEVOPS_STATUS_CERT_TIMEOUT_MS` | Default `timeout_ms` for `devops_check_certs` (1000–15000). | `5000` |
 | `DEVOPS_STATUS_DNS_TIMEOUT_MS` | Default `timeout_ms` for `devops_check_dns` (1000–10000). | `3000` |
-| `DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS` | When `true`, disables SSRF guards for user-supplied URLs and domains. Trusted local deployments only. | `false` |
+| `DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS` | When `true`, disables the SSRF guards on user-supplied status-page URLs, `devops_check_certs` hosts, and `devops_check_dns` resolver IPs. Trusted local deployments only. | `false` |
 | `DEVOPS_STATUS_DISABLE_ACTIVE_PROBES` | When `true`, removes `devops_check_dns` and `devops_check_certs`. For shared public instances. | `false` |
 | `MCP_TRANSPORT_TYPE` | Transport: `stdio` or `http`. | `stdio` |
 | `MCP_HTTP_PORT` | Port for HTTP server. | `3010` |
@@ -302,6 +226,16 @@ See [`.env.example`](./.env.example) for the full list of optional overrides.
 ## Running the server
 
 ### Local development
+
+Requires [Bun v1.4.0](https://bun.sh/) or higher (or Node.js v24+).
+
+- **Clone and install:**
+
+  ```sh
+  git clone https://github.com/cyanheads/devops-status-mcp-server.git
+  cd devops-status-mcp-server && bun install
+  cp .env.example .env   # optional overrides
+  ```
 
 - **Build and run:**
 
@@ -323,11 +257,10 @@ See [`.env.example`](./.env.example) for the full list of optional overrides.
 ### Docker
 
 ```sh
-docker build -t devops-status-mcp-server .
-docker run --rm -p 3010:3010 devops-status-mcp-server
+docker run --rm -p 3010:3010 ghcr.io/cyanheads/devops-status-mcp-server:latest
 ```
 
-The Dockerfile defaults to HTTP transport, stateless session mode, and logs to `/var/log/devops-status-mcp-server`. OpenTelemetry peer dependencies are installed by default — build with `--build-arg OTEL_ENABLED=false` to omit them.
+The image defaults to HTTP transport, stateless session mode, and logs to `/var/log/devops-status-mcp-server`. To run it over stdio from an MCP client, use `"command": "docker"` with `"args": ["run", "-i", "--rm", "-e", "MCP_TRANSPORT_TYPE=stdio", "ghcr.io/cyanheads/devops-status-mcp-server:latest"]`. To build locally, `docker build -t devops-status-mcp-server .`; OpenTelemetry peer dependencies are installed by default — build with `--build-arg OTEL_ENABLED=false` to omit them.
 
 ---
 
@@ -345,7 +278,8 @@ The Dockerfile defaults to HTTP transport, stateless session mode, and logs to `
 | `src/services/status-adapters/` | Native-API adapters (Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Azure DevOps status, Firehydrant), the shared RSS extractor, + `api_type` dispatch, normalizing into the Statuspage shapes. |
 | `src/services/vendor-registry/` | In-memory vendor registry loaded from `src/data/vendor-registry.ts`. |
 | `src/data/` | Static vendor registry data file (`vendor-registry.ts`). |
-| `src/utils/` | Shared helpers — response cache and fetch, SSRF guard, domain-entry normalizer, HTML-to-text, vendor-text markdown escaping, input-bound notices, word matching. |
+| `src/utils/` | Shared helpers — response cache and fetch, SSRF guard, domain-entry normalizer, HTML-to-text, vendor-text markdown escaping, code-span rendering of DNS and certificate values, input-bound notices, word matching. |
+| `skills/` | Published agent skill (`devops-status-guide`), served over MCP and shipped in the npm package, Docker image, and `.mcpb` bundle. |
 | `tests/` | Vitest tests mirroring `src/`. |
 
 ---

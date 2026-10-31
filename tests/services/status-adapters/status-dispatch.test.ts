@@ -495,8 +495,8 @@ describe('component-scoped entry (sendgrid, #54)', () => {
 
     const incidents = await fetchVendorIncidents(resolve('sendgrid'));
     expect(incidents.data.incidents.map((i) => i.id)).toEqual([feed.incidents[3]!.id]);
-    // The ceiling check reads the feed as Twilio published it.
-    expect(incidents.upstreamCount).toBe(50);
+    // The ceiling check and the feed's reach read the feed as Twilio published it.
+    expect(incidents.upstreamIncidents).toHaveLength(50);
     expect(incidents.data.page.name).toBe('SendGrid');
 
     const maintenances = await fetchVendorScheduledMaintenances(resolve('sendgrid'));
@@ -513,9 +513,9 @@ describe('component-scoped entry (sendgrid, #54)', () => {
 
   it('reports the unscoped feed count for an ordinary entry too', async () => {
     serve({ '/api/v2/incidents.json': incidentsCapture() });
-    const { data, upstreamCount } = await fetchVendorIncidents(resolve('twilio'));
+    const { data, upstreamIncidents } = await fetchVendorIncidents(resolve('twilio'));
     expect(data.incidents).toHaveLength(50);
-    expect(upstreamCount).toBe(50);
+    expect(upstreamIncidents).toHaveLength(50);
     // An unscoped entry needs no component table.
     expect(fetchedPaths()).toEqual(['/api/v2/incidents.json']);
   });

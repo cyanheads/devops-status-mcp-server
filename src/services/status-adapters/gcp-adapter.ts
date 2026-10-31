@@ -29,8 +29,12 @@
  *   `current_title` (the product's name today) over `title` (its name at
  *   incident time), which can be stale — the live feed carries a record whose
  *   `title` is "Vertex Gemini API" and whose `current_title` is "Gemini on
- *   Agent Platform". The location lists have no normalized counterpart and are
- *   not mapped.
+ *   Agent Platform".
+ * - `currently_affected_locations` and `previously_affected_locations` become
+ *   `affected_locations`, current entries first, each list in feed order,
+ *   de-duplicated by `id` with the current entry kept. Google lists locations
+ *   apart from products, so they are not folded into the component names. The
+ *   per-update `affected_locations` are not mapped.
  * - `number`, `service_key`, and `service_name` are marked deprecated upstream
  *   in favour of `id` and `affected_products`; only `id` is relied on.
  * @module services/status-adapters/gcp-adapter
@@ -48,6 +52,7 @@ import type {
   StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
+import { SEVERITY_RANK } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
 
@@ -113,8 +118,6 @@ export interface GcpTarget {
 
 // --- Mappings ---
 
-const SEVERITY_RANK = { none: 0, minor: 1, major: 2, critical: 3 } as const;
-
 /** Google Cloud severity → normalized indicator; see module fileoverview. */
 function severityToImpact(severity: string | undefined): StatuspageSeverityIndicator {
   switch (severity) {
@@ -164,6 +167,28 @@ function updateTime(update: GcpUpdate): string {
   return update.when ?? update.created ?? '';
 }
 
+type AffectedLocation = NonNullable<StatuspageIncident['affected_locations']>[number];
+
+/**
+ * The incident's locations, currently affected first, each list in feed order. A
+ * location in both lists appears once, as current. An entry with no `id` has no stable
+ * key and is skipped; one with no `title` is named by its `id`.
+ */
+function affectedLocations(incident: GcpIncident): AffectedLocation[] {
+  const byId = new Map<string, AffectedLocation>();
+  const lists = [
+    { entries: incident.currently_affected_locations ?? [], current: true },
+    { entries: incident.previously_affected_locations ?? [], current: false },
+  ];
+  for (const { entries, current } of lists) {
+    for (const location of entries) {
+      if (!location.id || byId.has(location.id)) continue;
+      byId.set(location.id, { id: location.id, name: location.title ?? location.id, current });
+    }
+  }
+  return [...byId.values()];
+}
+
 function buildPage(target: GcpTarget): StatuspagePage {
   return {
     id: target.slug ?? 'gcp',
@@ -189,6 +214,8 @@ export function mapGcpIncident(incident: GcpIncident, target: GcpTarget): Status
   const affected: AffectedComponent[] = (incident.affected_products ?? [])
     .map((p) => ({ code: p.id ?? '', name: productName(p), new_status: '', old_status: '' }))
     .filter((c) => c.name !== '');
+
+  const locations = affectedLocations(incident);
 
   const resolved = isResolved(incident);
   const status = resolved ? 'resolved' : 'investigating';
@@ -217,6 +244,7 @@ export function mapGcpIncident(incident: GcpIncident, target: GcpTarget): Status
       // downstream affected-component extraction sees it.
       affected_components: i === updates.length - 1 && affected.length > 0 ? affected : null,
     })),
+    ...(locations.length > 0 ? { affected_locations: locations } : {}),
   };
 }
 
@@ -244,7 +272,7 @@ export function mapGcpSummary(
   incidents: GcpIncident[],
   target: GcpTarget,
 ): StatuspageSummaryResponse {
-  const active = (incidents ?? []).filter((i) => !isResolved(i));
+  const active = incidents.filter((i) => !isResolved(i));
   const activeIncidents = active.map((i) => mapGcpIncident(i, target));
 
   // One component per product touched by an active incident, at the worst
@@ -299,7 +327,7 @@ export function mapGcpIncidents(
 ): StatuspageIncidentsResponse {
   return {
     page: buildPage(target),
-    incidents: (incidents ?? [])
+    incidents: incidents
       .map((i) => mapGcpIncident(i, target))
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
   };
@@ -312,8 +340,10 @@ function fetchRaw(): Promise<{ data: GcpIncident[]; cached: boolean }> {
   return fetchCached<GcpIncident[]>(GCP_INCIDENTS_URL, cacheTtlMs, fetchTimeoutMs, async (res) => {
     const body: unknown = await res.json();
     if (!Array.isArray(body)) {
+      const kind =
+        body === null ? 'null' : typeof body === 'object' ? 'an object' : `a ${typeof body}`;
       throw serviceUnavailable(
-        `${GCP_INCIDENTS_URL} returned a ${typeof body} rather than the incident array the feed publishes.`,
+        `${GCP_INCIDENTS_URL} returned ${kind} rather than the incident array the feed publishes.`,
         { reason: 'statuspage_unavailable', url: GCP_INCIDENTS_URL },
       );
     }

@@ -7,6 +7,7 @@
 
 import { getStatuspageService } from '@/services/statuspage/statuspage-service.js';
 import type {
+  StatuspageIncident,
   StatuspageIncidentsResponse,
   StatuspageScheduledMaintenancesResponse,
   StatuspageSummaryResponse,
@@ -146,16 +147,19 @@ export async function fetchVendorSummary(
 /**
  * Fetch the incident list for a resolved vendor via its backend adapter, narrowed to
  * the records touching the entry's components when it declares a component scope.
- * `upstreamCount` is how many records the feed returned before that narrowing — the
- * number that shows whether the feed hit its own ceiling.
+ * `upstreamIncidents` are the records the feed returned before that narrowing: their
+ * count shows whether the feed hit its own ceiling, and their oldest start is how far
+ * back the feed reaches.
  */
-export async function fetchVendorIncidents(
-  vendor: ResolvedVendor,
-): Promise<{ data: StatuspageIncidentsResponse; cached: boolean; upstreamCount: number }> {
+export async function fetchVendorIncidents(vendor: ResolvedVendor): Promise<{
+  data: StatuspageIncidentsResponse;
+  cached: boolean;
+  upstreamIncidents: StatuspageIncident[];
+}> {
   const prefix = vendor.component_scope_prefix;
   if (prefix === undefined) {
     const { data, cached } = await backendIncidents(vendor);
-    return { data, cached, upstreamCount: data.incidents.length };
+    return { data, cached, upstreamIncidents: data.incidents };
   }
   const [{ data, cached }, ids] = await Promise.all([
     backendIncidents(vendor),
@@ -167,7 +171,7 @@ export async function fetchVendorIncidents(
       incidents: scopeRecords(data.incidents, ids),
     },
     cached,
-    upstreamCount: data.incidents.length,
+    upstreamIncidents: data.incidents,
   };
 }
 

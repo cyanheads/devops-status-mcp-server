@@ -11,8 +11,11 @@ import {
   getEnrichment,
   runToolContract,
 } from '@cyanheads/mcp-ts-core/testing';
+import MarkdownIt from 'markdown-it';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { VENDOR_REGISTRY } from '@/data/vendor-registry.js';
 import { devopsGetIncidents } from '@/mcp-server/tools/definitions/devops-get-incidents.tool.js';
+import { productSlugsNotice } from '@/mcp-server/tools/definitions/devops-vendor-result.js';
 import type {
   StatuspageIncidentsResponse,
   StatuspageScheduledMaintenancesResponse,
@@ -1333,6 +1336,354 @@ describe('devopsGetIncidents', () => {
   });
 
   /**
+   * A maintenance window whose feed publishes no planned end reports scheduled_until null,
+   * and content[] says the end is not published; a window with an end renders as it did
+   * (#91). The real Firehydrant and Status.io adapters run down to the fetch fake.
+   */
+  describe('maintenance window with no published end (#91)', () => {
+    const http = createFetchMock();
+    const md = new MarkdownIt();
+    const adapterFixture = (name: string) =>
+      JSON.parse(
+        readFileSync(
+          new URL(`../../../services/status-adapters/fixtures/${name}`, import.meta.url),
+          'utf-8',
+        ),
+      );
+
+    beforeEach(() => {
+      http.reset();
+      http.install();
+    });
+
+    afterEach(() => {
+      http.restore();
+    });
+
+    /** Both surfaces of a filter: "scheduled" call — content[] as written, and each line as a CommonMark reader sees it. */
+    async function scheduled(vendor: string) {
+      const call = await runToolContract(devopsGetIncidents, { vendor, filter: 'scheduled' });
+      expect(call.isError).toBeFalsy();
+      const text = call.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      const read = md
+        .parse(text, {})
+        .filter((t) => t.type === 'inline')
+        .flatMap((t) =>
+          (t.children ?? [])
+            .map((c) => (c.type === 'softbreak' || c.type === 'hardbreak' ? '\n' : c.content))
+            .join('')
+            .split('\n'),
+        );
+      const { incidents } = call.structuredContent as {
+        incidents: Array<{ name: string; scheduled_for: string | null; scheduled_until: unknown }>;
+      };
+      return { incidents, text, read };
+    }
+
+    it('redis-cloud: the recorded window reads null and "end not published"', async () => {
+      // The capture's one MAINTENANCE item, completed; the payload publishes no planned end.
+      http.route({
+        match: 'https://status.redis.io/data/payload.json',
+        respond: () => Response.json(adapterFixture('firehydrant-redis.json')),
+      });
+
+      const { incidents, read } = await scheduled('redis-cloud');
+
+      expect(incidents.map((i) => [i.scheduled_for, i.scheduled_until])).toEqual([
+        ['2026-02-24T04:52:19Z', null],
+      ]);
+      expect(read).toContain('Scheduled: 2026-02-24T04:52:19Z → end not published');
+    });
+
+    it('gitlab: a window without datetime_planned_end reads null; one with it is unchanged', async () => {
+      const raw = adapterFixture('statusio-incident-doc-derived.json');
+      delete raw.result.maintenance.upcoming[0].datetime_planned_end;
+      http.route({
+        match: 'https://status-api.hostedstatus.com/1.0/status/5b36dc6502d06804c08349f7',
+        respond: () => Response.json(raw),
+      });
+
+      const { incidents, text, read } = await scheduled('gitlab');
+
+      expect(incidents.map((i) => [i.name, i.scheduled_for, i.scheduled_until])).toEqual([
+        ['Network Upgrade', '2021-12-06T16:50:00.000Z', '2021-12-06T17:50:00.000Z'],
+        ['Mobile App Upgrade', '2021-12-22T15:00:00.000Z', null],
+      ]);
+      expect(text.split('\n')).toContain(
+        '**Scheduled:** 2021-12-06T16:50:00.000Z → 2021-12-06T17:50:00.000Z',
+      );
+      expect(read).toContain('Scheduled: 2021-12-22T15:00:00.000Z → end not published');
+    });
+  });
+
+  /**
+   * Google Cloud incidents list their regions apart from their products (#84). The real
+   * Google Cloud adapter runs down to the fetch fake.
+   */
+  describe('Google Cloud affected locations (#84)', () => {
+    const http = createFetchMock();
+    const FEED = 'https://status.cloud.google.com/incidents.json';
+    const BUDGET = 64_000;
+
+    beforeEach(() => {
+      http.reset();
+      http.install();
+    });
+
+    afterEach(() => {
+      http.restore();
+    });
+
+    type GcpRecord = { id: string } & Record<string, unknown>;
+    const serve = (records: GcpRecord[]) =>
+      http.route({ match: FEED, respond: () => Response.json(records) });
+
+    /** A resolved incident on `day` whose title and product name carry no region. */
+    function gcpRecord(id: string, day: string, fields: Record<string, unknown> = {}): GcpRecord {
+      return {
+        id,
+        external_desc:
+          'Google Cloud Storage (GCS) customers experienced elevated latencies and error rates',
+        begin: `${day}T14:00:00+00:00`,
+        created: `${day}T14:30:00+00:00`,
+        end: `${day}T16:00:00+00:00`,
+        severity: 'medium',
+        status_impact: 'SERVICE_DISRUPTION',
+        uri: `incidents/${id}`,
+        affected_products: [{ id: 'gcs', title: 'Google Cloud Storage' }],
+        updates: [
+          { when: `${day}T16:00:00+00:00`, text: 'The issue is resolved.', status: 'AVAILABLE' },
+        ],
+        ...fields,
+      };
+    }
+
+    /** `count` distinct locations, the size of the largest Google Cloud record observed. */
+    const manyLocations = (count: number) =>
+      Array.from({ length: count }, (_, n) => ({
+        id: `region-${n}`,
+        title: `Region ${n} (region-${n})`,
+      }));
+
+    type Located = {
+      id: string;
+      affected_locations?: unknown;
+      updates: unknown[];
+      updates_omitted?: number;
+    };
+
+    /** One call through the production contract, with each surface as the caller receives it. */
+    async function call(args: Record<string, unknown>) {
+      const result = await runToolContract(devopsGetIncidents, args as never);
+      expect(result.isError).toBeFalsy();
+      const blocks = result.content.map((b) => (b.type === 'text' ? b.text : ''));
+      const text = blocks.join('\n');
+      return {
+        structured: result.structuredContent as {
+          incidents: Located[];
+          nextOffset?: number;
+          notice?: string;
+        },
+        text,
+        lines: text.split('\n'),
+        structuredBytes: Buffer.byteLength(JSON.stringify(result.structuredContent)),
+        contentBytes: Buffer.byteLength(blocks.join('')),
+      };
+    }
+
+    it('finds a regional incident by its location id or name, and renders the location', async () => {
+      // The 2026-10-08 Cloud Storage incident names its region only in the location list.
+      serve([
+        gcpRecord('mSFVt6PiP557bjRyYsut', '2026-10-08', {
+          currently_affected_locations: [],
+          previously_affected_locations: [{ title: 'Iowa (us-central1)', id: 'us-central1' }],
+        }),
+        gcpRecord('netherlands', '2026-10-08', {
+          previously_affected_locations: [
+            { title: 'Netherlands (europe-west4)', id: 'europe-west4' },
+          ],
+        }),
+        gcpRecord('older', '2026-09-01', {
+          previously_affected_locations: [{ title: 'Iowa (us-central1)', id: 'us-central1' }],
+        }),
+      ]);
+
+      for (const match of ['us-central1', 'iowa']) {
+        const { structured, lines } = await call({
+          vendor: 'gcp',
+          since: '2026-10-08',
+          until: '2026-10-09',
+          match,
+        });
+
+        expect(structured.incidents.map((i) => i.id)).toEqual(['mSFVt6PiP557bjRyYsut']);
+        expect(structured.incidents[0]!.affected_locations).toEqual([
+          { id: 'us-central1', name: 'Iowa (us-central1)', current: false },
+        ]);
+        expect(lines).toContain('**Locations (previous):** Iowa (us-central1) `us-central1`');
+        expect(lines.filter((l) => l.startsWith('**Locations ('))).toHaveLength(1);
+      }
+    });
+
+    it('renders current and previous locations on their own lines, current first, names escaped', async () => {
+      serve([
+        gcpRecord('open', '2026-10-08', {
+          end: '',
+          currently_affected_locations: [
+            { id: 'us-east1', title: 'South Carolina (us-east1)' },
+            { id: 'lab', title: 'Lab <beta>\nregion' },
+          ],
+          previously_affected_locations: [
+            { id: 'us-east1', title: 'South Carolina (us-east1)' },
+            { id: 'europe-west4', title: 'Netherlands (europe-west4)' },
+            { id: 'global', title: 'Global' },
+          ],
+        }),
+      ]);
+      const { structured, lines } = await call({ vendor: 'gcp' });
+
+      // structuredContent carries the names as written.
+      expect(structured.incidents[0]!.affected_locations).toEqual([
+        { id: 'us-east1', name: 'South Carolina (us-east1)', current: true },
+        { id: 'lab', name: 'Lab <beta>\nregion', current: true },
+        { id: 'europe-west4', name: 'Netherlands (europe-west4)', current: false },
+        { id: 'global', name: 'Global', current: false },
+      ]);
+      const current = lines.indexOf(
+        '**Locations (current):** South Carolina (us-east1) `us-east1`, Lab &lt;beta> region `lab`',
+      );
+      expect(current).toBeGreaterThan(-1);
+      expect(lines.slice(current - 1, current + 3)).toEqual([
+        '**Components:** Google Cloud Storage',
+        '**Locations (current):** South Carolina (us-east1) `us-east1`, Lab &lt;beta> region `lab`',
+        '**Locations (previous):** Netherlands (europe-west4) `europe-west4`, Global `global`',
+        '**Updates (1):**',
+      ]);
+    });
+
+    it('names locations in the notice when match empties a Google Cloud result', async () => {
+      serve([
+        gcpRecord('a', '2026-10-08', {
+          previously_affected_locations: [{ title: 'Iowa (us-central1)', id: 'us-central1' }],
+        }),
+        gcpRecord('b', '2026-10-01'),
+      ]);
+      const { structured, text } = await call({ vendor: 'gcp', match: 'tokyo' });
+
+      const notice =
+        '2 incidents for Google Cloud matched filter "all", but none has every word of "tokyo" in its title, affected components, or affected locations. ' +
+        'Use fewer or broader words, or omit match. History-archive records, and vendors that publish no components, match on title only.';
+      expect(structured).toMatchObject({ incidents: [], notice });
+      expect(text.split(notice)).toHaveLength(2);
+    });
+
+    it('keeps every location of an incident over the budget on its own, trimming only its updates', async () => {
+      const locations = manyLocations(61);
+      const updates = Array.from({ length: 120 }, (_, n) => ({
+        when: new Date(Date.UTC(2026, 9, 8, 14) + n * 60_000).toISOString(),
+        text: `Update ${n}: ${'x'.repeat(1_000)}`,
+        status: 'SERVICE_DISRUPTION',
+      }));
+      serve([
+        gcpRecord('outage', '2026-10-08', { previously_affected_locations: locations, updates }),
+        gcpRecord('after', '2026-10-01'),
+      ]);
+      const page = await call({ vendor: 'gcp' });
+
+      expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+      expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+      expect(page.structured.incidents.map((i) => i.id)).toEqual(['outage']);
+      const [inc] = page.structured.incidents;
+      expect(inc!.updates_omitted).toBeGreaterThan(0);
+      expect(inc!.updates.length + inc!.updates_omitted!).toBe(120);
+      expect(inc!.affected_locations).toEqual(
+        locations.map(({ id, title }) => ({ id, name: title, current: false })),
+      );
+      expect(page.lines).toContain(
+        `**Locations (previous):** ${locations.map((l) => `${l.title} \`${l.id}\``).join(', ')}`,
+      );
+      expect(page.structured.nextOffset).toBe(1);
+    });
+
+    it('counts locations toward the budget, so every page fits with every location whole', async () => {
+      const locations = manyLocations(61);
+      const records = Array.from({ length: 30 }, (_, n) => {
+        const day = new Date(Date.UTC(2026, 9, 1) - n * 86_400_000).toISOString().slice(0, 10);
+        return gcpRecord(`inc-${n}`, day, {
+          previously_affected_locations: locations,
+          updates: [
+            { when: `${day}T16:00:00+00:00`, text: 'y'.repeat(1_500), status: 'AVAILABLE' },
+          ],
+        });
+      });
+      serve(records);
+
+      const args = { vendor: 'gcp', limit: 50 };
+      const pages = [await call(args)];
+      for (let next = pages[0]!.structured.nextOffset; next !== undefined; ) {
+        const page = await call({ ...args, offset: next });
+        pages.push(page);
+        next = page.structured.nextOffset;
+      }
+
+      // Measured without its locations, a record weighs a third of what it does, and a
+      // page would be cut three times too late.
+      expect(pages.length).toBeGreaterThan(2);
+      for (const page of pages) {
+        expect(page.structuredBytes).toBeLessThanOrEqual(BUDGET);
+        expect(page.contentBytes).toBeLessThanOrEqual(BUDGET);
+        for (const inc of page.structured.incidents) {
+          expect(inc.affected_locations).toHaveLength(61);
+          expect(inc.updates_omitted).toBeUndefined();
+        }
+      }
+      expect(pages.flatMap((p) => p.structured.incidents.map((i) => i.id))).toEqual(
+        records.map((r) => r.id),
+      );
+    });
+
+    it('leaves a Statuspage incident without the field and without a Locations line', async () => {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
+      _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
+
+      const { structured, text } = await call({ vendor: 'github', match: 'api' });
+
+      expect(Object.keys(structured.incidents[0]!)).toEqual([
+        'id',
+        'name',
+        'impact',
+        'status',
+        'created_at',
+        'started_at',
+        'resolved_at',
+        'scheduled_for',
+        'scheduled_until',
+        'duration_minutes',
+        'shortlink',
+        'affected_components',
+        'updates',
+        'source',
+      ]);
+      expect(text).not.toContain('**Locations');
+    });
+
+    it('names locations in the match and tool descriptions', () => {
+      expect(devopsGetIncidents.input.shape.match.description).toContain(
+        'on Google Cloud, its affected location names and IDs',
+      );
+      expect(devopsGetIncidents.description).toContain(
+        'match (words in the title or affected component names, plus location names and IDs on Google Cloud)',
+      );
+    });
+  });
+
+  /**
    * The real Azure adapter runs down to the fetch fake, serving the archived feed
    * capture of 2026-07-23 (one item, nine services plus one region).
    */
@@ -2525,6 +2876,11 @@ describe('devopsGetIncidents', () => {
             ]),
         });
       }
+      /** The notice for a since earlier than before-floor, the oldest record above (#88). */
+      const GCP_REACH = (since: string) =>
+        `since ${since} is earlier than the oldest record Google Cloud's status feed returned, which starts on 2024-09-20. ` +
+        'This tool reads no history archive for Google Cloud, so it cannot return incidents that started before then. ' +
+        'See https://status.cloud.google.com for earlier history.';
 
       it('keeps a record older than the floor when since reaches it, on a backend with no archive (#69)', async () => {
         routeGcpAroundFloor();
@@ -2545,7 +2901,8 @@ describe('devopsGetIncidents', () => {
           'after-floor',
           'before-floor',
         ]);
-        expect(structured.notice).toBeUndefined();
+        // since predates the feed's oldest record, so the notice names where it starts (#88).
+        expect(structured.notice).toBe(GCP_REACH('2024-03-25'));
       });
 
       it('filters an until older than the floor like any until (#69)', async () => {
@@ -2558,7 +2915,7 @@ describe('devopsGetIncidents', () => {
         });
 
         expect(result.incidents.map((i) => i.id)).toEqual(['before-floor']);
-        expect(structured.notice).toBeUndefined();
+        expect(structured.notice).toBe(GCP_REACH('2024-03-25'));
       });
 
       it('explains a range older than the floor that left nothing, on a backend with no archive (#69)', async () => {
@@ -2573,8 +2930,8 @@ describe('devopsGetIncidents', () => {
         expect(result.structuredContent).toMatchObject({
           incidents: [],
           total_returned: 0,
-          notice:
-            'No incidents matching filter "all" for Google Cloud started between 2024-03-01 and 2024-09-01; 3 later matches were left out by until. Widen the range, or omit since and until for the most recent incidents regardless of date.',
+          // No wider range reaches what the feed does not hold, so there is no "Widen the range" (#88).
+          notice: `No incidents matching filter "all" for Google Cloud started between 2024-03-01 and 2024-09-01; 3 later matches were left out by until. ${GCP_REACH('2024-03-01')}`,
         });
       });
 
@@ -2869,6 +3226,390 @@ describe('devopsGetIncidents', () => {
         );
       });
     });
+
+    describe('start-date range: the start compared and the feed it reaches', () => {
+      const md = new MarkdownIt();
+      /** The text a reader sees in each blockquote of content[], read back through a CommonMark parse. */
+      function quotedText(content: Array<{ type: string; text?: string }>): string[] {
+        const source = content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+        const quoted: string[] = [];
+        let depth = 0;
+        for (const token of md.parse(source, {})) {
+          if (token.type === 'blockquote_open') depth++;
+          else if (token.type === 'blockquote_close') depth--;
+          else if (depth > 0 && token.type === 'inline') {
+            quoted.push(
+              (token.children ?? [])
+                .map((c) => (c.type === 'softbreak' || c.type === 'hardbreak' ? '\n' : c.content))
+                .join(''),
+            );
+          }
+        }
+        return quoted;
+      }
+
+      const GCP_FEED = 'https://status.cloud.google.com/incidents.json';
+      /** The recorded Google Cloud feed: four incidents, each `begin` earlier than its `created`. */
+      const routeGcpFixture = () =>
+        http.route({
+          match: GCP_FEED,
+          respond: () =>
+            Response.json(
+              JSON.parse(
+                readFileSync(
+                  new URL(
+                    '../../../services/status-adapters/fixtures/gcp-incidents.json',
+                    import.meta.url,
+                  ),
+                  'utf-8',
+                ),
+              ),
+            ),
+        });
+
+      const GITHUB_PAGE = (fixture('github-incidents.json') as StatuspageIncidentsResponse).page;
+      /** A v2 record with no updates; only its dates matter here. */
+      const v2 = (
+        id: string,
+        created_at: string,
+        started_at?: string | null,
+        extra: Record<string, unknown> = {},
+      ) => ({
+        id,
+        name: `Incident ${id}`,
+        impact: 'minor',
+        status: 'resolved',
+        created_at,
+        ...(started_at === undefined ? {} : { started_at }),
+        resolved_at: null,
+        monitoring_at: null,
+        components: [],
+        incident_updates: [],
+        ...extra,
+      });
+      /** GitHub serving these v2 records, and one empty archive quarter holding every since below. */
+      function routeGithubRecords(incidents: unknown[], maintenances: unknown[] = []) {
+        http.route(
+          {
+            match: `${GITHUB}/api/v2/incidents.json`,
+            respond: () => Response.json({ page: GITHUB_PAGE, incidents }),
+          },
+          {
+            match: `${GITHUB}/api/v2/scheduled-maintenances.json`,
+            respond: () =>
+              Response.json({ page: GITHUB_PAGE, scheduled_maintenances: maintenances }),
+          },
+          {
+            match: historyPage(GITHUB, 1),
+            respond: () => Response.json({ start_time: '2026-07-01T00:00:00Z', months: [] }),
+          },
+        );
+      }
+      const ids = async (args: Record<string, unknown>) =>
+        (await call(args)).result.incidents.map((i) => i.id);
+      const day = (vendor: string, date: string) => ids({ vendor, since: date, until: date });
+
+      /**
+       * since and until compare each record's start: scheduled_for for a maintenance
+       * window, else the earlier of started_at and created_at that parse (#77). A
+       * backdated Statuspage post and every Google Cloud incident carry the event time in
+       * started_at; a retroactive Statuspage post carries it in created_at.
+       */
+      describe('the start since and until compare (#77)', () => {
+        it('files a Google Cloud incident under the day it began, not the day it was posted', async () => {
+          routeGcpFixture();
+
+          // 3BvH3LVGcupoYqV6F4Nw began 2026-07-15T23:57Z and was posted 2026-07-16T03:30Z.
+          expect(await day('gcp', '2026-07-15')).toEqual(['3BvH3LVGcupoYqV6F4Nw']);
+          expect(await day('gcp', '2026-07-16')).toEqual([]);
+          // 5fGQt4VbkDnr3Yp8PXPr began 2026-06-05, five days before it was posted.
+          expect(await day('gcp', '2026-06-05')).toEqual(['5fGQt4VbkDnr3Yp8PXPr']);
+          expect(await day('gcp', '2026-06-10')).toEqual([]);
+        });
+
+        it('files a backdated Statuspage incident under the day it started', async () => {
+          // cloudflare jajp50huvxtz's shape: entered as started late on D, posted on D+1.
+          routeGithubRecords([
+            v2('backdated', '2026-08-11T01:50:23.037Z', '2026-08-10T23:25:00.000Z'),
+          ]);
+
+          expect(await day('github', '2026-08-10')).toEqual(['backdated']);
+          expect(await day('github', '2026-08-11')).toEqual([]);
+        });
+
+        it('keeps a retroactive post on the day it was created', async () => {
+          // github wms44hv62t3p: created 2026-08-21T14:00Z, started 2026-08-24T07:19Z.
+          routeGithubRecords([
+            v2('retroactive', '2026-08-21T14:00:00.000Z', '2026-08-24T07:19:22.991Z'),
+          ]);
+
+          expect(await day('github', '2026-08-21')).toEqual(['retroactive']);
+          expect(await day('github', '2026-08-24')).toEqual([]);
+        });
+
+        it('filters a record with no parseable started_at on created_at', async () => {
+          // new Date(null) is the epoch and Math.min(NaN, x) is NaN: neither may decide the start.
+          routeGithubRecords([
+            v2('null-start', '2026-08-15T12:00:00Z', null),
+            v2('no-start', '2026-08-15T11:00:00Z'),
+            v2('blank-start', '2026-08-15T10:00:00Z', ''),
+            v2('garbled-start', '2026-08-15T09:00:00Z', 'not a date'),
+          ]);
+          const all = ['null-start', 'no-start', 'blank-start', 'garbled-start'];
+
+          expect(await day('github', '2026-08-15')).toEqual(all);
+          expect(await ids({ vendor: 'github', since: '2026-08-16' })).toEqual([]);
+          expect(await ids({ vendor: 'github', since: '2026-08-01', until: '2026-08-14' })).toEqual(
+            [],
+          );
+        });
+
+        it('keeps a maintenance window on its scheduled start, not the earlier dates it was posted on', async () => {
+          routeGithubRecords(
+            [],
+            [
+              v2('window', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', {
+                impact: 'maintenance',
+                status: 'completed',
+                scheduled_for: '2026-08-20T02:00:00Z',
+                scheduled_until: '2026-08-20T04:00:00Z',
+              }),
+            ],
+          );
+
+          expect(await day('github', '2026-08-20')).toEqual(['window']);
+          expect(await day('github', '2026-08-01')).toEqual([]);
+        });
+
+        it('still sorts by created_at and pages the admitted records by it', async () => {
+          routeGithubRecords([
+            v2('plain', '2026-08-11T00:30:00Z', '2026-08-11T00:30:00Z'),
+            v2('backdated', '2026-08-11T01:50:00Z', '2026-08-10T23:25:00Z'),
+          ]);
+          const args = { vendor: 'github', since: '2026-08-10', until: '2026-08-10', limit: 1 };
+
+          // Only the backdated record started on the 10th.
+          const first = await call(args);
+          expect(first.result.incidents.map((i) => i.id)).toEqual(['backdated']);
+          expect(first.structured.nextOffset).toBeUndefined();
+
+          // Across both days, newest created_at first, though plain started later.
+          const both = { ...args, until: '2026-08-11' };
+          const page1 = await call(both);
+          expect(page1.result.incidents.map((i) => i.id)).toEqual(['backdated']);
+          expect(page1.structured).toMatchObject({ totalCount: 2, nextOffset: 1 });
+          const page2 = await call({ ...both, offset: 1 });
+          expect(page2.result.incidents.map((i) => i.id)).toEqual(['plain']);
+          expect(page2.structured.nextOffset).toBeUndefined();
+        });
+
+        it('counts what since and until left out on the same start, on both surfaces', async () => {
+          routeGithubRecords([v2('backdated', '2026-08-11T01:50:00Z', '2026-08-10T23:25:00Z')]);
+
+          const result = await runToolContract(devopsGetIncidents, {
+            vendor: 'github',
+            since: '2026-08-11',
+            until: '2026-08-11',
+          });
+
+          const notice =
+            'No incidents matching filter "all" for GitHub started between 2026-08-11 and 2026-08-11; 1 earlier match was left out by since. ' +
+            'Widen the range, or omit since and until for the most recent incidents regardless of date.';
+          expect(result.structuredContent).toMatchObject({
+            incidents: [],
+            total_returned: 0,
+            notice,
+          });
+          expect(quotedText(result.content)).toEqual([notice]);
+        });
+      });
+
+      /**
+       * A feed with no history archive behind it serves a recent window, so a since
+       * earlier than its oldest record asks for incidents this tool cannot return (#88).
+       * The date is that record's start, as since compares it.
+       */
+      describe('a since earlier than a windowed feed reaches (#88)', () => {
+        const reach = (since: string, name: string, date: string, url?: string) =>
+          `since ${since} is earlier than the oldest record ${name}'s status feed returned, which starts on ${date}. ` +
+          `This tool reads no history archive for ${name}, so it cannot return incidents that started before then.` +
+          (url === undefined ? '' : ` See ${url} for earlier history.`);
+        const GCP_URL = 'https://status.cloud.google.com';
+
+        it('names the oldest start on every page of a populated result', async () => {
+          routeGcpFixture();
+          const args = { vendor: 'gcp', since: '2026-01-01', limit: 50 };
+
+          // The fixture's oldest record, 41E5S3mkTGDfkZuJZH5k, began 2026-02-27T12:37Z.
+          const sentence = reach('2026-01-01', 'Google Cloud', '2026-02-27', GCP_URL);
+          const seen: string[] = [];
+          let pages = 0;
+          for (let offset: number | undefined = 0; offset !== undefined; pages++) {
+            const result = await runToolContract(devopsGetIncidents, { ...args, offset });
+            const structured = result.structuredContent as {
+              incidents: { id: string }[];
+              nextOffset?: number;
+              notice: string;
+            };
+            seen.push(...structured.incidents.map((i) => i.id));
+            expect(structured.notice.endsWith(sentence)).toBe(true);
+            expect(quotedText(result.content).at(-1)).toBe(structured.notice);
+            offset = structured.nextOffset;
+          }
+          // The response size budget splits these records across pages; each page says it.
+          expect(pages).toBeGreaterThan(1);
+          expect(seen).toHaveLength(4);
+          expect(seen.at(-1)).toBe('41E5S3mkTGDfkZuJZH5k');
+
+          const past = await call({ ...args, offset: 99 });
+          expect(past.structured.notice).toBe(
+            'offset 99 is past the end of this result: filter "all" (since 2026-01-01) matched 4 incidents for Google Cloud, so the valid offsets are 0–3. ' +
+              `Call again with a lower offset. ${sentence}`,
+          );
+        });
+
+        it('adds nothing when since is on or after that date', async () => {
+          routeGcpFixture();
+          const args = { vendor: 'gcp', since: '2026-02-27', limit: 50 };
+
+          const notices: Array<string | undefined> = [];
+          for (let offset: number | undefined = 0; offset !== undefined; ) {
+            const { structured } = await call({ ...args, offset });
+            notices.push(structured.notice);
+            offset = structured.nextOffset;
+          }
+          expect(notices.at(-1)).toBeUndefined();
+          for (const notice of notices) expect(notice ?? '').not.toContain('is earlier than');
+        });
+
+        it('replaces "Widen the range" when the whole range is older than the feed, on both surfaces', async () => {
+          http.route({
+            match: 'https://status.slack.com/api/v2.0.0/history',
+            respond: () =>
+              Response.json(
+                JSON.parse(
+                  readFileSync(
+                    new URL(
+                      '../../../services/status-adapters/fixtures/slack-history.json',
+                      import.meta.url,
+                    ),
+                    'utf-8',
+                  ),
+                ),
+              ),
+          });
+
+          const result = await runToolContract(devopsGetIncidents, {
+            vendor: 'slack',
+            since: '2025-03-01',
+            until: '2025-03-31',
+          });
+
+          // The fixture's oldest record was created 2026-06-16T08:50:09-07:00.
+          const notice =
+            'No incidents matching filter "all" for Slack started between 2025-03-01 and 2025-03-31; 3 later matches were left out by until. ' +
+            reach('2025-03-01', 'Slack', '2026-06-16', 'https://status.slack.com');
+          expect(result.structuredContent).toMatchObject({
+            incidents: [],
+            total_returned: 0,
+            notice,
+          });
+          expect(quotedText(result.content)).toEqual([notice]);
+        });
+
+        it('reads the maintenance list under "all" only, and leaves the page pointer to the ceiling notice', async () => {
+          const TWILIO_SUMMARY = JSON.parse(
+            readFileSync(
+              new URL(
+                '../../../services/status-adapters/fixtures/statuspage-twilio-summary.json',
+                import.meta.url,
+              ),
+              'utf-8',
+            ),
+          ) as { components: Array<{ id: string; name: string }> };
+          const smtp = TWILIO_SUMMARY.components.find((c) => c.name === 'SMTP')!;
+          type Records = Array<{ id: string; components: unknown[] }>;
+          const feed = fixture('twilio-incidents.json') as { incidents: Records };
+          // rn73nh540rz6 started 2026-09-23T12:34:37-07:00.
+          feed.incidents[3] = { ...feed.incidents[3]!, components: [smtp] };
+          const maintenances = fixture('twilio-scheduled-maintenances.json') as {
+            scheduled_maintenances: Records;
+          };
+          // bn6yyz65wk75 is moved to 2026-09-09T18:00-07:00, 2026-09-10 in UTC — before the
+          // oldest record of Twilio's whole feed, g88dj9p99bqh, which began 2026-09-16 in UTC.
+          maintenances.scheduled_maintenances = maintenances.scheduled_maintenances.map((m) =>
+            m.id === 'bn6yyz65wk75'
+              ? { ...m, components: [smtp], scheduled_for: '2026-09-09T18:00:00.000-07:00' }
+              : m,
+          );
+          http.route(
+            {
+              match: `${TWILIO}/api/v2/summary.json`,
+              respond: () => Response.json(TWILIO_SUMMARY),
+            },
+            { match: `${TWILIO}/api/v2/incidents.json`, respond: () => Response.json(feed) },
+            {
+              match: `${TWILIO}/api/v2/scheduled-maintenances.json`,
+              respond: () => Response.json(maintenances),
+            },
+          );
+          const ceiling =
+            "The vendor's status API returns at most 50 incidents per fetch and offers no pagination, so incidents older than the oldest one it returned are not reachable through this tool at any offset. " +
+            'See https://status.twilio.com for the older history.';
+
+          const all = await call({ vendor: 'sendgrid', filter: 'all', since: '2026-01-01' });
+          expect(all.result.incidents.map((i) => i.id)).toEqual(['rn73nh540rz6', 'bn6yyz65wk75']);
+          expect(all.structured.notice).toBe(
+            `${ceiling} ${reach('2026-01-01', 'SendGrid', '2026-09-10')}`,
+          );
+
+          // The reach is the shared feed's, not the oldest SendGrid record's (2026-09-23):
+          // a SendGrid incident from 2026-09-16 on would have been in what Twilio returned.
+          const resolved = await call({
+            vendor: 'sendgrid',
+            filter: 'resolved',
+            since: '2026-01-01',
+          });
+          expect(
+            resolved.structured.notice?.endsWith(reach('2026-01-01', 'SendGrid', '2026-09-16')),
+          ).toBe(true);
+          expect(historyRequests()).toEqual([]);
+        });
+
+        it('says nothing on redis-cloud, whose payload is its whole history', async () => {
+          http.route({
+            match: 'https://status.redis.io/data/payload.json',
+            respond: () =>
+              Response.json(
+                JSON.parse(
+                  readFileSync(
+                    new URL(
+                      '../../../services/status-adapters/fixtures/firehydrant-redis.json',
+                      import.meta.url,
+                    ),
+                    'utf-8',
+                  ),
+                ),
+              ),
+          });
+
+          // The payload's oldest incident started 2026-01-08, after since.
+          const { result, structured } = await call({ vendor: 'redis-cloud', since: '2025-01-01' });
+          expect(result.total_returned).toBeGreaterThan(0);
+          expect(structured.notice).toBeUndefined();
+        });
+
+        it('names no date when the feed returned no record', async () => {
+          http.route({ match: GCP_FEED, respond: () => Response.json([]) });
+
+          const { structured } = await call({ vendor: 'gcp', since: '2025-01-01' });
+          expect(structured.notice).toBe(
+            'Google Cloud currently lists no incidents and no maintenance windows at all. Filter "all" already spans everything its status feed publishes, so the narrower filters have nothing to return either. ' +
+              `See ${GCP_URL} to confirm on the vendor's own status page.`,
+          );
+        });
+      });
+    });
   });
 
   /**
@@ -2915,7 +3656,7 @@ describe('devopsGetIncidents', () => {
         backend: 'statusio',
         vendor: 'gitlab',
         feed: 'https://status-api.hostedstatus.com/1.0/status/5b36dc6502d06804c08349f7',
-        body: () => Response.json({ result: { status_overall: {} } }),
+        body: () => Response.json({ result: { status_overall: {}, status: [] } }),
         notice: retry('GitLab', '"all" or "resolved" or "scheduled"'),
       },
       {
@@ -2943,7 +3684,7 @@ describe('devopsGetIncidents', () => {
         backend: 'firehydrant',
         vendor: 'redis-cloud',
         feed: 'https://status.redis.io/data/payload.json',
-        body: () => Response.json({}),
+        body: () => Response.json({ incidents: [], components: [] }),
         notice: retry('Redis Cloud', '"all" or "resolved" or "scheduled"'),
       },
       {
@@ -3420,5 +4161,94 @@ describe('devopsGetIncidents', () => {
       const description = devopsGetIncidents.input.shape.limit.description ?? '';
       expect(description).toContain('A value over 50 is served as 50,');
     });
+  });
+
+  /**
+   * `atlassian` reads an umbrella page that publishes no components; a response serving it
+   * closes its notice with the product slugs to check instead (#74). The sentence is pinned
+   * where it is built; these cases prove where this tool puts it, on each notice path.
+   */
+  describe('atlassian umbrella pointer (#74)', () => {
+    const pointer = productSlugsNotice(VENDOR_REGISTRY.find((v) => v.slug === 'atlassian')!)!;
+    const base = RESOLVED_INCIDENT.incidents[0]!;
+    const incidents = [
+      { ...base, id: 'inc-new', created_at: '2025-03-04T07:31:46Z' },
+      { ...base, id: 'inc-old', created_at: '2024-01-01T00:00:00Z' },
+    ];
+
+    async function serve(feed: StatuspageIncidentsResponse['incidents']) {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      _mockFetchIncidents.mockResolvedValue({
+        data: { page: RESOLVED_INCIDENT.page, incidents: feed },
+        cached: false,
+      });
+      _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
+    }
+
+    async function call(args: Record<string, unknown>) {
+      const result = await runToolContract(devopsGetIncidents, args as never);
+      expect(result.isError).toBeFalsy();
+      return {
+        structured: result.structuredContent as { incidents: { id: string }[]; notice?: string },
+        text: result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n'),
+      };
+    }
+
+    it('names the product slugs', () => {
+      expect(pointer).toContain('jira');
+      expect(pointer).toContain('bitbucket');
+    });
+
+    it('returns the umbrella incidents with the pointer as the whole notice', async () => {
+      await serve(incidents);
+      const { structured, text } = await call({ vendor: 'atlassian' });
+
+      expect(structured.incidents.map((i) => i.id)).toEqual(['inc-new', 'inc-old']);
+      expect(structured.notice).toBe(pointer);
+      expect(text.split(pointer)).toHaveLength(2);
+    });
+
+    it('closes a truncated page notice, after the paging sentence', async () => {
+      await serve(incidents);
+      const { structured } = await call({ vendor: 'atlassian', limit: 1 });
+
+      expect(structured.notice).toBe(
+        `Showing incidents 1–1 of 2. Call again with offset: 1 for the next page, or narrow with filter, since, until, or match. ${pointer}`,
+      );
+    });
+
+    it('closes an empty result notice, after the match-miss sentence', async () => {
+      await serve(incidents);
+      const { structured } = await call({ vendor: 'atlassian', match: 'bitbucket' });
+
+      expect(structured.incidents).toEqual([]);
+      expect(structured.notice).toBe(
+        '2 incidents for Atlassian (cross-product incidents) matched filter "all", but none has every word of "bitbucket" in its title or affected components. ' +
+          'Use fewer or broader words, or omit match. History-archive records, and vendors that publish no components, match on title only. ' +
+          pointer,
+      );
+    });
+
+    it('adds no pointer for a vendor without product slugs', async () => {
+      await serve(incidents);
+      const { structured } = await call({ vendor: 'github' });
+      expect(structured.notice).toBeUndefined();
+    });
+  });
+
+  it('names the backends whose scheduled filter lists completed maintenance windows (#85)', () => {
+    const filter = devopsGetIncidents.input.shape.filter.description ?? '';
+    expect(filter).toContain(
+      'scheduled: only maintenance windows — upcoming and in-progress ones, plus completed ones on Atlassian Statuspage and Firehydrant ("redis-cloud") vendors; Status.io vendors ("gitlab", "neon") list upcoming and in-progress windows only.',
+    );
+    expect(devopsGetIncidents.description).toContain(
+      'or maintenance windows: upcoming and in-progress ones, plus completed ones on Atlassian Statuspage and Firehydrant vendors (Status.io vendors list upcoming and in-progress only).',
+    );
+    expect(devopsGetIncidents.description).not.toContain('upcoming maintenance windows');
   });
 });

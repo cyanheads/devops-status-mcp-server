@@ -192,6 +192,92 @@ describe('mapGcpIncident', () => {
     ).incident_updates;
     expect(update!.body).toBe(markdown);
   });
+
+  /**
+   * Google lists an incident's regions apart from its products, in
+   * `currently_affected_locations` and `previously_affected_locations` (#84).
+   */
+  describe('affected locations (#84)', () => {
+    it('carries the previously affected regions of the live record in feed order, title as name', () => {
+      const incident = mapGcpIncident(informationRecord(), GCP);
+      expect(incident.affected_locations).toEqual([
+        { id: 'global', name: 'Global', current: false },
+        {
+          id: 'northamerica-northeast1',
+          name: 'Montréal (northamerica-northeast1)',
+          current: false,
+        },
+        { id: 'southamerica-east1', name: 'São Paulo (southamerica-east1)', current: false },
+        { id: 'us-central1', name: 'Iowa (us-central1)', current: false },
+        { id: 'us-east1', name: 'South Carolina (us-east1)', current: false },
+        { id: 'us-east4', name: 'Northern Virginia (us-east4)', current: false },
+        { id: 'us-east5', name: 'Columbus (us-east5)', current: false },
+        { id: 'us-west1', name: 'Oregon (us-west1)', current: false },
+      ]);
+      // Locations are not components: the product list is unchanged.
+      expect(incident.incident_updates.at(-1)?.affected_components?.map((c) => c.name)).toEqual(
+        (informationRecord().affected_products ?? []).map((p) => p.current_title ?? p.title),
+      );
+    });
+
+    it('lists current locations first, each list in feed order, a location in both once as current', () => {
+      const incident = mapGcpIncident(
+        {
+          ...disruptionRecord(),
+          currently_affected_locations: [
+            { id: 'us-east1', title: 'South Carolina (us-east1)' },
+            { id: 'us-central1', title: 'Iowa (us-central1)' },
+          ],
+          previously_affected_locations: [
+            { id: 'us-central1', title: 'Iowa (us-central1)' },
+            { id: 'europe-west4', title: 'Netherlands (europe-west4)' },
+            { id: 'global', title: 'Global' },
+          ],
+        },
+        GCP,
+      );
+      expect(incident.affected_locations).toEqual([
+        { id: 'us-east1', name: 'South Carolina (us-east1)', current: true },
+        { id: 'us-central1', name: 'Iowa (us-central1)', current: true },
+        { id: 'europe-west4', name: 'Netherlands (europe-west4)', current: false },
+        { id: 'global', name: 'Global', current: false },
+      ]);
+    });
+
+    it('omits the field when the incident lists no location, absent or empty', () => {
+      const {
+        currently_affected_locations: _c,
+        previously_affected_locations: _p,
+        ...bare
+      } = disruptionRecord();
+      for (const record of [
+        bare,
+        { ...bare, currently_affected_locations: [], previously_affected_locations: [] },
+        {},
+      ]) {
+        expect(mapGcpIncident(record, GCP)).not.toHaveProperty('affected_locations');
+      }
+    });
+
+    it('skips an entry with no id and names a title-less entry by its id', () => {
+      const incident = mapGcpIncident(
+        {
+          id: 'sparse',
+          currently_affected_locations: [{ title: 'Nowhere' }, { id: '' }],
+          previously_affected_locations: [{ id: 'asia-south2' }],
+        },
+        GCP,
+      );
+      expect(incident.affected_locations).toEqual([
+        { id: 'asia-south2', name: 'asia-south2', current: false },
+      ]);
+      const none = mapGcpIncident(
+        { id: 'none', previously_affected_locations: [{ title: 'Nowhere' }] },
+        GCP,
+      );
+      expect(none).not.toHaveProperty('affected_locations');
+    });
+  });
 });
 
 describe('mapGcpSummary', () => {
@@ -277,16 +363,23 @@ describe('fetchers', () => {
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
-  it('rejects a 200 carrying something other than the incident array', async () => {
+  it.each([
+    [{ page: {}, incidents: [] }, 'an object'],
+    [null, 'null'],
+    ['incidents', 'a string'],
+    [42, 'a number'],
+  ])('rejects a 200 carrying %j, naming it as %s', async (body, named) => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         headers: new Headers(),
-        json: vi.fn().mockResolvedValue({ page: {}, incidents: [] }),
+        json: vi.fn().mockResolvedValue(body),
       }),
     );
-    await expect(fetchGcpIncidents(GCP)).rejects.toThrow(/rather than the incident array/);
+    await expect(fetchGcpIncidents(GCP)).rejects.toThrow(
+      `https://status.cloud.google.com/incidents.json returned ${named} rather than the incident array the feed publishes.`,
+    );
   });
 });

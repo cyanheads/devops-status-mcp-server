@@ -53,6 +53,23 @@ const FIREHYDRANT_BODY = {
   incidents: [],
 };
 
+/** The nine Datadog site pages, each read through its own {page}/config.json. */
+const DATADOG_PAGES = [
+  ['datadog', 'https://status.datadoghq.com'],
+  ['datadog-us3', 'https://status.us3.datadoghq.com'],
+  ['datadog-us5', 'https://status.us5.datadoghq.com'],
+  ['datadog-eu1', 'https://status.datadoghq.eu'],
+  ['datadog-uk1', 'https://status.uk1.datadoghq.com'],
+  ['datadog-ap1', 'https://status.ap1.datadoghq.com'],
+  ['datadog-ap2', 'https://status.ap2.datadoghq.com'],
+  ['datadog-us1-fed', 'https://status.ddog-gov.com'],
+  ['datadog-us2-fed', 'https://status.us2.ddog-gov.com'],
+] as const;
+const DATADOG_HOSTS = new Set<string>(DATADOG_PAGES.map(([, url]) => new URL(url).hostname));
+
+/** A Datadog status document with nothing on it. */
+const DATADOG_BODY = { components: [], incidents: [], maintenances: null };
+
 /** Microsoft's documented all-healthy Health - Get example. */
 const AZURE_DEVOPS_HEALTH_BODY: unknown = JSON.parse(
   readFileSync(new URL('fixtures/azure-devops-health-docs-example.json', import.meta.url), 'utf-8'),
@@ -84,7 +101,9 @@ beforeEach(() => {
                   ? []
                   : u.includes('/api/v2.0.0/')
                     ? { status: 'ok', active_incidents: [] }
-                    : STATUSPAGE_BODY;
+                    : DATADOG_HOSTS.has(hostname)
+                      ? DATADOG_BODY
+                      : STATUSPAGE_BODY;
       return Promise.resolve({
         ok: true,
         json: vi.fn().mockResolvedValue(body),
@@ -166,6 +185,21 @@ describe('fetchVendorSummary dispatch', () => {
     expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
   });
 
+  /** status.datadoghq.com left Atlassian Statuspage; its /api/v2/*.json paths answer 403 (#90). */
+  it('datadog vendor reads the page document, not the Statuspage v2 summary', async () => {
+    const { data } = await fetchVendorSummary(resolve('datadog'));
+    expect(data.status).toEqual({ indicator: 'none', description: 'All Systems Operational' });
+    expect(data.page.name).toBe('Datadog US1');
+    expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toEqual([
+      'https://status.datadoghq.com/config.json',
+    ]);
+  });
+
+  it.each(DATADOG_PAGES)('datadog site %s reads %s/config.json', async (slug, page) => {
+    await fetchVendorSummary(resolve(slug));
+    expect(lastUrl()).toBe(`${page}/config.json`);
+  });
+
   it('azure-devops vendor reads both the health endpoint and the RSS feed', async () => {
     const { data } = await fetchVendorSummary(resolve('azure-devops'));
     expect(data.status).toEqual({ indicator: 'none', description: 'Everything is looking good' });
@@ -212,6 +246,24 @@ describe('fetchVendorIncidents / fetchVendorScheduledMaintenances dispatch', () 
     expect(lastUrl()).toBe('https://status.redis.io/data/payload.json');
   });
 
+  it('datadog incidents and maintenances both read the page document', async () => {
+    const incidents = await fetchVendorIncidents(resolve('datadog-eu1'));
+    expect(incidents.data).toEqual({
+      page: {
+        id: 'datadog-eu1',
+        name: 'Datadog EU1',
+        updated_at: '',
+        url: 'https://status.datadoghq.eu',
+      },
+      incidents: [],
+    });
+    expect(lastUrl()).toBe('https://status.datadoghq.eu/config.json');
+    const maintenances = await fetchVendorScheduledMaintenances(resolve('datadog-eu1'));
+    expect(maintenances.data.scheduled_maintenances).toEqual([]);
+    expect(lastUrl()).toBe('https://status.datadoghq.eu/config.json');
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+  });
+
   it('azure-devops incidents read only the RSS feed', async () => {
     const { data } = await fetchVendorIncidents(resolve('azure-devops'));
     expect(data.incidents).toEqual([]);
@@ -242,6 +294,7 @@ describe('backendHistory', () => {
       resolved: 'full',
       scheduledMaintenance: true,
       historyPages: true,
+      wholeHistory: false,
     });
   });
 
@@ -252,6 +305,7 @@ describe('backendHistory', () => {
       resolved: 'full',
       scheduledMaintenance: false,
       historyPages: false,
+      wholeHistory: false,
     });
   });
 
@@ -262,6 +316,7 @@ describe('backendHistory', () => {
       resolved: 'current',
       scheduledMaintenance: false,
       historyPages: false,
+      wholeHistory: false,
     });
   });
 
@@ -271,6 +326,7 @@ describe('backendHistory', () => {
       resolved: 'current',
       scheduledMaintenance: true,
       historyPages: false,
+      wholeHistory: false,
     });
   });
 
@@ -282,6 +338,7 @@ describe('backendHistory', () => {
       resolved: 'full',
       scheduledMaintenance: false,
       historyPages: false,
+      wholeHistory: false,
     });
   });
 
@@ -292,6 +349,7 @@ describe('backendHistory', () => {
       resolved: 'none',
       scheduledMaintenance: false,
       historyPages: false,
+      wholeHistory: false,
     });
   });
 
@@ -301,6 +359,17 @@ describe('backendHistory', () => {
       resolved: 'full',
       scheduledMaintenance: true,
       historyPages: false,
+      wholeHistory: true,
+    });
+  });
+
+  it('datadog is unbounded — config.json carries the whole history and the maintenance windows', () => {
+    expect(backendHistory('datadog')).toEqual({
+      incidentCeiling: null,
+      resolved: 'full',
+      scheduledMaintenance: true,
+      historyPages: false,
+      wholeHistory: true,
     });
   });
 
@@ -312,6 +381,7 @@ describe('backendHistory', () => {
       resolved: 'full',
       scheduledMaintenance: false,
       historyPages: false,
+      wholeHistory: false,
     });
   });
 
@@ -328,6 +398,7 @@ describe('backendHistory', () => {
         'azure-devops',
         'statusio',
         'firehydrant',
+        'datadog',
       ] as const
     ).filter((t) => backendHistory(t).incidentCeiling !== null);
     expect(withCeiling).toEqual(['statuspage', 'slack']);
@@ -345,9 +416,29 @@ describe('backendHistory', () => {
         'azure-devops',
         'statusio',
         'firehydrant',
+        'datadog',
       ] as const
     ).filter((t) => backendHistory(t).historyPages);
     expect(withHistory).toEqual(['statuspage']);
+  });
+
+  it('only firehydrant and datadog serve their page whole in one fetch', () => {
+    // On a whole-history feed nothing older than its oldest record exists, so the
+    // feed-start disclosure for windowed feeds must not fire there.
+    const whole = (
+      [
+        'statuspage',
+        'slack',
+        'aws',
+        'gcp',
+        'azure',
+        'azure-devops',
+        'statusio',
+        'firehydrant',
+        'datadog',
+      ] as const
+    ).filter((t) => backendHistory(t).wholeHistory);
+    expect(whole).toEqual(['firehydrant', 'datadog']);
   });
 
   it('every api_type in the registry has a capability row', () => {
@@ -359,6 +450,7 @@ describe('backendHistory', () => {
       expect(['full', 'current', 'none'], apiType).toContain(history.resolved);
       expect(typeof history.scheduledMaintenance, apiType).toBe('boolean');
       expect(typeof history.historyPages, apiType).toBe('boolean');
+      expect(typeof history.wholeHistory, apiType).toBe('boolean');
     }
   });
 });

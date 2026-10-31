@@ -22,7 +22,8 @@ export type VendorApiType =
   | 'gcp'
   | 'azure'
   | 'azure-devops'
-  | 'firehydrant';
+  | 'firehydrant'
+  | 'datadog';
 
 interface VendorEntryBase {
   category: VendorCategory;
@@ -59,7 +60,7 @@ export type VendorEntry =
     });
 
 /**
- * 63-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
+ * 71-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
  * every other api_type is served through a native-API adapter
  * (src/services/status-adapters/) that normalizes into the Statuspage shapes.
  * Probe every entry for drift with `bun run verify:registry`.
@@ -463,10 +464,68 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
   // monitoring
   {
     slug: 'datadog',
-    name: 'Datadog',
+    name: 'Datadog US1',
     category: 'monitoring',
+    // Datadog runs one status page per site, off Atlassian Statuspage; the adapter fetches
+    // {page}/config.json. The datadog-* entries below read the other sites' pages.
     statuspage_url: 'https://status.datadoghq.com',
-    api_type: 'statuspage',
+    api_type: 'datadog',
+  },
+  {
+    slug: 'datadog-us3',
+    name: 'Datadog US3',
+    category: 'monitoring',
+    statuspage_url: 'https://status.us3.datadoghq.com',
+    api_type: 'datadog',
+  },
+  {
+    slug: 'datadog-us5',
+    name: 'Datadog US5',
+    category: 'monitoring',
+    statuspage_url: 'https://status.us5.datadoghq.com',
+    api_type: 'datadog',
+  },
+  {
+    slug: 'datadog-eu1',
+    name: 'Datadog EU1',
+    category: 'monitoring',
+    statuspage_url: 'https://status.datadoghq.eu',
+    api_type: 'datadog',
+  },
+  {
+    slug: 'datadog-uk1',
+    name: 'Datadog UK1',
+    category: 'monitoring',
+    statuspage_url: 'https://status.uk1.datadoghq.com',
+    api_type: 'datadog',
+  },
+  {
+    slug: 'datadog-ap1',
+    name: 'Datadog AP1',
+    category: 'monitoring',
+    statuspage_url: 'https://status.ap1.datadoghq.com',
+    api_type: 'datadog',
+  },
+  {
+    slug: 'datadog-ap2',
+    name: 'Datadog AP2',
+    category: 'monitoring',
+    statuspage_url: 'https://status.ap2.datadoghq.com',
+    api_type: 'datadog',
+  },
+  {
+    slug: 'datadog-us1-fed',
+    name: 'Datadog US1-FED',
+    category: 'monitoring',
+    statuspage_url: 'https://status.ddog-gov.com',
+    api_type: 'datadog',
+  },
+  {
+    slug: 'datadog-us2-fed',
+    name: 'Datadog US2-FED',
+    category: 'monitoring',
+    statuspage_url: 'https://status.us2.ddog-gov.com',
+    api_type: 'datadog',
   },
   {
     slug: 'sentry',

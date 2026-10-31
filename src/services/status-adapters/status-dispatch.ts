@@ -30,6 +30,11 @@ import {
 } from './azure-devops-adapter.js';
 import { inScopeComponentIds, scopeRecords, scopeSummary } from './component-scope.js';
 import {
+  fetchDatadogIncidents,
+  fetchDatadogScheduledMaintenances,
+  fetchDatadogSummary,
+} from './datadog-adapter.js';
+import {
   fetchFirehydrantIncidents,
   fetchFirehydrantScheduledMaintenances,
   fetchFirehydrantSummary,
@@ -71,6 +76,8 @@ function backendSummary(vendor: ResolvedVendor): Fetched<StatuspageSummaryRespon
       return fetchAzureDevOpsSummary(vendor);
     case 'firehydrant':
       return fetchFirehydrantSummary(vendor);
+    case 'datadog':
+      return fetchDatadogSummary(vendor);
   }
 }
 
@@ -93,6 +100,8 @@ function backendIncidents(vendor: ResolvedVendor): Fetched<StatuspageIncidentsRe
       return fetchAzureDevOpsIncidents(vendor);
     case 'firehydrant':
       return fetchFirehydrantIncidents(vendor);
+    case 'datadog':
+      return fetchDatadogIncidents(vendor);
   }
 }
 
@@ -117,6 +126,8 @@ function backendScheduledMaintenances(
       return fetchAzureDevOpsScheduledMaintenances(vendor);
     case 'firehydrant':
       return fetchFirehydrantScheduledMaintenances(vendor);
+    case 'datadog':
+      return fetchDatadogScheduledMaintenances(vendor);
   }
 }
 
@@ -224,6 +235,12 @@ export type BackendHistory = {
    * some pages do not serve it, which a call discloses in its notice.
    */
   historyPages: boolean;
+  /**
+   * Whether one fetch returns every record the page publishes. Nothing older than such
+   * a feed's oldest record exists on the page; a feed without it (and without
+   * historyPages) is a recent window that stops short of what the page once listed.
+   */
+  wholeHistory: boolean;
 };
 
 /**
@@ -243,6 +260,7 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         resolved: 'full',
         scheduledMaintenance: true,
         historyPages: true,
+        wholeHistory: false,
       };
     case 'slack':
       // /api/v2.0.0/history has the same 50-record ceiling and no working page
@@ -252,6 +270,7 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         resolved: 'full',
         scheduledMaintenance: false,
         historyPages: false,
+        wholeHistory: false,
       };
     case 'aws':
       // The public health feed lists current events: a resolved one (status "0")
@@ -262,6 +281,7 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         resolved: 'current',
         scheduledMaintenance: false,
         historyPages: false,
+        wholeHistory: false,
       };
     case 'gcp':
       // incidents.json returns a bare array with no record cap and no paging
@@ -275,6 +295,7 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         resolved: 'full',
         scheduledMaintenance: false,
         historyPages: false,
+        wholeHistory: false,
       };
     case 'azure':
       // The RSS feed lists posted items only — nothing marks one resolved, it just
@@ -285,6 +306,7 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         resolved: 'none',
         scheduledMaintenance: false,
         historyPages: false,
+        wholeHistory: false,
       };
     case 'azure-devops':
       // The _rss feed is a rolling window bounded by age, with no record count to
@@ -296,6 +318,7 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         resolved: 'full',
         scheduledMaintenance: false,
         historyPages: false,
+        wholeHistory: false,
       };
     case 'statusio':
       // The Public Status API serves the page's current incidents plus its active
@@ -305,6 +328,7 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         resolved: 'current',
         scheduledMaintenance: true,
         historyPages: false,
+        wholeHistory: false,
       };
     case 'firehydrant':
       // /data/payload.json carries the complete incident history unwindowed —
@@ -314,6 +338,17 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         resolved: 'full',
         scheduledMaintenance: true,
         historyPages: false,
+        wholeHistory: true,
+      };
+    case 'datadog':
+      // {page}/config.json is the page's whole record — every incident it has published
+      // plus its maintenance windows — returned unwindowed, like Firehydrant's payload.
+      return {
+        incidentCeiling: null,
+        resolved: 'full',
+        scheduledMaintenance: true,
+        historyPages: false,
+        wholeHistory: true,
       };
   }
 }

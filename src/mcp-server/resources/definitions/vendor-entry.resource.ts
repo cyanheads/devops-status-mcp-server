@@ -36,7 +36,7 @@ export const vendorEntryResource = resource('devops-status://vendors/{name}', {
     api_type: z
       .string()
       .describe(
-        'Status backend: "statuspage" (Atlassian Statuspage), "statusio" (Status.io), "slack" (Slack status API), "aws" (AWS Health Dashboard), "gcp" (Google Cloud Service Health), "azure" (Azure status RSS feed), "azure-devops" (Azure DevOps health API and status RSS feed), or "firehydrant" (Firehydrant-hosted status page).',
+        'Status backend: "statuspage" (Atlassian Statuspage), "statusio" (Status.io), "slack" (Slack status API), "aws" (AWS Health Dashboard), "gcp" (Google Cloud Service Health), "azure" (Azure status RSS feed), "azure-devops" (Azure DevOps health API and status RSS feed), "firehydrant" (Firehydrant-hosted status page), or "datadog" (Datadog\'s own status page, one per Datadog site).',
       ),
     component_scope_prefix: z
       .string()

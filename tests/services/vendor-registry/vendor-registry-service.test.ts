@@ -41,6 +41,7 @@ describe('VendorRegistryService', () => {
     expect(service.resolve('aws')?.api_type).toBe('aws');
     expect(service.resolve('gcp')?.api_type).toBe('gcp');
     expect(service.resolve('redis-cloud')?.api_type).toBe('firehydrant');
+    expect(service.resolve('datadog')?.api_type).toBe('datadog');
     expect(service.resolve('Azure')).toEqual({
       url: 'https://azure.status.microsoft/en-us/status/',
       name: 'Microsoft Azure',
@@ -165,8 +166,8 @@ describe('VendorRegistryService', () => {
 });
 
 describe('VENDOR_REGISTRY integrity', () => {
-  it('has 63 entries with unique slugs', () => {
-    expect(VENDOR_REGISTRY).toHaveLength(63);
+  it('has 71 entries with unique slugs', () => {
+    expect(VENDOR_REGISTRY).toHaveLength(71);
     const slugs = VENDOR_REGISTRY.map((v) => v.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
   });
@@ -359,6 +360,60 @@ describe('VENDOR_REGISTRY integrity', () => {
       ]);
       expect(service.getBySlugOrName('Jira')?.slug).toBe('jira');
       expect(service.getBySlugOrName('Atlassian Bitbucket')?.slug).toBe('bitbucket');
+    });
+  });
+
+  /**
+   * status.datadoghq.com left Atlassian Statuspage for Datadog's own status page, one per
+   * Datadog site, each serving the same {page}/config.json document (#90).
+   */
+  describe('Datadog sites (#90)', () => {
+    const SITES = [
+      ['datadog', 'Datadog US1', 'https://status.datadoghq.com'],
+      ['datadog-us3', 'Datadog US3', 'https://status.us3.datadoghq.com'],
+      ['datadog-us5', 'Datadog US5', 'https://status.us5.datadoghq.com'],
+      ['datadog-eu1', 'Datadog EU1', 'https://status.datadoghq.eu'],
+      ['datadog-uk1', 'Datadog UK1', 'https://status.uk1.datadoghq.com'],
+      ['datadog-ap1', 'Datadog AP1', 'https://status.ap1.datadoghq.com'],
+      ['datadog-ap2', 'Datadog AP2', 'https://status.ap2.datadoghq.com'],
+      ['datadog-us1-fed', 'Datadog US1-FED', 'https://status.ddog-gov.com'],
+      ['datadog-us2-fed', 'Datadog US2-FED', 'https://status.us2.ddog-gov.com'],
+    ] as const;
+    const SITE_SLUGS = SITES.map(([slug]) => slug);
+
+    it('registers each site page as a monitoring entry read by the datadog adapter', () => {
+      const service = getVendorRegistryService();
+      for (const [slug, name, url] of SITES) {
+        expect(service.getBySlug(slug), slug).toEqual({
+          slug,
+          name,
+          category: 'monitoring',
+          statuspage_url: url,
+          api_type: 'datadog',
+        });
+        expect(service.resolve(slug), slug).toEqual({ url, name, slug, api_type: 'datadog' });
+      }
+    });
+
+    it('routes the Datadog site pages, and nothing else, to the datadog adapter', () => {
+      expect(VENDOR_REGISTRY.filter((v) => v.api_type === 'datadog').map((v) => v.slug)).toEqual(
+        SITE_SLUGS,
+      );
+    });
+
+    it('keeps the datadog slug on US1, reached by its former and current names', () => {
+      const service = getVendorRegistryService();
+      expect(service.getBySlugOrName('Datadog')?.slug).toBe('datadog');
+      expect(service.getBySlugOrName('Datadog US1')?.slug).toBe('datadog');
+      expect(service.getBySlugOrName('Datadog US1-FED')?.slug).toBe('datadog-us1-fed');
+    });
+
+    it('finds all nine by "datadog"', () => {
+      expect(
+        getVendorRegistryService()
+          .search('datadog')
+          .map((v) => v.slug),
+      ).toEqual(SITE_SLUGS);
     });
   });
 

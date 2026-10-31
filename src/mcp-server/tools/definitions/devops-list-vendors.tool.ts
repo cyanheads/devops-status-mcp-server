@@ -69,7 +69,7 @@ export const devopsListVendors = tool('devops_list_vendors', {
             statuspage_url: z
               .string()
               .describe(
-                'Status page base URL — the Statuspage API base for Statuspage-backed vendors, the public status page URL for adapter-backed vendors (aws, gcp, azure, azure-devops, gitlab, slack, neon, redis-cloud).',
+                'Status page base URL — the Statuspage API base for Statuspage-backed vendors, the public status page URL for adapter-backed vendors (aws, gcp, azure, azure-devops, gitlab, slack, neon, redis-cloud, and datadog with its datadog-* site entries).',
               ),
           })
           .describe('A vendor entry from the built-in registry.'),

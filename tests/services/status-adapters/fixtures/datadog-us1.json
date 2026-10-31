@@ -1,0 +1,1385 @@
+{
+  "components": [
+    {
+      "id": "160c87ae-0269-4f83-a471-7dec9c4e3514",
+      "name": "APM",
+      "position": 0,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "03a097ab-df60-48c7-a5c4-a2424c377cb1",
+      "name": "App Builder",
+      "position": 1,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "c2074d41-d3f1-4200-955b-0c9376b502dd",
+      "name": "Application Security Management",
+      "position": 2,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "fc83780c-7ec5-497c-b498-214312396668",
+      "name": "Application Vulnerability Management",
+      "position": 3,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "6b83f2b4-d5f0-4db5-9220-e60d523e0931",
+      "name": "Audit Trail",
+      "position": 4,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+      "name": "Bits AI",
+      "position": 5,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "21cfd565-33a1-4896-ade9-3585fe49cb6c",
+      "name": "CI Visibility",
+      "position": 6,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "16472d9b-c5f6-4263-aff0-223d71a68d3e",
+      "name": "Cloud Cost Management",
+      "position": 7,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "6d4501d0-94bf-4294-a80b-47d9f61a5054",
+      "name": "Cloud Network Monitoring",
+      "position": 8,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "2ea433a3-d5f7-4666-884b-f2355b1331c6",
+      "name": "Cloud Security Management",
+      "position": 9,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "06a39e6f-8136-40d3-ae67-ab9ce322212c",
+      "name": "Cloud SIEM",
+      "position": 10,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "d99cb916-d92c-47dd-9007-60026ef1f72c",
+      "name": "Code Coverage",
+      "position": 11,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "fb00d839-5eb8-43a4-ae2c-e8c4b2ef9cb3",
+      "name": "Code Security",
+      "position": 12,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "b741e4a4-566a-4777-8f3b-79b2ecbaa8ad",
+      "name": "Container Registry",
+      "position": 13,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "751d5d3d-abbb-4862-a5e0-2088f3d4d4a3",
+      "name": "Continuous Profiler",
+      "position": 14,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "356754c1-2c84-4515-9974-728fc188e0bd",
+      "name": "Database Monitoring",
+      "position": 15,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "82428eb7-e802-4655-be1b-f3b8a669d852",
+      "name": "Data Jobs Monitoring",
+      "position": 16,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "01996bda-f6fd-4729-a869-e39dd41d452f",
+      "name": "Data Streams Monitoring",
+      "position": 17,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "002d16fc-b7cc-4ba3-9ac4-fd10b32b370c",
+      "name": "Error Tracking",
+      "position": 18,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "8a621593-c968-48f4-a001-da8b2c3a7ac2",
+      "name": "Event Management",
+      "position": 19,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "3309cd52-4811-4e25-886d-5c4263bf8b4a",
+      "name": "Incident Response",
+      "position": 20,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "f65a2993-1015-474b-991a-255f3874383e",
+      "name": "LLM Observability",
+      "position": 21,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "845bb0c5-1334-4a03-a9f9-f027b530da1e",
+      "name": "Log Management",
+      "position": 22,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+      "name": "Metrics and Infra Monitoring",
+      "position": 23,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "51ee65e4-d4ef-444f-bd18-108a58b6046d",
+      "name": "Mobile Application",
+      "position": 24,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+      "name": "Monitors",
+      "position": 25,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "86e78ee6-5590-4118-a0e0-ff44b5b76e99",
+      "name": "NDM",
+      "position": 26,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "5fb1494a-6347-43ef-a9e5-cbe5d519b0e9",
+      "name": "Observability Pipelines",
+      "position": 27,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "799465bc-30d1-48e0-b00c-34c73cd11660",
+      "name": "Package Repositories",
+      "position": 28,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "53bd9347-5837-4bc7-a8bd-39b51de19101",
+      "name": "Product Analytics",
+      "position": 29,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "81633294-60dc-42b8-9cac-2ad85c9d1e8a",
+      "name": "RUM",
+      "position": 30,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "bb2e4365-7c1c-449e-9020-91b3096c0d42",
+      "name": "Sensitive Data Scanner",
+      "position": 31,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "12cbffb5-5d9d-4f61-8893-acc4f254dc1c",
+      "name": "Serverless",
+      "position": 32,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "1ab85675-29de-43dd-a6e2-eb8ad7ea8f10",
+      "name": "Synthetics",
+      "position": 33,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "e95a47d7-12b2-47b8-b462-83a385e814f1",
+      "name": "Test Optimization",
+      "position": 34,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "279b3963-bb1f-4b33-8ccd-a34d6852fef2",
+      "name": "Universal Service Monitoring",
+      "position": 35,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "50e60366-efb5-4011-89c8-2c4a98a0819f",
+      "name": "Web Application",
+      "position": 36,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "893f1a01-652d-4dee-b73b-b0e88ba27115",
+      "name": "Workflow Automation",
+      "position": 37,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "ce8c2980-db43-4941-8e32-6cde752b6a43",
+      "name": "Workload Protection",
+      "position": 38,
+      "status": "operational",
+      "type": "Component"
+    },
+    {
+      "id": "74543c97-573d-473f-8e81-b6792ea1593b",
+      "name": "www.datadoghq.com",
+      "position": 39,
+      "status": "operational",
+      "type": "Component"
+    }
+  ],
+  "created": "2026-08-07T18:32:54.296956Z",
+  "customDomain": "status.datadoghq.com",
+  "customDomainEnabled": true,
+  "incidents": [
+    {
+      "componentsAffected": [
+        {
+          "id": "160c87ae-0269-4f83-a471-7dec9c4e3514",
+          "name": "APM",
+          "position": 0,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "16472d9b-c5f6-4263-aff0-223d71a68d3e",
+          "name": "Cloud Cost Management",
+          "position": 7,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "53bd9347-5837-4bc7-a8bd-39b51de19101",
+          "name": "Product Analytics",
+          "position": 29,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "6d4501d0-94bf-4294-a80b-47d9f61a5054",
+          "name": "Cloud Network Monitoring",
+          "position": 8,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "81633294-60dc-42b8-9cac-2ad85c9d1e8a",
+          "name": "RUM",
+          "position": 30,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+          "name": "Bits AI",
+          "position": 5,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+          "name": "Metrics and Infra Monitoring",
+          "position": 23,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+          "name": "Monitors",
+          "position": 25,
+          "status": "operational",
+          "type": "Component"
+        }
+      ],
+      "currentStatus": "resolved",
+      "description": "The issue is now resolved.",
+      "id": "21ae57fe-1a8a-489c-b86e-88ae90b4b9f1",
+      "lastModifiedAt": "2026-10-28T18:39:18.699451Z",
+      "publishedDate": "2026-10-28T16:10:14.685871Z",
+      "resolved": true,
+      "resolvedDate": "2026-10-28T18:39:18.699451Z",
+      "timeline": [
+        {
+          "componentsAffected": [
+            {
+              "id": "160c87ae-0269-4f83-a471-7dec9c4e3514",
+              "name": "APM",
+              "position": 0,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "16472d9b-c5f6-4263-aff0-223d71a68d3e",
+              "name": "Cloud Cost Management",
+              "position": 7,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "53bd9347-5837-4bc7-a8bd-39b51de19101",
+              "name": "Product Analytics",
+              "position": 29,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "6d4501d0-94bf-4294-a80b-47d9f61a5054",
+              "name": "Cloud Network Monitoring",
+              "position": 8,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "81633294-60dc-42b8-9cac-2ad85c9d1e8a",
+              "name": "RUM",
+              "position": 30,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T18:39:18.699451Z",
+          "startedAt": "2026-10-28T18:39:18.699451Z",
+          "lastModifiedAt": "2026-10-28T18:39:18.699451Z",
+          "description": "The issue is now resolved.",
+          "id": "973efd3a-be5a-5817-8d55-01f179ed2adb",
+          "status": "resolved"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "160c87ae-0269-4f83-a471-7dec9c4e3514",
+              "name": "APM",
+              "position": 0,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "16472d9b-c5f6-4263-aff0-223d71a68d3e",
+              "name": "Cloud Cost Management",
+              "position": 7,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "53bd9347-5837-4bc7-a8bd-39b51de19101",
+              "name": "Product Analytics",
+              "position": 29,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "6d4501d0-94bf-4294-a80b-47d9f61a5054",
+              "name": "Cloud Network Monitoring",
+              "position": 8,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "81633294-60dc-42b8-9cac-2ad85c9d1e8a",
+              "name": "RUM",
+              "position": 30,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T18:23:27.296322Z",
+          "startedAt": "2026-10-28T18:23:27.296322Z",
+          "lastModifiedAt": "2026-10-28T18:23:27.296322Z",
+          "description": "We are monitoring the issue.",
+          "id": "060b522a-5d1f-5aba-8577-3cb1e8c6318c",
+          "status": "monitoring"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "160c87ae-0269-4f83-a471-7dec9c4e3514",
+              "name": "APM",
+              "position": 0,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "16472d9b-c5f6-4263-aff0-223d71a68d3e",
+              "name": "Cloud Cost Management",
+              "position": 7,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "53bd9347-5837-4bc7-a8bd-39b51de19101",
+              "name": "Product Analytics",
+              "position": 29,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "6d4501d0-94bf-4294-a80b-47d9f61a5054",
+              "name": "Cloud Network Monitoring",
+              "position": 8,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "81633294-60dc-42b8-9cac-2ad85c9d1e8a",
+              "name": "RUM",
+              "position": 30,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T18:09:01.281297Z",
+          "startedAt": "2026-10-28T18:09:01.281297Z",
+          "lastModifiedAt": "2026-10-28T18:09:01.281297Z",
+          "description": "We are monitoring the issue.",
+          "id": "4a9ffdd2-0428-5c89-bbaf-e7fb3638a3c4",
+          "status": "monitoring"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "160c87ae-0269-4f83-a471-7dec9c4e3514",
+              "name": "APM",
+              "position": 0,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "16472d9b-c5f6-4263-aff0-223d71a68d3e",
+              "name": "Cloud Cost Management",
+              "position": 7,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "53bd9347-5837-4bc7-a8bd-39b51de19101",
+              "name": "Product Analytics",
+              "position": 29,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "6d4501d0-94bf-4294-a80b-47d9f61a5054",
+              "name": "Cloud Network Monitoring",
+              "position": 8,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "81633294-60dc-42b8-9cac-2ad85c9d1e8a",
+              "name": "RUM",
+              "position": 30,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "degraded",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T17:26:52.250627Z",
+          "startedAt": "2026-10-28T17:26:52.250627Z",
+          "lastModifiedAt": "2026-10-28T17:26:52.250627Z",
+          "description": "We identified the issue.",
+          "id": "5671565c-0fb4-5cc6-b981-54df224e0636",
+          "status": "identified"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "160c87ae-0269-4f83-a471-7dec9c4e3514",
+              "name": "APM",
+              "position": 0,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "16472d9b-c5f6-4263-aff0-223d71a68d3e",
+              "name": "Cloud Cost Management",
+              "position": 7,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "53bd9347-5837-4bc7-a8bd-39b51de19101",
+              "name": "Product Analytics",
+              "position": 29,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "6d4501d0-94bf-4294-a80b-47d9f61a5054",
+              "name": "Cloud Network Monitoring",
+              "position": 8,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "81633294-60dc-42b8-9cac-2ad85c9d1e8a",
+              "name": "RUM",
+              "position": 30,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "partial_outage",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T16:56:24.237747Z",
+          "startedAt": "2026-10-28T16:56:24.237747Z",
+          "lastModifiedAt": "2026-10-28T16:56:24.237747Z",
+          "description": "We are investigating the issue.",
+          "id": "c897ff39-df87-597c-a594-93becf24aa06",
+          "status": "investigating"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "160c87ae-0269-4f83-a471-7dec9c4e3514",
+              "name": "APM",
+              "position": 0,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "53bd9347-5837-4bc7-a8bd-39b51de19101",
+              "name": "Product Analytics",
+              "position": 29,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "6d4501d0-94bf-4294-a80b-47d9f61a5054",
+              "name": "Cloud Network Monitoring",
+              "position": 8,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "16472d9b-c5f6-4263-aff0-223d71a68d3e",
+              "name": "Cloud Cost Management",
+              "position": 7,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "81633294-60dc-42b8-9cac-2ad85c9d1e8a",
+              "name": "RUM",
+              "position": 30,
+              "status": "degraded",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T16:40:17.527694Z",
+          "startedAt": "2026-10-28T16:40:17.527694Z",
+          "lastModifiedAt": "2026-10-28T16:40:17.527694Z",
+          "description": "We are investigating the issue.",
+          "id": "9fd9c152-a28d-53fd-a443-c0418d0f17e4",
+          "status": "investigating"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "partial_outage",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T16:10:14.685871Z",
+          "startedAt": "2026-10-28T16:10:14.685871Z",
+          "lastModifiedAt": "2026-10-28T16:10:14.685871Z",
+          "description": "We are investigating metrics issues. As a result, some users might not be able to load dashboard or query metrics.\n\nPlease note that data processing and alerts are not affected by this incident.",
+          "id": "9c0087d8-28fb-4b74-bd38-743712b107c6",
+          "status": "investigating"
+        }
+      ],
+      "title": "Metrics query are disrupted"
+    },
+    {
+      "componentsAffected": [
+        {
+          "id": "03a097ab-df60-48c7-a5c4-a2424c377cb1",
+          "name": "App Builder",
+          "position": 1,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "893f1a01-652d-4dee-b73b-b0e88ba27115",
+          "name": "Workflow Automation",
+          "position": 37,
+          "status": "operational",
+          "type": "Component"
+        },
+        {
+          "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+          "name": "Bits AI",
+          "position": 5,
+          "status": "operational",
+          "type": "Component"
+        }
+      ],
+      "currentStatus": "resolved",
+      "description": "The issue is now resolved.",
+      "id": "0cefa72b-8a25-4b40-a133-765f875c6ebd",
+      "lastModifiedAt": "2026-10-26T18:23:20.621168Z",
+      "publishedDate": "2026-10-26T17:26:42.005771Z",
+      "resolved": true,
+      "resolvedDate": "2026-10-26T18:23:20.621168Z",
+      "timeline": [
+        {
+          "componentsAffected": [
+            {
+              "id": "03a097ab-df60-48c7-a5c4-a2424c377cb1",
+              "name": "App Builder",
+              "position": 1,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "893f1a01-652d-4dee-b73b-b0e88ba27115",
+              "name": "Workflow Automation",
+              "position": 37,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-26T18:23:20.621168Z",
+          "startedAt": "2026-10-26T18:23:20.621168Z",
+          "lastModifiedAt": "2026-10-26T18:23:20.621168Z",
+          "description": "The issue is now resolved.",
+          "id": "c6540f4d-e2ab-5601-9c6d-bc6aa4c40500",
+          "status": "resolved"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "03a097ab-df60-48c7-a5c4-a2424c377cb1",
+              "name": "App Builder",
+              "position": 1,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "893f1a01-652d-4dee-b73b-b0e88ba27115",
+              "name": "Workflow Automation",
+              "position": 37,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "degraded",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-26T17:40:12.473004Z",
+          "startedAt": "2026-10-26T17:40:12.473004Z",
+          "lastModifiedAt": "2026-10-26T17:40:12.473004Z",
+          "description": "We have deployed a fix and we are monitoring the results. We will provide another update once the issue is fully resolved.",
+          "id": "c0fcc028-b3c8-563c-83bf-91fca05be358",
+          "status": "monitoring"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:17.269395Z",
+          "startedAt": "2026-10-26T17:31:54.225Z",
+          "lastModifiedAt": "2026-10-28T14:30:17.269395Z",
+          "description": "We have identified the underlying issue and are working on a fix.",
+          "id": "baa6566b-00c2-5cf5-8349-7d25f21915d7",
+          "status": "identified"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "03a097ab-df60-48c7-a5c4-a2424c377cb1",
+              "name": "App Builder",
+              "position": 1,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "893f1a01-652d-4dee-b73b-b0e88ba27115",
+              "name": "Workflow Automation",
+              "position": 37,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "degraded",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-26T17:30:47.315542Z",
+          "startedAt": "2026-10-26T17:30:47.315542Z",
+          "lastModifiedAt": "2026-10-26T17:30:47.315542Z",
+          "description": "We have identified the underlying issue and are working on a fix.",
+          "id": "d8ea97ba-5f1d-583c-a8d5-716eb560a7e7",
+          "status": "identified"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "893f1a01-652d-4dee-b73b-b0e88ba27115",
+              "name": "Workflow Automation",
+              "position": 37,
+              "status": "major_outage",
+              "type": "Component"
+            },
+            {
+              "id": "03a097ab-df60-48c7-a5c4-a2424c377cb1",
+              "name": "App Builder",
+              "position": 1,
+              "status": "degraded",
+              "type": "Component"
+            },
+            {
+              "id": "a082d4bd-55b3-4a2a-9dc8-eb4704f0923d",
+              "name": "Bits AI",
+              "position": 5,
+              "status": "degraded",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-26T17:26:42.005771Z",
+          "startedAt": "2026-10-26T17:26:42.005771Z",
+          "lastModifiedAt": "2026-10-26T17:32:04.851892Z",
+          "description": "We are currently investigating an issue affecting Workflow Automation, App Builder, Bits Code, and Bits Agent Builder in our US1 datacenter.\n\nDuring this time, some users may experience:\n- Workflows containing JavaScript or Python actions failing to run, including workflows used for incident and on-call automation\n- App Builder apps that use JavaScript or Python failing, or parts of those apps not working as expected\n- Bits Code sessions failing to start or complete\n- Agent Builder agents with Bits Code enabled being unable to start code sessions or use bash tools\n\nOur engineering teams are actively working to resolve the issue, and we’ll follow up with more information shortly.",
+          "id": "f58fe8ba-3fdf-43a7-bba0-a9b8833a4de4",
+          "status": "investigating"
+        }
+      ],
+      "title": "Elevated Error Rates for Workflow Automation, App Builder, Bits Code, Bits Agent Builder"
+    },
+    {
+      "componentsAffected": [
+        {
+          "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+          "name": "Monitors",
+          "position": 25,
+          "status": "operational",
+          "type": "Component"
+        }
+      ],
+      "currentStatus": "resolved",
+      "description": "This incident has been resolved.",
+      "id": "446172d4-2819-5238-8208-323f6248b5e5",
+      "lastModifiedAt": "2026-07-30T08:27:01.231Z",
+      "publishedDate": "2026-07-30T07:44:26.506Z",
+      "resolved": true,
+      "resolvedDate": "2026-07-30T08:27:01.231Z",
+      "timeline": [
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:17.498775Z",
+          "startedAt": "2026-07-30T08:27:01.231Z",
+          "lastModifiedAt": "2026-10-28T14:30:17.498775Z",
+          "description": "This incident has been resolved.",
+          "id": "0a10d057-ef0c-5f4c-a566-aadec45eaae2",
+          "status": "resolved"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "degraded",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:17.498775Z",
+          "startedAt": "2026-07-30T08:16:23.935Z",
+          "lastModifiedAt": "2026-10-28T14:30:17.498775Z",
+          "description": "A fix has been implemented and we are monitoring the results.",
+          "id": "a903e12f-7b99-56bf-81fe-8030c0969fc7",
+          "status": "monitoring"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "degraded",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:17.498775Z",
+          "startedAt": "2026-07-30T07:49:45.84Z",
+          "lastModifiedAt": "2026-10-28T14:30:17.498775Z",
+          "description": "The issue has been identified and a fix is being implemented.",
+          "id": "22bc02a9-df67-5c47-91c7-daee55faed83",
+          "status": "identified"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "degraded",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:17.498775Z",
+          "startedAt": "2026-07-30T07:44:26.506Z",
+          "lastModifiedAt": "2026-10-28T14:30:17.498775Z",
+          "description": "We are investigating delays in Service Check monitors evaluation, which began at 6:35AM UTC.",
+          "id": "7b156569-22d1-5a87-871f-90d0a6c5dc9e",
+          "status": "investigating"
+        }
+      ],
+      "title": "Delayed Evaluation of Service Check monitors"
+    },
+    {
+      "componentsAffected": [
+        {
+          "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+          "name": "Monitors",
+          "position": 25,
+          "status": "operational",
+          "type": "Component"
+        }
+      ],
+      "currentStatus": "resolved",
+      "description": "This incident has been resolved.",
+      "id": "c5c2c0ea-db68-5758-af0c-fc302cc76efe",
+      "lastModifiedAt": "2024-07-24T14:32:07.716Z",
+      "publishedDate": "2024-07-24T14:16:10.139Z",
+      "resolved": true,
+      "resolvedDate": "2024-07-24T14:32:07.716Z",
+      "timeline": [
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:21.148543Z",
+          "startedAt": "2024-07-24T14:32:07.716Z",
+          "lastModifiedAt": "2026-10-28T14:30:21.148543Z",
+          "description": "This incident has been resolved.",
+          "id": "b232b19e-fa2e-590b-8a9b-6acb401c3086",
+          "status": "resolved"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:21.148543Z",
+          "startedAt": "2024-07-24T14:17:44.079Z",
+          "lastModifiedAt": "2026-10-28T14:30:21.148543Z",
+          "description": "We identified a delay in Monitor Notifications from 13:52 UTC and 14:05 UTC. The issue has resolved, but we continue to monitor the situation.",
+          "id": "09ab132f-6b6e-57c8-b45e-a5f8f5b09e48",
+          "status": "identified"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:21.148543Z",
+          "startedAt": "2024-07-24T14:16:10.139Z",
+          "lastModifiedAt": "2026-10-28T14:30:21.148543Z",
+          "description": "We identified a delay in Monitor Notifications from 13:52 UTC and 14:05 UTC. The issue has resolved, but we continue to monitor the situation.",
+          "id": "5713492e-c7c6-59d5-9cf2-24dc03c166d0",
+          "status": "investigating"
+        }
+      ],
+      "title": "Delayed Monitors Notifications"
+    },
+    {
+      "componentsAffected": [
+        {
+          "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+          "name": "Monitors",
+          "position": 25,
+          "status": "operational",
+          "type": "Component"
+        }
+      ],
+      "currentStatus": "resolved",
+      "description": "The incident has been resolved. For additional information on upgrading agents 3.6 to 5.32.6, see https://docs.datadoghq.com/agent/faq/certificate_verify_failed-error/.",
+      "id": "5862fb64-0ad8-5012-8864-f39bac3b5537",
+      "lastModifiedAt": "2020-05-30T20:22:36.815Z",
+      "publishedDate": "2020-05-30T11:50:31.478Z",
+      "resolved": true,
+      "resolvedDate": "2020-05-30T20:22:36.815Z",
+      "timeline": [
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T20:22:36.815Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "The incident has been resolved. For additional information on upgrading agents 3.6 to 5.32.6, see https://docs.datadoghq.com/agent/faq/certificate_verify_failed-error/.",
+          "id": "846a3e67-6f89-51f8-8698-9f87a3819626",
+          "status": "resolved"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T19:54:47.8Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "We've released Datadog agent 5.32.7 which fixes the certificate problem and restores connectivity to Datadog.\n\nTo upgrade from a previous version of agent 5, use the install command for your platform:\n\nCentos/Red Hat: sudo yum check-update && sudo yum install datadog-agent\nDebian/Ubuntu: sudo apt-get update && sudo apt-get install datadog-agent\nWindows: Download the Datadog Agent installer (https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-latest.msi). start /wait msiexec /qn /i ddagent-cli-latest.msi\nMore platforms and configuration management options detailed at https://app.datadoghq.com/account/settings?agent_version=5#agent",
+          "id": "a7dbe71d-6c86-5645-aa29-65a563f179b6",
+          "status": "monitoring"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T17:20:49.473Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "We are continuing to monitor for any further issues.",
+          "id": "8617bcf2-57e0-5d51-8cbf-100ade284830",
+          "status": "monitoring"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "operational",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "operational",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T17:17:41.481Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "We are continuing to monitor for any further issues.",
+          "id": "a65eb8b4-4559-59cd-a822-d3d87599aca4",
+          "status": "monitoring"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T16:49:48.632Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "<b>What happened?</b>\n\nOn Saturday May 30th, 2020, at 10:48 UTC, an SSL root certificate belonging to a certificate authority and used to sign some of the Datadog certificates expired, and caused some agents to lose connectivity with Datadog endpoints. Because this root certificate is embedded in agents from version 3.6 to version 5.32.6, some users will need to take action to restore connectivity.\n\n<b>What versions of the agent are affected?</b>\n\nAgent versions spanning 3.6.x to 5.32.6 embed the expired root certificate and are affected. Agent versions 6.x and 7.x are unaffected; if you are using these agents, no action is required on your part.\n\n<b>Fixing without updating the agent</b>\n\nWe’re actively working on a new version of agent 5 but if you’d like to address this without an update, the following is the quickest path to resolution.\n\nOn Linux:\n\n<tt>sudo rm /opt/datadog-agent/agent/datadog-cert.pem && sudo service datadog-agent restart</tt>\n\nOn Windows:\n\n<tt>rm \"C:\\Program Files (x86)\\Datadog\\Datadog Agent\\files\\datadog-cert.pem\"\nnet stop /y datadogagent ; net start /y datadogagent</tt>",
+          "id": "7393ccb8-6373-5546-b8e4-b5ed23f753f2",
+          "status": "monitoring"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T14:54:34.134Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "A fix has been implemented and we are monitoring the results. We are contacting customers directly who are running versions of the agent which may still have connectivity issues.",
+          "id": "a54bf5d2-1317-5061-a738-b73d2aba0267",
+          "status": "monitoring"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T14:17:49.878Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "We've identified connectivity issues affecting certain versions of the agents - most notably agent 5, and are working to mitigate.",
+          "id": "7c7e8e28-dfd2-541c-8d44-ed1c4f242b1a",
+          "status": "identified"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "major_outage",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T13:26:46.094Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "The API is back to normal and alerts have been re-enabled. We're still investigating connectivity issues between some agents and Datadog endpoints.",
+          "id": "12448062-2a29-5618-92de-2101209ba1a1",
+          "status": "identified"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "major_outage",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T12:17:53.048Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "The issue has been identified and a fix is being implemented. To prevent spurious alerts, we have temporarily disabled metric, event, service check, and composite monitors.",
+          "id": "991c549f-dfb2-5ce5-9cf4-199b07baf22f",
+          "status": "identified"
+        },
+        {
+          "componentsAffected": [
+            {
+              "id": "e727cd93-80f6-4b7a-b8a1-54b784578288",
+              "name": "Monitors",
+              "position": 25,
+              "status": "partial_outage",
+              "type": "Component"
+            },
+            {
+              "id": "d8c43023-2ad0-4d96-9b5f-9049a1e67a59",
+              "name": "Metrics and Infra Monitoring",
+              "position": 23,
+              "status": "partial_outage",
+              "type": "Component"
+            }
+          ],
+          "createdAt": "2026-10-28T14:30:26.782233Z",
+          "startedAt": "2020-05-30T11:50:31.478Z",
+          "lastModifiedAt": "2026-10-28T14:30:26.782233Z",
+          "description": "We're investigating increased errors receiving payloads from agents and delivering notifications, and snapshots are failing.",
+          "id": "10448a24-04f5-5408-b168-548ea86b4c5d",
+          "status": "investigating"
+        }
+      ],
+      "title": "Connectivity issue for agents 3.6 to 5.32.6"
+    },
+    {
+      "componentsAffected": [],
+      "currentStatus": "resolved",
+      "description": "Dashboards are working as normal and impacted monitors have been reenabled.",
+      "id": "57f4985c-381c-563f-ae78-270b16753b61",
+      "lastModifiedAt": "2017-04-24T22:55:53.965Z",
+      "publishedDate": "2017-04-24T22:21:52.126Z",
+      "resolved": true,
+      "resolvedDate": "2017-04-24T22:55:53.965Z",
+      "timeline": [
+        {
+          "createdAt": "2026-10-28T14:30:31.698091Z",
+          "startedAt": "2017-04-24T22:55:53.965Z",
+          "lastModifiedAt": "2026-10-28T14:30:31.698091Z",
+          "description": "Dashboards are working as normal and impacted monitors have been reenabled.",
+          "id": "ce8ee0ff-80d7-5dc8-b42f-7e3e38aae20f",
+          "status": "resolved"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:31.698091Z",
+          "startedAt": "2017-04-24T22:49:18.711Z",
+          "lastModifiedAt": "2026-10-28T14:30:31.698091Z",
+          "description": "The issue has been fixed and metrics are caught up. We're monitoring the situation.",
+          "id": "51a2ff28-78cd-596b-9de4-1a3598ec3b7c",
+          "status": "monitoring"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:31.698091Z",
+          "startedAt": "2017-04-24T22:28:11.864Z",
+          "lastModifiedAt": "2026-10-28T14:30:31.698091Z",
+          "description": "Dashboards are loading graphs. Some metrics are delayed and are catching up.",
+          "id": "edf03c29-e5da-540d-98cd-f62f19236b05",
+          "status": "identified"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:31.698091Z",
+          "startedAt": "2017-04-24T22:21:52.126Z",
+          "lastModifiedAt": "2026-10-28T14:30:31.698091Z",
+          "description": "Some dashboards experience empty graphs. Impacted monitors have been disabled to avoid spurious alerts. The issue has been identified.",
+          "id": "809c74ee-1763-5b99-baca-d9fee79deed0",
+          "status": "identified"
+        }
+      ],
+      "title": "Empty graphs in dashboards"
+    },
+    {
+      "componentsAffected": [],
+      "currentStatus": "resolved",
+      "description": "This issue has been resolved and data from the AWS Cloudwatch API should now be showing up normally.",
+      "id": "6650262c-b424-5847-a642-258714eaa859",
+      "lastModifiedAt": "2014-03-19T18:15:12.941Z",
+      "publishedDate": "2014-03-19T16:55:03.908Z",
+      "resolved": true,
+      "resolvedDate": "2014-03-19T18:15:12.941Z",
+      "timeline": [
+        {
+          "createdAt": "2026-10-28T14:30:36.547359Z",
+          "startedAt": "2014-03-19T18:15:12.941Z",
+          "lastModifiedAt": "2026-10-28T14:30:36.547359Z",
+          "description": "This issue has been resolved and data from the AWS Cloudwatch API should now be showing up normally.",
+          "id": "344a1cd0-bf85-5598-9476-b792a8d7fbb3",
+          "status": "resolved"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:36.547359Z",
+          "startedAt": "2014-03-19T17:01:53.067Z",
+          "lastModifiedAt": "2026-10-28T14:30:36.547359Z",
+          "description": "This has been identified to be an issue with the AWS Cloudwatch API on US-WEST-2. More info can be found here: http://status.aws.amazon.com/",
+          "id": "2778d48d-b0b0-5813-a9a7-b1337fab76e0",
+          "status": "identified"
+        },
+        {
+          "createdAt": "2026-10-28T14:30:36.547359Z",
+          "startedAt": "2014-03-19T16:55:03.908Z",
+          "lastModifiedAt": "2026-10-28T14:30:36.547359Z",
+          "description": "We are seeing an elevated rate of errors coming from CloudWatch since 12:24pm EDT. We are investigating.",
+          "id": "b359072c-208f-5a7b-a032-74c639cf0afe",
+          "status": "investigating"
+        }
+      ],
+      "title": "AWS metrics may be delayed"
+    }
+  ],
+  "description": "",
+  "domainPrefix": "us1",
+  "emailHeaderImage": "https://statuspage.datadoghq.com/images/94f8e202-f0c0-4cae-9055-48d2cf1b9b38.png",
+  "enabled": true,
+  "id": "2609c015-dd26-4775-b4a9-1bbd770a58b1",
+  "maintenances": null,
+  "msTeamsSubscriptionsEnabled": false,
+  "name": "Datadog US1 Status",
+  "pageType": "public",
+  "pageUrl": "https://us1.statuspage.datadoghq.com",
+  "public": true,
+  "rssFeedEnabled": true,
+  "slackSubscriptionsEnabled": true,
+  "sourceDatacenter": "us1",
+  "subscriptionsEnabled": true,
+  "visualizationType": "component_name_only",
+  "visualizationLayout": "grid",
+  "webhooksSubscriptionsEnabled": false
+}

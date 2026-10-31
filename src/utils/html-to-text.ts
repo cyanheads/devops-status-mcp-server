@@ -11,10 +11,20 @@
  * @module utils/html-to-text
  */
 
-/** The WHATWG HTML "List of elements" (html.spec.whatwg.org/multipage/indices.html). */
+/**
+ * The WHATWG HTML "List of elements" (html.spec.whatwg.org/multipage/indices.html), plus
+ * the obsolete formatting elements browsers still render (`acronym`, `big`, `center`,
+ * `font`, `strike`, `tt`), which older vendor posts carry.
+ */
 const HTML_ELEMENTS = new Set([
   'a',
   'abbr',
+  'acronym',
+  'big',
+  'center',
+  'font',
+  'strike',
+  'tt',
   'address',
   'area',
   'article',
@@ -134,6 +144,7 @@ const BLOCK_ELEMENTS = new Set([
   'article',
   'aside',
   'blockquote',
+  'center',
   'dd',
   'details',
   'div',

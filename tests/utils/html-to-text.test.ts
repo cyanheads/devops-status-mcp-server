@@ -54,6 +54,12 @@ describe('htmlToText', () => {
       ],
       ['inline elements', '<strong>Bold</strong> and <span style="x">span</span>', 'Bold and span'],
       ['a heading end', '<h2>Impact</h2>text', 'Impact\ntext'],
+      [
+        'obsolete inline elements',
+        '<tt>cmd</tt> <font color="red">red</font> <strike>old</strike> <big>B</big> <acronym title="x">TLS</acronym>',
+        'cmd red old B TLS',
+      ],
+      ['an obsolete block element', '<center>one</center>two', 'one\ntwo'],
     ])('%s', (_label, body, expected) => {
       expect(htmlToText(body)).toBe(expected);
     });
@@ -160,6 +166,14 @@ describe('htmlToText', () => {
           'This was caused by a concentrated workload.',
           'We are improving workload isolation.',
         ].join('\n'),
+      );
+    });
+
+    it('datadog: a `<tt>` command reads as its text', () => {
+      const body =
+        'On Linux:\n\n<tt>sudo rm /opt/datadog-agent/agent/datadog-cert.pem && sudo service datadog-agent restart</tt>\n\nOn Windows:';
+      expect(htmlToText(body)).toBe(
+        'On Linux:\nsudo rm /opt/datadog-agent/agent/datadog-cert.pem && sudo service datadog-agent restart\nOn Windows:',
       );
     });
 

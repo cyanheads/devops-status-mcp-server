@@ -10,11 +10,22 @@
  *   600 Security Event.
  * - Incident state (lifecycle): 100 Investigating, 200 Identified, 300 Monitoring,
  *   400 Resolved.
+ * The page indicator comes from the overall code, except that 200 reads
+ * `maintenance` only while no open incident rates above `none`; otherwise the worst
+ * open incident rates the page, since an outage outranks a window. The documented
+ * example publishes exactly that: overall 200 beside an open incident at 300.
  * The incident/maintenance item shape is doc-derived (both live pages were healthy
  * during validation) — the mapper reads every field defensively.
+ *
+ * The response must carry `result.status_overall` (an object) and `result.status`
+ * (the component list); `incidents` and `maintenance` are optional. Any other body is
+ * some other document, not this API, and is rejected rather than read as a health
+ * report.
  * @module services/status-adapters/statusio-adapter
  */
 
+import { z } from '@cyanheads/mcp-ts-core';
+import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
 import type {
   StatuspageComponent,
@@ -23,12 +34,19 @@ import type {
   StatuspagePage,
   StatuspageScheduledMaintenancesResponse,
   StatuspageSeverityIndicator,
+  StatuspageStatus,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
-import { fetchJsonCached } from '@/utils/cached-fetch.js';
+import { SEVERITY_RANK } from '@/services/statuspage/types.js';
+import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
 
 const STATUSIO_API_BASE = 'https://status-api.hostedstatus.com/1.0/status/';
+
+/** The envelope every Public Status API response carries; the items inside are read field by field. */
+const ResponseEnvelopeSchema = z.object({
+  result: z.object({ status_overall: z.object({}), status: z.array(z.unknown()) }),
+});
 
 // --- Raw Status.io response types (Public Status API) ---
 
@@ -78,7 +96,7 @@ interface StatusioComponentItem {
 export interface StatusioResponse {
   result: {
     status_overall: { updated?: string; status?: string; status_code?: number };
-    status?: StatusioComponentItem[];
+    status: StatusioComponentItem[];
     incidents?: StatusioIncidentItem[];
     maintenance?: { active?: StatusioIncidentItem[]; upcoming?: StatusioIncidentItem[] };
   };
@@ -99,7 +117,7 @@ function severityToIndicator(code: number | undefined): StatuspageSeverityIndica
   switch (code) {
     case 100:
       return 'none';
-    case 200: // Planned Maintenance — not a degradation
+    case 200: // Planned Maintenance — no degradation; pageIndicator reads it at page level
       return 'none';
     case 300:
       return 'minor';
@@ -154,7 +172,7 @@ function buildPage(raw: StatusioResponse, target: StatusioTarget): StatuspagePag
     id: target.slug ?? target.statusio_page_id,
     name: target.name,
     time_zone: 'Etc/UTC',
-    updated_at: raw.result.status_overall?.updated ?? '',
+    updated_at: raw.result.status_overall.updated ?? '',
     url: target.url,
   };
 }
@@ -193,7 +211,8 @@ function mapIncident(
     components: [],
     ...(maintenanceStatus && {
       scheduled_for: item.datetime_planned_start ?? '',
-      scheduled_until: item.datetime_planned_end ?? '',
+      // Unset when the window publishes no planned end.
+      ...(item.datetime_planned_end ? { scheduled_until: item.datetime_planned_end } : {}),
     }),
     incident_updates: messages.map((m, i) => ({
       id: `${item._id ?? 'msg'}-${i}`,
@@ -248,7 +267,7 @@ function mapComponents(raw: StatusioResponse): StatuspageComponent[] {
     });
   };
 
-  (raw.result.status ?? []).forEach((c, i) => {
+  raw.result.status.forEach((c, i) => {
     const id = c.id ?? `component-${i}`;
     const containers = c.containers ?? [];
     if (containers.length <= 1) {
@@ -264,21 +283,39 @@ function mapComponents(raw: StatusioResponse): StatuspageComponent[] {
   return components;
 }
 
+/**
+ * The page indicator: the overall code's, except that 200 (Planned Maintenance) reads
+ * `maintenance` only while no open incident rates above `none` — an outage outranks a
+ * window, so the worst open incident rates the page instead.
+ */
+function pageIndicator(
+  code: number | undefined,
+  incidents: readonly StatuspageIncident[],
+): StatuspageStatus['indicator'] {
+  if (code !== 200) return severityToIndicator(code);
+  let worst: StatuspageSeverityIndicator = 'none';
+  for (const inc of incidents) {
+    if (inc.status === 'resolved' || inc.impact === 'maintenance') continue;
+    if (SEVERITY_RANK[inc.impact] > SEVERITY_RANK[worst]) worst = inc.impact;
+  }
+  return worst === 'none' ? 'maintenance' : worst;
+}
+
 /** Normalize a Status.io Public Status API response into a Statuspage summary. */
 export function mapStatusioSummary(
   raw: StatusioResponse,
   target: StatusioTarget,
 ): StatuspageSummaryResponse {
-  const overall = raw.result.status_overall ?? {};
-  const components = mapComponents(raw);
+  const overall = raw.result.status_overall;
+  const incidents = (raw.result.incidents ?? []).map((i) => mapIncident(i, target));
   return {
     page: buildPage(raw, target),
     status: {
-      indicator: severityToIndicator(overall.status_code),
+      indicator: pageIndicator(overall.status_code, incidents),
       description: overall.status ?? 'Unknown',
     },
-    components,
-    incidents: (raw.result.incidents ?? []).map((i) => mapIncident(i, target)),
+    components: mapComponents(raw),
+    incidents,
     scheduled_maintenances: mapMaintenances(raw, target),
   };
 }
@@ -309,11 +346,17 @@ export function mapStatusioScheduledMaintenances(
 
 function fetchRaw(pageId: string): Promise<{ data: StatusioResponse; cached: boolean }> {
   const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
-  return fetchJsonCached<StatusioResponse>(
-    `${STATUSIO_API_BASE}${pageId}`,
-    cacheTtlMs,
-    fetchTimeoutMs,
-  );
+  const url = `${STATUSIO_API_BASE}${pageId}`;
+  return fetchCached<StatusioResponse>(url, cacheTtlMs, fetchTimeoutMs, async (res) => {
+    const body: unknown = await res.json();
+    if (!ResponseEnvelopeSchema.safeParse(body).success) {
+      throw serviceUnavailable(
+        `${url} returned a body without the result.status_overall object and result.status list the Status.io Public Status API publishes.`,
+        { reason: 'statuspage_unavailable', url },
+      );
+    }
+    return body as StatusioResponse;
+  });
 }
 
 export async function fetchStatusioSummary(

@@ -11,6 +11,9 @@
  *   event stays listed for hours after it ends and then drops off, so resolved
  *   history reaches back only as far as the feed still lists; there is no
  *   maintenance feed at all.
+ * - The body must be a top-level array. Anything else (`null`, an object) is
+ *   some other document, not this feed, and is rejected rather than read as an
+ *   empty event list. Event fields stay unchecked, so a sparse event still maps.
  * - The per-event `status` codes are undocumented. Empirical mapping from the
  *   live feed and its archived captures:
  *     '0' → resolved: the event has ended. Every status-0 event carries a
@@ -25,6 +28,7 @@
  * @module services/status-adapters/aws-adapter
  */
 
+import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
 import type {
   StatuspageComponent,
@@ -35,6 +39,7 @@ import type {
   StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
+import { SEVERITY_RANK } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
 
@@ -122,8 +127,6 @@ function epochSecondsToIso(value: string | number | undefined): string {
   if (!Number.isFinite(n) || n <= 0) return '';
   return new Date(n * 1000).toISOString();
 }
-
-const SEVERITY_RANK = { none: 0, minor: 1, major: 2, critical: 3 } as const;
 
 /** A status-0 event has ended; the feed keeps it listed for a while before dropping it. */
 function isResolved(event: AwsEvent): boolean {
@@ -215,7 +218,7 @@ function componentName(event: AwsEvent | undefined): string {
  * are history, so only the open ones count toward it.
  */
 export function mapAwsSummary(events: AwsEvent[], target: AwsTarget): StatuspageSummaryResponse {
-  const open = (events ?? []).filter((e) => !isResolved(e));
+  const open = events.filter((e) => !isResolved(e));
   const incidents = open.map((e) => mapAwsEvent(e, target));
   let indicator: StatuspageSeverityIndicator = 'none';
   for (const inc of incidents) {
@@ -259,7 +262,16 @@ function fetchRaw(): Promise<{ data: AwsEvent[]; cached: boolean }> {
     AWS_CURRENT_EVENTS_URL,
     cacheTtlMs,
     fetchTimeoutMs,
-    async (res) => JSON.parse(decodeUtf16(await res.arrayBuffer())) as AwsEvent[],
+    async (res) => {
+      const body: unknown = JSON.parse(decodeUtf16(await res.arrayBuffer()));
+      if (!Array.isArray(body)) {
+        throw serviceUnavailable(
+          `${AWS_CURRENT_EVENTS_URL} returned a body that is not the event array the AWS Health feed publishes.`,
+          { reason: 'statuspage_unavailable', url: AWS_CURRENT_EVENTS_URL },
+        );
+      }
+      return body as AwsEvent[];
+    },
   );
 }
 

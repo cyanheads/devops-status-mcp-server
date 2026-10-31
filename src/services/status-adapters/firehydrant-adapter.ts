@@ -15,18 +15,31 @@
  *   conditions (operational otherwise).
  * - severitySlug values are org-configurable; the defaults observed live are
  *   SEV1…SEV4, MAINTENANCE, UNSET (plus custom ones like INVESTIGATION).
- *   Mapping: SEV1 → critical, SEV2 → major, SEV3/SEV4 → minor,
- *   MAINTENANCE → none, unknown → minor (an active event of unknown severity
- *   is at least a degradation). MAINTENANCE incidents feed the
- *   scheduled-maintenances stream instead of the incident list.
+ *   Mapping: SEV1 → critical, SEV2 → major, SEV3/SEV4 → minor, unknown →
+ *   minor (an active event of unknown severity is at least a degradation).
+ * - MAINTENANCE items are maintenance windows and never reach the incident
+ *   list. The scheduled-maintenances stream carries every one, newest start
+ *   first: a resolved item is `completed`; an unresolved one is `in_progress`
+ *   once its start (`timestamps.started`, else `detected`) is not after now and
+ *   `scheduled` before. That one start test also decides whether a window pins
+ *   its components to `under_maintenance` and sets the `maintenance` indicator,
+ *   which it does only while no active incident rates — an outage outranks a
+ *   window, on the indicator and on a component both name. The summary lists
+ *   unresolved windows only, as a Statuspage summary does.
  * - There is no per-incident lifecycle field beyond the timestamps, so
  *   unresolved incidents map to the generic 'investigating' state.
  * - The history is unbounded (~950 incidents on status.redis.io). The full
  *   history is returned unwindowed; devops_get_incidents pages it tool-side
  *   via limit + offset, so older incidents stay reachable.
+ * - The payload must be an object carrying `incidents` and `components` arrays.
+ *   Any other body (an error envelope, `{}`, an array) is some other document,
+ *   not this feed, and is rejected rather than read as an all-clear. Item fields
+ *   inside the envelope stay unchecked, so a sparse item still maps.
  * @module services/status-adapters/firehydrant-adapter
  */
 
+import { z } from '@cyanheads/mcp-ts-core';
+import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
 import type {
   StatuspageComponent,
@@ -37,10 +50,17 @@ import type {
   StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
-import { fetchJsonCached } from '@/utils/cached-fetch.js';
+import { SEVERITY_RANK } from '@/services/statuspage/types.js';
+import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
 
 const FIREHYDRANT_DATA_PATH = '/data/payload.json';
+
+/** The envelope every Firehydrant payload carries; the items inside are read field by field. */
+const PayloadEnvelopeSchema = z.object({
+  components: z.array(z.unknown()),
+  incidents: z.array(z.unknown()),
+});
 
 // --- Raw Firehydrant payload types (/data/payload.json) ---
 
@@ -79,10 +99,10 @@ interface FirehydrantComponentItem {
 }
 
 export interface FirehydrantPayload {
-  components?: FirehydrantComponentItem[];
+  components: FirehydrantComponentItem[];
   /** Per-page condition table: display name → canonical OPERATIONAL | DEGRADED | OFFLINE. */
   conditions?: Record<string, string>;
-  incidents?: FirehydrantIncidentItem[];
+  incidents: FirehydrantIncidentItem[];
 }
 
 /** Identifies the vendor the response is being normalized for. */
@@ -95,8 +115,6 @@ export interface FirehydrantTarget {
 
 // --- Mappings ---
 
-const SEVERITY_RANK = { none: 0, minor: 1, major: 2, critical: 3 } as const;
-
 function severityToImpact(slug: string | undefined): StatuspageSeverityIndicator {
   switch (slug) {
     case 'SEV1':
@@ -106,8 +124,6 @@ function severityToImpact(slug: string | undefined): StatuspageSeverityIndicator
     case 'SEV3':
     case 'SEV4':
       return 'minor';
-    case 'MAINTENANCE': // planned work — not a degradation
-      return 'none';
     default:
       // UNSET or org-custom slug — surface as degraded rather than claiming all-clear.
       return 'minor';
@@ -143,6 +159,32 @@ function isActive(item: FirehydrantIncidentItem): boolean {
   return !item.timestamps?.resolved;
 }
 
+/** When an item began: `timestamps.started`, else `detected` — '' when it carries neither. */
+function startedAt(item: FirehydrantIncidentItem): string {
+  return item.timestamps?.started ?? item.timestamps?.detected ?? '';
+}
+
+/**
+ * Whether an item starts after `now` — the one test that decides a window's list status,
+ * the status of the components it touches, and whether it sets the indicator. An item
+ * with no readable start counts as started.
+ */
+function startsAfter(item: FirehydrantIncidentItem, now: number): boolean {
+  return new Date(startedAt(item)).getTime() > now;
+}
+
+type WindowStatus = 'scheduled' | 'in_progress' | 'completed';
+
+/** A MAINTENANCE item's window status: completed once resolved, else by its start. */
+function windowStatus(item: FirehydrantIncidentItem, now: number): WindowStatus {
+  if (!isActive(item)) return 'completed';
+  return startsAfter(item, now) ? 'scheduled' : 'in_progress';
+}
+
+function newestFirst(a: StatuspageIncident, b: StatuspageIncident): number {
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
+
 function buildPage(target: FirehydrantTarget): StatuspagePage {
   return {
     id: target.slug ?? 'firehydrant',
@@ -153,11 +195,14 @@ function buildPage(target: FirehydrantTarget): StatuspagePage {
   };
 }
 
-/** Normalize one Firehydrant incident (or maintenance item) into a Statuspage incident. */
-export function mapFirehydrantIncident(
+/**
+ * Normalize one Firehydrant incident into a Statuspage incident, or a MAINTENANCE item
+ * into a maintenance window when `maintenanceStatus` is given.
+ */
+function mapFirehydrantIncident(
   item: FirehydrantIncidentItem,
   target: FirehydrantTarget,
-  maintenanceStatus?: 'scheduled' | 'in_progress',
+  maintenanceStatus?: WindowStatus,
 ): StatuspageIncident {
   // Note-less entries (milestone-only BulkImpactUpdates) carry nothing to display — drop them.
   const timeline = (item.timeline ?? [])
@@ -178,7 +223,7 @@ export function mapFirehydrantIncident(
 
   const resolved = !isActive(item);
   const status = maintenanceStatus ?? (resolved ? 'resolved' : 'investigating');
-  const started = item.timestamps?.started ?? item.timestamps?.detected ?? '';
+  const started = startedAt(item);
 
   return {
     id: item.id ?? item.title ?? 'unknown',
@@ -191,11 +236,8 @@ export function mapFirehydrantIncident(
     monitoring_at: null,
     page_id: target.slug ?? 'firehydrant',
     components: [],
-    ...(maintenanceStatus && {
-      scheduled_for: started,
-      // The payload carries no planned end time.
-      scheduled_until: '',
-    }),
+    // The payload carries no planned end time, so scheduled_until stays unset.
+    ...(maintenanceStatus && { scheduled_for: started }),
     incident_updates: timeline.map((entry, i) => ({
       id: `${item.id ?? 'update'}-${i}`,
       body: htmlToText(noteText(entry)),
@@ -209,15 +251,20 @@ export function mapFirehydrantIncident(
   };
 }
 
-/** Active + upcoming maintenance items, normalized (resolved history is dropped). */
-function mapMaintenances(raw: FirehydrantPayload, target: FirehydrantTarget): StatuspageIncident[] {
-  const now = Date.now();
-  return (raw.incidents ?? [])
-    .filter((i) => isMaintenance(i) && isActive(i))
-    .map((i) => {
-      const started = new Date(i.timestamps?.started ?? 0).getTime();
-      return mapFirehydrantIncident(i, target, started > now ? 'scheduled' : 'in_progress');
-    });
+/**
+ * The MAINTENANCE items among `items` as maintenance windows, newest start first. Given
+ * the whole payload that is every window, completed ones included; the tool pages it via
+ * limit + offset in this order.
+ */
+function mapMaintenances(
+  items: readonly FirehydrantIncidentItem[],
+  target: FirehydrantTarget,
+  now: number,
+): StatuspageIncident[] {
+  return items
+    .filter(isMaintenance)
+    .map((i) => mapFirehydrantIncident(i, target, windowStatus(i, now)))
+    .sort(newestFirst);
 }
 
 /**
@@ -226,31 +273,47 @@ function mapMaintenances(raw: FirehydrantPayload, target: FirehydrantTarget): St
  * here; capping upstream would make older history undisclosed and unreachable.
  */
 function mapIncidents(raw: FirehydrantPayload, target: FirehydrantTarget): StatuspageIncident[] {
-  return (raw.incidents ?? [])
+  return raw.incidents
     .filter((i) => !isMaintenance(i))
     .map((i) => mapFirehydrantIncident(i, target))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .sort(newestFirst);
 }
 
-/** Normalize a Firehydrant payload into a Statuspage summary. */
+/**
+ * Normalize a Firehydrant payload into a Statuspage summary of current health. Active
+ * incidents rate the indicator; with none, a started window sets `maintenance`. A
+ * window that has not started touches neither the indicator nor any component.
+ */
 export function mapFirehydrantSummary(
   raw: FirehydrantPayload,
   target: FirehydrantTarget,
 ): StatuspageSummaryResponse {
-  const activeItems = (raw.incidents ?? []).filter((i) => isActive(i) && !isMaintenance(i));
+  const now = Date.now();
+  const open = raw.incidents.filter(isActive);
+  const activeItems = open.filter((i) => !isMaintenance(i));
   const activeIncidents = activeItems.map((i) => mapFirehydrantIncident(i, target));
+  const startedWindows = open.filter((i) => isMaintenance(i) && !startsAfter(i, now));
 
-  let indicator: StatuspageSeverityIndicator = 'none';
+  let rated: StatuspageSeverityIndicator = 'none';
   for (const inc of activeIncidents) {
-    if (inc.impact !== 'maintenance' && SEVERITY_RANK[inc.impact] > SEVERITY_RANK[indicator])
-      indicator = inc.impact;
+    if (inc.impact !== 'maintenance' && SEVERITY_RANK[inc.impact] > SEVERITY_RANK[rated])
+      rated = inc.impact;
   }
 
-  // Component status derives from active incidents: canonicalize each affected
-  // component's condition name through the page's condition table (maintenance
-  // items pin theirs to under_maintenance); everything else is operational.
+  let description = 'All Systems Operational';
+  if (activeIncidents.length > 0) {
+    description = `${activeIncidents.length} active incident${activeIncidents.length === 1 ? '' : 's'}`;
+  } else if (startedWindows.length > 0) {
+    description = `${startedWindows.length} maintenance window${startedWindows.length === 1 ? '' : 's'} in progress`;
+  }
+
+  /**
+   * Component status: a started window pins its components to under_maintenance, then
+   * each active incident's condition (canonicalized through the page's condition table)
+   * overrides it — an outage outranks a window. Everything else is operational.
+   */
   const statusByComponent = new Map<string, StatuspageComponent['status']>();
-  for (const item of (raw.incidents ?? []).filter(isActive)) {
+  for (const item of [...startedWindows, ...activeItems]) {
     for (const c of item.components ?? []) {
       const key = c.id ?? c.name;
       if (!key) continue;
@@ -262,7 +325,7 @@ export function mapFirehydrantSummary(
       );
     }
   }
-  const components: StatuspageComponent[] = (raw.components ?? []).map((c, i) => ({
+  const components: StatuspageComponent[] = raw.components.map((c, i) => ({
     id: c.id ?? `component-${i}`,
     name: c.name ?? 'Unknown',
     status:
@@ -280,15 +343,12 @@ export function mapFirehydrantSummary(
   return {
     page: buildPage(target),
     status: {
-      indicator,
-      description:
-        activeIncidents.length === 0
-          ? 'All Systems Operational'
-          : `${activeIncidents.length} active incident${activeIncidents.length === 1 ? '' : 's'}`,
+      indicator: rated === 'none' && startedWindows.length > 0 ? 'maintenance' : rated,
+      description,
     },
     components,
     incidents: activeIncidents,
-    scheduled_maintenances: mapMaintenances(raw, target),
+    scheduled_maintenances: mapMaintenances(open, target, now),
   };
 }
 
@@ -305,7 +365,10 @@ export function mapFirehydrantScheduledMaintenances(
   raw: FirehydrantPayload,
   target: FirehydrantTarget,
 ): StatuspageScheduledMaintenancesResponse {
-  return { page: buildPage(target), scheduled_maintenances: mapMaintenances(raw, target) };
+  return {
+    page: buildPage(target),
+    scheduled_maintenances: mapMaintenances(raw.incidents, target, Date.now()),
+  };
 }
 
 // --- Fetchers ---
@@ -314,11 +377,17 @@ function fetchRaw(
   target: FirehydrantTarget,
 ): Promise<{ data: FirehydrantPayload; cached: boolean }> {
   const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
-  return fetchJsonCached<FirehydrantPayload>(
-    `${target.url}${FIREHYDRANT_DATA_PATH}`,
-    cacheTtlMs,
-    fetchTimeoutMs,
-  );
+  const url = `${target.url}${FIREHYDRANT_DATA_PATH}`;
+  return fetchCached<FirehydrantPayload>(url, cacheTtlMs, fetchTimeoutMs, async (res) => {
+    const body: unknown = await res.json();
+    if (!PayloadEnvelopeSchema.safeParse(body).success) {
+      throw serviceUnavailable(
+        `${url} returned a body without the incidents and components arrays a Firehydrant status payload carries.`,
+        { reason: 'statuspage_unavailable', url },
+      );
+    }
+    return body as FirehydrantPayload;
+  });
 }
 
 export async function fetchFirehydrantSummary(

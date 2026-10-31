@@ -7,9 +7,16 @@
  * Slack's schema carries no impact level, so severity derives from the
  * incident `type`: 'outage' → critical, 'incident' → minor, 'notice' → none,
  * unknown → minor (an active event of unknown kind is at least a degradation).
+ *
+ * /current must be an object with a string `status` and /history an array. Any
+ * other body is some other document, not this API, and is rejected rather than
+ * read as a health report or an empty history. Incident fields stay unchecked, so
+ * a sparse item still maps.
  * @module services/status-adapters/slack-adapter
  */
 
+import { z } from '@cyanheads/mcp-ts-core';
+import { serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { getServerConfig } from '@/config/server-config.js';
 import type {
   StatuspageIncident,
@@ -19,8 +26,12 @@ import type {
   StatuspageSeverityIndicator,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
-import { fetchJsonCached } from '@/utils/cached-fetch.js';
+import { SEVERITY_RANK } from '@/services/statuspage/types.js';
+import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
+
+/** The /current envelope; the active incidents inside are read field by field. */
+const CurrentEnvelopeSchema = z.object({ status: z.string() });
 
 // --- Raw Slack status API types (v2.0.0) ---
 
@@ -48,7 +59,7 @@ export interface SlackCurrent {
   date_created?: string;
   date_updated?: string;
   /** 'ok' | 'active' */
-  status?: string;
+  status: string;
 }
 
 /** Identifies the vendor the response is being normalized for. */
@@ -60,8 +71,6 @@ export interface SlackTarget {
 }
 
 // --- Mappings ---
-
-const SEVERITY_RANK = { none: 0, minor: 1, major: 2, critical: 3 } as const;
 
 function typeToImpact(type: string | undefined): StatuspageSeverityIndicator {
   switch (type) {
@@ -164,7 +173,7 @@ export function mapSlackIncidents(
 ): StatuspageIncidentsResponse {
   return {
     page: buildPage(target, undefined),
-    incidents: (raw ?? []).map((i) => mapSlackIncident(i, target)),
+    incidents: raw.map((i) => mapSlackIncident(i, target)),
   };
 }
 
@@ -174,10 +183,21 @@ export async function fetchSlackSummary(
   target: SlackTarget,
 ): Promise<{ data: StatuspageSummaryResponse; cached: boolean }> {
   const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
-  const { data, cached } = await fetchJsonCached<SlackCurrent>(
-    `${target.url}/api/v2.0.0/current`,
+  const url = `${target.url}/api/v2.0.0/current`;
+  const { data, cached } = await fetchCached<SlackCurrent>(
+    url,
     cacheTtlMs,
     fetchTimeoutMs,
+    async (res) => {
+      const body: unknown = await res.json();
+      if (!CurrentEnvelopeSchema.safeParse(body).success) {
+        throw serviceUnavailable(
+          `${url} returned a body without the string status Slack's /current endpoint publishes.`,
+          { reason: 'statuspage_unavailable', url },
+        );
+      }
+      return body as SlackCurrent;
+    },
   );
   return { data: mapSlackSummary(data, target), cached };
 }
@@ -186,10 +206,21 @@ export async function fetchSlackIncidents(
   target: SlackTarget,
 ): Promise<{ data: StatuspageIncidentsResponse; cached: boolean }> {
   const { cacheTtlMs, fetchTimeoutMs } = getServerConfig();
-  const { data, cached } = await fetchJsonCached<SlackIncident[]>(
-    `${target.url}/api/v2.0.0/history`,
+  const url = `${target.url}/api/v2.0.0/history`;
+  const { data, cached } = await fetchCached<SlackIncident[]>(
+    url,
     cacheTtlMs,
     fetchTimeoutMs,
+    async (res) => {
+      const body: unknown = await res.json();
+      if (!Array.isArray(body)) {
+        throw serviceUnavailable(
+          `${url} returned a body that is not the incident array Slack's /history endpoint publishes.`,
+          { reason: 'statuspage_unavailable', url },
+        );
+      }
+      return body as SlackIncident[];
+    },
   );
   return { data: mapSlackIncidents(data, target), cached };
 }

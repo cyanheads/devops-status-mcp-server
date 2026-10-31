@@ -14,6 +14,7 @@ import type {
   StatuspageStatus,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
+import { SEVERITY_RANK } from '@/services/statuspage/types.js';
 
 /**
  * Ids of the components in scope: those whose own name, or whose group's name, starts
@@ -42,13 +43,6 @@ export function scopeRecords(
 ): StatuspageIncident[] {
   return records.filter((r) => (r.components ?? []).some((c) => ids.has(c.id)));
 }
-
-const SEVERITY_RANK: Record<StatuspageSeverityIndicator, number> = {
-  none: 0,
-  minor: 1,
-  major: 2,
-  critical: 3,
-};
 
 const COMPONENT_SEVERITY: Partial<
   Record<StatuspageComponent['status'], StatuspageSeverityIndicator>

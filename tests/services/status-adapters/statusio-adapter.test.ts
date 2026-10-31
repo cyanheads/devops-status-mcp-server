@@ -8,8 +8,12 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
+import { createFetchMock } from '@cyanheads/mcp-ts-core/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  fetchStatusioIncidents,
+  fetchStatusioScheduledMaintenances,
   fetchStatusioSummary,
   mapStatusioIncidents,
   mapStatusioScheduledMaintenances,
@@ -116,9 +120,13 @@ describe('mapStatusioSummary', () => {
     });
   });
 
-  it('maps overall maintenance (code 200) to indicator none', () => {
+  /**
+   * Status.io's documented example: overall 200 (Planned Maintenance) and an active window,
+   * beside an open incident whose latest status is 300 — the incident outranks the window (#79).
+   */
+  it('rates overall maintenance (code 200) by the open incident beside it', () => {
     const summary = mapStatusioSummary(fixture('statusio-incident-doc-derived.json'), GITLAB);
-    expect(summary.status.indicator).toBe('none');
+    expect(summary.status.indicator).toBe('minor');
     expect(summary.status.description).toBe('Planned Maintenance');
   });
 
@@ -140,6 +148,82 @@ describe('mapStatusioSummary', () => {
     expect(mapStatusioSummary(withCode(600), GITLAB).status.indicator).toBe('critical');
     expect(mapStatusioSummary(withCode(999), GITLAB).status.indicator).toBe('minor');
     expect(mapStatusioSummary(withCode(undefined), GITLAB).status.indicator).toBe('minor');
+  });
+});
+
+describe('mapStatusioSummary maintenance indicator (#79)', () => {
+  /** The documented example without its incident: overall 200, one active window, one upcoming. */
+  const windowOnly = (): StatusioResponse => {
+    const raw = fixture('statusio-incident-doc-derived.json');
+    raw.result.incidents = [];
+    return raw;
+  };
+
+  it('reads overall 200 with no open incident as maintenance', () => {
+    const summary = mapStatusioSummary(windowOnly(), GITLAB);
+    expect(summary.status).toEqual({
+      indicator: 'maintenance',
+      description: 'Planned Maintenance',
+    });
+    expect(summary.components.find((c) => c.name === 'Website')?.status).toBe('under_maintenance');
+    expect(summary.scheduled_maintenances?.map((m) => [m.name, m.status])).toEqual([
+      ['Network Upgrade', 'in_progress'],
+      ['Mobile App Upgrade', 'scheduled'],
+    ]);
+  });
+
+  it.each([
+    ['latest status 100', 100, 200, 'maintenance'],
+    ['latest status 200 (a maintenance event)', 200, 200, 'maintenance'],
+    ['resolved (state 400) at status 300', 300, 400, 'maintenance'],
+    ['latest status 300', 300, 200, 'minor'],
+    ['latest status 400', 400, 200, 'major'],
+    ['latest status 500', 500, 200, 'critical'],
+    ['latest status 600', 600, 300, 'critical'],
+  ] as const)(
+    'reads overall 200 beside an incident at %s (status %i, state %i) as %s',
+    (_label, status, state, indicator) => {
+      const raw = fixture('statusio-incident-doc-derived.json');
+      raw.result.incidents![0]!.messages = [
+        { details: 'x', state, status, datetime: '2021-12-06T17:00:00.000Z' },
+      ];
+      expect(mapStatusioSummary(raw, GITLAB).status.indicator).toBe(indicator);
+    },
+  );
+
+  it('rates by the worst open incident when several are open, wherever it is listed', () => {
+    const raw = fixture('statusio-incident-doc-derived.json');
+    const [open] = raw.result.incidents!;
+    raw.result.incidents!.push(
+      {
+        ...open,
+        _id: 'second',
+        messages: [{ details: 'x', state: 100, status: 400, datetime: '2021-12-06T17:00:00.000Z' }],
+      },
+      { ...open, _id: 'third' },
+    );
+    expect(mapStatusioSummary(raw, GITLAB).status.indicator).toBe('major');
+  });
+
+  it.each([
+    [300, 'minor'],
+    [400, 'major'],
+    [500, 'critical'],
+    [600, 'critical'],
+  ] as const)(
+    'lets overall %i beside an active window set its own indicator',
+    (code, indicator) => {
+      const raw = windowOnly();
+      raw.result.status_overall.status_code = code;
+      expect(mapStatusioSummary(raw, GITLAB).status.indicator).toBe(indicator);
+    },
+  );
+
+  it('reads overall 100 with only an upcoming window as none', () => {
+    const raw = windowOnly();
+    raw.result.status_overall = { updated: '', status: 'Operational', status_code: 100 };
+    raw.result.maintenance!.active = [];
+    expect(mapStatusioSummary(raw, GITLAB).status.indicator).toBe('none');
   });
 });
 
@@ -182,6 +266,7 @@ describe('mapStatusioIncidents', () => {
     const raw: StatusioResponse = {
       result: {
         status_overall: { updated: '', status: 'Operational', status_code: 100 },
+        status: [],
         incidents: [{}],
       },
     };
@@ -225,6 +310,22 @@ describe('mapStatusioScheduledMaintenances', () => {
     const upcoming = scheduled_maintenances.find((m) => m.name === 'Mobile App Upgrade')!;
     expect(upcoming.status).toBe('scheduled');
   });
+
+  /** A window with no datetime_planned_end has no end to report; one with it keeps it (#91). */
+  it('leaves scheduled_until unset on a window with no planned end, on both lists', () => {
+    const raw = fixture('statusio-incident-doc-derived.json');
+    delete raw.result.maintenance!.upcoming![0]!.datetime_planned_end;
+    for (const windows of [
+      mapStatusioScheduledMaintenances(raw, GITLAB).scheduled_maintenances,
+      mapStatusioSummary(raw, GITLAB).scheduled_maintenances ?? [],
+    ]) {
+      expect(windows.map((m) => [m.name, m.scheduled_for, m.scheduled_until])).toEqual([
+        ['Network Upgrade', '2021-12-06T16:50:00.000Z', '2021-12-06T17:50:00.000Z'],
+        ['Mobile App Upgrade', '2021-12-22T15:00:00.000Z', undefined],
+      ]);
+      expect(Object.hasOwn(windows[1]!, 'scheduled_until')).toBe(false);
+    }
+  });
 });
 
 describe('fetchStatusioSummary', () => {
@@ -245,5 +346,84 @@ describe('fetchStatusioSummary', () => {
     expect(data.status.indicator).toBe('none');
     const url = vi.mocked(fetch).mock.calls[0]?.[0] as string;
     expect(url).toBe(`https://status-api.hostedstatus.com/1.0/status/${target.statusio_page_id}`);
+  });
+});
+
+/**
+ * A body without `result.status_overall` (an object) and `result.status` (a list) is
+ * some other document, never a health report. The check runs in the fetch's parse
+ * step, so a rejected body never reaches the response cache (#78).
+ */
+describe('response envelope (#78)', () => {
+  const http = createFetchMock();
+  let pages = 0;
+  /** A page ID no other case has fetched, so the shared response cache holds nothing for it. */
+  const freshPage = () => {
+    const id = `envelope-${++pages}`;
+    return {
+      target: { ...GITLAB, statusio_page_id: id },
+      feed: `https://status-api.hostedstatus.com/1.0/status/${id}`,
+    };
+  };
+
+  beforeEach(() => {
+    http.reset();
+    http.install();
+  });
+
+  afterEach(() => {
+    http.restore();
+  });
+
+  it.each([
+    ['an empty result', { result: {} }],
+    ['an empty object', {}],
+    ['a result without the component list', { result: { status_overall: {} } }],
+    ['a result without status_overall', { result: { status: [] } }],
+    ['a null status_overall', { result: { status_overall: null, status: [] } }],
+    ['null', null],
+  ])('rejects %s as statuspage_unavailable naming the feed URL', async (_label, body) => {
+    const { target, feed } = freshPage();
+    http.route({ match: feed, respond: () => Response.json(body) });
+    const err = await fetchStatusioSummary(target).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(McpError);
+    expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
+    expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable', url: feed });
+  });
+
+  it.each([
+    ['incidents', fetchStatusioIncidents],
+    ['scheduled maintenances', fetchStatusioScheduledMaintenances],
+  ] as const)('fails the %s read on the same check', async (_label, fetcher) => {
+    const { target, feed } = freshPage();
+    http.route({ match: feed, respond: () => Response.json({}) });
+    await expect(fetcher(target)).rejects.toMatchObject({
+      data: { reason: 'statuspage_unavailable', url: feed },
+    });
+  });
+
+  it('caches nothing from a rejected body — the valid body served next is read on the following call', async () => {
+    const { target, feed } = freshPage();
+    http.route(
+      { match: feed, once: true, respond: () => Response.json({ result: {} }) },
+      { match: feed, respond: () => Response.json(fixture('statusio-gitlab.json')) },
+    );
+    await expect(fetchStatusioSummary(target)).rejects.toMatchObject({
+      data: { reason: 'statuspage_unavailable' },
+    });
+    const { data, cached } = await fetchStatusioSummary(target);
+    expect(cached).toBe(false);
+    expect(data.status).toEqual({ indicator: 'none', description: 'Operational' });
+    expect(http.calls).toHaveLength(2);
+  });
+
+  it('maps a sparse incident inside a valid envelope', async () => {
+    const { target, feed } = freshPage();
+    http.route({
+      match: feed,
+      respond: () => Response.json({ result: { status_overall: {}, status: [], incidents: [{}] } }),
+    });
+    const { data } = await fetchStatusioIncidents(target);
+    expect(data.incidents.map((i) => [i.id, i.status])).toEqual([['unknown', 'investigating']]);
   });
 });

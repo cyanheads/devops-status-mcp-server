@@ -6,7 +6,9 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
+import { createFetchMock } from '@cyanheads/mcp-ts-core/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type AwsEvent,
   decodeUtf16,
@@ -16,6 +18,7 @@ import {
   mapAwsEvent,
   mapAwsSummary,
 } from '@/services/status-adapters/aws-adapter.js';
+import { clearFetchCache } from '@/utils/cached-fetch.js';
 
 vi.mock('@/config/server-config.js', () => ({
   getServerConfig: () => ({
@@ -342,5 +345,72 @@ describe('fetchers', () => {
     const { data } = await fetchAwsScheduledMaintenances(AWS);
     expect(data.scheduled_maintenances).toHaveLength(0);
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Anything but the top-level event array is some other document, never an all-clear.
+ * The check runs in the fetch's parse step, so a rejected body never reaches the
+ * response cache (#78).
+ */
+describe('feed envelope (#78)', () => {
+  const FEED = 'https://health.aws.amazon.com/public/currentevents';
+  const http = createFetchMock();
+  const utf16 = (value: unknown) => new Response(Buffer.from(JSON.stringify(value), 'utf16le'));
+
+  beforeEach(() => {
+    // The feed URL is fixed, so every case starts from an empty response cache.
+    clearFetchCache();
+    http.reset();
+    http.install();
+  });
+
+  afterEach(() => {
+    http.restore();
+  });
+
+  it.each([
+    ['null', null],
+    ['an empty object', {}],
+    ['an error envelope', { error: 'x' }],
+  ])('rejects %s as statuspage_unavailable naming the feed URL', async (_label, body) => {
+    http.route({ match: FEED, respond: () => utf16(body) });
+    const err = await fetchAwsSummary(AWS).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(McpError);
+    expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
+    expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable', url: FEED });
+  });
+
+  it('fails the incident read on the same check', async () => {
+    http.route({ match: FEED, respond: () => utf16({}) });
+    await expect(fetchAwsIncidents(AWS)).rejects.toMatchObject({
+      data: { reason: 'statuspage_unavailable', url: FEED },
+    });
+  });
+
+  it('caches nothing from a rejected body — the valid body served next is read on the following call', async () => {
+    http.route(
+      { match: FEED, once: true, respond: () => utf16(null) },
+      { match: FEED, respond: () => utf16([OPEN_EVENT]) },
+    );
+    await expect(fetchAwsSummary(AWS)).rejects.toMatchObject({
+      data: { reason: 'statuspage_unavailable' },
+    });
+    const { data, cached } = await fetchAwsSummary(AWS);
+    expect(cached).toBe(false);
+    expect(data.status.indicator).toBe('major');
+    expect(http.calls).toHaveLength(2);
+  });
+
+  it('reads an empty array as all clear and still maps a sparse event inside one', async () => {
+    http.route(
+      { match: FEED, once: true, respond: () => utf16([]) },
+      { match: FEED, respond: () => utf16([{}]) },
+    );
+    const { data: summary } = await fetchAwsSummary(AWS);
+    expect(summary.status).toEqual({ indicator: 'none', description: 'All Systems Operational' });
+    clearFetchCache();
+    const { data: list } = await fetchAwsIncidents(AWS);
+    expect(list.incidents.map((i) => [i.status, i.impact])).toEqual([['investigating', 'minor']]);
   });
 });

@@ -6,7 +6,9 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
+import { createFetchMock } from '@cyanheads/mcp-ts-core/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchSlackIncidents,
   fetchSlackScheduledMaintenances,
@@ -225,5 +227,94 @@ describe('fetchers', () => {
     const { data } = await fetchSlackScheduledMaintenances(SLACK);
     expect(data.scheduled_maintenances).toHaveLength(0);
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * /current must be an object with a string `status` and /history an array; any other
+ * body is some other document, never a health report. The checks run in each fetch's
+ * parse step, so a rejected body never reaches the response cache (#78).
+ */
+describe('endpoint envelopes (#78)', () => {
+  const http = createFetchMock();
+  let pages = 0;
+  /** A base URL no other case has fetched, so the shared response cache holds nothing for it. */
+  const freshPage = () => {
+    const url = `https://status-envelope-${++pages}.slack.example.com`;
+    return {
+      target: { ...SLACK, url },
+      current: `${url}/api/v2.0.0/current`,
+      history: `${url}/api/v2.0.0/history`,
+    };
+  };
+
+  const expectUnavailable = (err: unknown, url: string) => {
+    expect(err).toBeInstanceOf(McpError);
+    expect((err as McpError).code).toBe(JsonRpcErrorCode.ServiceUnavailable);
+    expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable', url });
+  };
+
+  beforeEach(() => {
+    http.reset();
+    http.install();
+  });
+
+  afterEach(() => {
+    http.restore();
+  });
+
+  it.each([
+    ['an error envelope', { error: 'x' }],
+    ['an object without status', { active_incidents: [] }],
+    ['a non-string status', { status: 1, active_incidents: [] }],
+    ['an array', []],
+    ['null', null],
+  ])('rejects %s from /current as statuspage_unavailable', async (_label, body) => {
+    const { target, current } = freshPage();
+    http.route({ match: current, respond: () => Response.json(body) });
+    expectUnavailable(await fetchSlackSummary(target).catch((e: unknown) => e), current);
+  });
+
+  it.each([
+    ['an error envelope', { error: 'x' }],
+    ['null', null],
+  ])('rejects %s from /history as statuspage_unavailable', async (_label, body) => {
+    const { target, history } = freshPage();
+    http.route({ match: history, respond: () => Response.json(body) });
+    expectUnavailable(await fetchSlackIncidents(target).catch((e: unknown) => e), history);
+  });
+
+  it('caches nothing from a rejected body on either endpoint', async () => {
+    const { target, current, history } = freshPage();
+    http.route(
+      { match: current, once: true, respond: () => Response.json({ error: 'x' }) },
+      { match: current, respond: () => Response.json({ status: 'ok', active_incidents: [] }) },
+      { match: history, once: true, respond: () => Response.json({ error: 'x' }) },
+      { match: history, respond: () => Response.json([{ id: 7, status: 'resolved' }]) },
+    );
+    await expect(fetchSlackSummary(target)).rejects.toMatchObject({
+      data: { reason: 'statuspage_unavailable' },
+    });
+    await expect(fetchSlackIncidents(target)).rejects.toMatchObject({
+      data: { reason: 'statuspage_unavailable' },
+    });
+
+    const summary = await fetchSlackSummary(target);
+    expect(summary.cached).toBe(false);
+    expect(summary.data.status.indicator).toBe('none');
+    const list = await fetchSlackIncidents(target);
+    expect(list.cached).toBe(false);
+    expect(list.data.incidents.map((i) => [i.id, i.status])).toEqual([['7', 'resolved']]);
+  });
+
+  it('still reads active with an empty list as minor, and maps a sparse history item', async () => {
+    const { target, current, history } = freshPage();
+    http.route(
+      { match: current, respond: () => Response.json({ status: 'active', active_incidents: [] }) },
+      { match: history, respond: () => Response.json([{}]) },
+    );
+    expect((await fetchSlackSummary(target)).data.status.indicator).toBe('minor');
+    const { data } = await fetchSlackIncidents(target);
+    expect(data.incidents.map((i) => [i.id, i.status])).toEqual([['unknown', 'investigating']]);
   });
 });

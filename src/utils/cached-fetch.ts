@@ -256,12 +256,3 @@ export async function fetchCached<T>(
     clearTimeout(timer);
   }
 }
-
-/** Fetch a URL with timeout and TTL cache, parsing the body as JSON. */
-export function fetchJsonCached<T>(
-  url: string,
-  ttlMs: number,
-  timeoutMs: number,
-): Promise<{ data: T; cached: boolean }> {
-  return fetchCached(url, ttlMs, timeoutMs, (res) => res.json() as Promise<T>);
-}

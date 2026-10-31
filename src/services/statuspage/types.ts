@@ -19,12 +19,21 @@ export interface StatuspagePage {
 }
 
 /**
- * The severity ladder an outage is rated on. The native adapters synthesize an
- * indicator by ranking incident impacts and skip maintenance records while doing
- * it, so they only ever produce a value from this ladder — `maintenance` reaches
- * a caller from a Statuspage page's own `status` block, never from a mapper.
+ * The severity ladder an outage is rated on; the native adapters rank incident
+ * impacts on it. `maintenance` sits off the ladder: a Statuspage page publishes it
+ * in its own `status` block, and the Status.io (overall code 200) and Firehydrant
+ * (a started, unresolved MAINTENANCE item) adapters set it only while no open
+ * incident rates — an outage outranks a window.
  */
 export type StatuspageSeverityIndicator = 'none' | 'minor' | 'major' | 'critical';
+
+/** Each rung's place on the severity ladder, best first, for ranking impacts against each other. */
+export const SEVERITY_RANK: Record<StatuspageSeverityIndicator, number> = {
+  none: 0,
+  minor: 1,
+  major: 2,
+  critical: 3,
+};
 
 export interface StatuspageStatus {
   description: string;
@@ -80,6 +89,12 @@ export interface IncidentUpdate {
 }
 
 export interface StatuspageIncident {
+  /**
+   * Regions the incident lists apart from its components, currently affected first.
+   * Only the Google Cloud adapter sets it, and only when the incident lists at least
+   * one location; Statuspage publishes no such field.
+   */
+  affected_locations?: { current: boolean; id: string; name: string }[];
   components: StatuspageComponent[];
   created_at: string;
   id: string;
@@ -96,7 +111,7 @@ export interface StatuspageIncident {
   resolved_at: string | null;
   /** Present for scheduled maintenances. */
   scheduled_for?: string;
-  /** Present for scheduled maintenances. */
+  /** Present for scheduled maintenances whose feed publishes a planned end; absent otherwise. */
   scheduled_until?: string;
   shortlink?: string | null;
   started_at?: string | null;

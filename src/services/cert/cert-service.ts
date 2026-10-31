@@ -48,6 +48,14 @@ const CHAIN_DEPTH_UNAVAILABLE =
 const NO_PEER_CERTIFICATE = 'The TLS handshake completed but the server presented no certificate.';
 
 /**
+ * The flag for a certificate that does not cover `host`. The tool's renderer builds it again with
+ * the host as a code span, so this is the one place the wording lives.
+ */
+export function hostnameMismatchFlag(host: string): string {
+  return `Hostname mismatch — the certificate does not cover ${host}; clients will reject it`;
+}
+
+/**
  * `socket.authorizationError` is typed as `Error` but arrives as a bare OpenSSL code string on
  * some runtimes. Normalize both shapes to the code.
  */
@@ -272,11 +280,7 @@ function gradeSession(
       flags.push(`Expires in ${daysUntilExpiry} days (warning)`);
     }
 
-    if (hostnameVerificationError) {
-      flags.push(
-        `Hostname mismatch — the certificate does not cover ${host}; clients will reject it`,
-      );
-    }
+    if (hostnameVerificationError) flags.push(hostnameMismatchFlag(host));
 
     /**
      * Chain trust. `authorization_error` is the authoritative signal — the issuer/subject

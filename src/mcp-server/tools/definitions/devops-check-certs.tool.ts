@@ -8,7 +8,7 @@ import { isIP } from 'node:net';
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getServerConfig } from '@/config/server-config.js';
-import { getCertService } from '@/services/cert/cert-service.js';
+import { getCertService, hostnameMismatchFlag } from '@/services/cert/cert-service.js';
 import { normalizeDomainInput } from '@/utils/domain-input.js';
 import { clampMax, deferralNotice, splitBatch } from '@/utils/input-bounds.js';
 import { literal } from '@/utils/markdown-literal.js';
@@ -224,7 +224,14 @@ export const devopsCheckCerts = tool('devops_check_certs', {
       const host = isIP(r.domain) === 6 ? `[${literal(r.domain)}]` : literal(r.domain);
       lines.push(`### ${icon} ${host}:${r.port} — ${r.status}`);
       if (r.error) lines.push(`**Error:** ${escapeMarkdownInline(r.error)}`);
-      if (r.flags.length > 0) lines.push(`**Flags:** ${r.flags.join(' | ')}`);
+      if (r.flags.length > 0) {
+        // The mismatch flag names the inspected host, which renders as its own span.
+        const mismatch = hostnameMismatchFlag(r.domain);
+        const flags = r.flags.map((f) =>
+          f === mismatch ? hostnameMismatchFlag(literal(r.domain)) : f,
+        );
+        lines.push(`**Flags:** ${flags.join(' | ')}`);
+      }
       if (r.cert) {
         // The names are whatever the inspected host's certificate carries.
         lines.push(`**Subject:** ${literal(r.cert.subject)}`);

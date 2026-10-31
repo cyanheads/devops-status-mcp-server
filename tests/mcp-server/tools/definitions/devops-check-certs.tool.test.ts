@@ -52,9 +52,10 @@ const exact = (value: string): [sent: string, readBack: string] => [
 const NO_ISSUER_FOUND =
   'No issuer for the leaf certificate was found among the certificates the server sent or in the trust store, so no chain could be assembled from it, as when a server sends its leaf without the certificate that issued it. Read authorization_error for the chain-trust verdict.';
 
-vi.mock('@/services/cert/cert-service.js', () => {
+vi.mock('@/services/cert/cert-service.js', async (importOriginal) => {
   const mockCheckDomains = vi.fn();
   return {
+    ...(await importOriginal<typeof import('@/services/cert/cert-service.js')>()),
     getCertService: () => ({ checkDomains: mockCheckDomains }),
     initCertService: vi.fn(),
     _mockCheckDomains: mockCheckDomains,
@@ -474,6 +475,51 @@ describe('devopsCheckCerts', () => {
       expect(lines).toContain(`⟨strong⟩Issuer:⟨/strong⟩ ${ISSUER[1]}`);
       expect(lines).toContain(`⟨strong⟩Hostname mismatch:⟨/strong⟩ ⟨code_inline:${MISMATCH}⟩`);
       expect(lines).toContain('🔴 ⟨code_inline:x.y.appspot.com⟩:443 — critical');
+    });
+
+    /**
+     * The hostname-mismatch flag names the inspected host, so content[] renders that host as its
+     * own span; every flag keeps its text in structuredContent, and a flag that names no host
+     * renders as built (#93).
+     */
+    it('reads the host in the hostname-mismatch flag back as written, flags kept as built (#93)', async () => {
+      const host = '_x_.1.1.1.1.nip.io';
+      const flags = [
+        'Hostname mismatch — the certificate does not cover _x_.1.1.1.1.nip.io; clients will reject it',
+        'HSTS not configured',
+      ];
+      const { _mockCheckDomains } = (await import(
+        '@/services/cert/cert-service.js'
+      )) as unknown as { _mockCheckDomains: ReturnType<typeof vi.fn> };
+      _mockCheckDomains.mockReset();
+      _mockCheckDomains.mockResolvedValue([{ ...MISMATCH_CERT, domain: host, flags }]);
+
+      const result = await runToolContract(devopsCheckCerts, { domains: [host] });
+      expect(result.isError).toBeFalsy();
+      const structured = result.structuredContent as { results: CertResult[] };
+      expect(structured.results[0]!.flags).toEqual(flags);
+
+      const lines = readLines(contentText(result.content));
+      expect(lines).toContain(
+        '⟨strong⟩Flags:⟨/strong⟩ Hostname mismatch — the certificate does not cover ⟨code_inline:_x_.1.1.1.1.nip.io⟩; clients will reject it | HSTS not configured',
+      );
+    });
+
+    it('renders flags that name no host as built (#93)', () => {
+      const flags = [
+        'Certificate expired 40 days ago',
+        'Certificate chain not trusted (SELF_SIGNED_CERT_IN_CHAIN); clients will reject it',
+        'Self-signed certificate',
+        'Insecure TLS version in use: TLSv1.1',
+        'HSTS not checked — no HTTP response on port 993',
+      ];
+      const text = (
+        devopsCheckCerts.format!({
+          deferred_domains: [],
+          results: [{ ...UNTRUSTED_CERT, flags }],
+        })[0] as { text: string }
+      ).text;
+      expect(text).toContain(`**Flags:** ${flags.join(' | ')}`);
     });
 
     it('renders an empty subject as (empty) and no SANs as none', () => {

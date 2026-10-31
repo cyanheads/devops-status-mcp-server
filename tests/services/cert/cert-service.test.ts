@@ -484,11 +484,9 @@ describe('CertService — hostname and chain-trust verification', () => {
 
     expect(results[0]!.status).toBe('critical');
     expect(results[0]!.cert!.hostname_verification_error).toContain('does not match');
-    expect(
-      results[0]!.flags.some((f) =>
-        f.startsWith('Hostname mismatch — the certificate does not cover wrong.host.example.com'),
-      ),
-    ).toBe(true);
+    expect(results[0]!.flags).toContain(
+      'Hostname mismatch — the certificate does not cover wrong.host.example.com; clients will reject it',
+    );
   });
 
   it('untrusted root → status critical with the chain-verification code', async () => {

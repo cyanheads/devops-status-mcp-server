@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-10-31 01:09:19
+Generated on: 2026-10-31 20:16:12
 
 ```text
 devops-status-mcp-server/
@@ -185,6 +185,7 @@ devops-status-mcp-server/
 │   │   │   ├── azure-adapter.ts
 │   │   │   ├── azure-devops-adapter.ts
 │   │   │   ├── component-scope.ts
+│   │   │   ├── datadog-adapter.ts
 │   │   │   ├── firehydrant-adapter.ts
 │   │   │   ├── gcp-adapter.ts
 │   │   │   ├── rss-extract.ts
@@ -253,6 +254,7 @@ devops-status-mcp-server/
 │   │   │   │   ├── azure-feed-20251029.xml
 │   │   │   │   ├── azure-feed-20260723.xml
 │   │   │   │   ├── azure-feed-empty.xml
+│   │   │   │   ├── datadog-us1.json
 │   │   │   │   ├── firehydrant-redis.json
 │   │   │   │   ├── gcp-incidents.json
 │   │   │   │   ├── slack-current.json
@@ -267,6 +269,7 @@ devops-status-mcp-server/
 │   │   │   ├── azure-adapter.test.ts
 │   │   │   ├── azure-devops-adapter.test.ts
 │   │   │   ├── component-scope.test.ts
+│   │   │   ├── datadog-adapter.test.ts
 │   │   │   ├── firehydrant-adapter.test.ts
 │   │   │   ├── gcp-adapter.test.ts
 │   │   │   ├── slack-adapter.test.ts

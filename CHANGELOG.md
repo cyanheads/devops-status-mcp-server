@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.11.1](changelog/0.11.x/0.11.1.md) — 2026-10-31
+
+Datadog reads its own status pages through a native adapter, with eight more site entries (71 vendors). AWS incidents list their region, and match reads hyphenated terms such as eu-central-1 as one phrase. Notices for history limits and empty results are corrected, and the cert Flags line renders the host as written.
+
 ## [0.11.0](changelog/0.11.x/0.11.0.md) — 2026-10-30 · ⚠️ Breaking · 🛡️ Security
 
 Adds ten Atlassian product vendors, component paging, Google Cloud affected locations, and a published devops-status-guide agent skill; summary and health now count an open incident the page's indicator misses. Breaking: a maintenance window with no published end reports scheduled_until as null, not an empty string.

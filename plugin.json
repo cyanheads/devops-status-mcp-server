@@ -1,0 +1,29 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "devops-status-mcp-server",
+  "version": "0.10.0",
+  "description": "Check vendor status pages, inspect SSL/TLS certificates, verify DNS propagation, and get incident-response playbooks.",
+  "author": {
+    "name": "cyanheads",
+    "email": "casey@caseyjhand.com",
+    "url": "https://github.com/cyanheads"
+  },
+  "homepage": "https://github.com/cyanheads/devops-status-mcp-server#readme",
+  "repository": "git+https://github.com/cyanheads/devops-status-mcp-server.git",
+  "license": "Apache-2.0",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "devops",
+    "status-page",
+    "statuspage",
+    "incident-response",
+    "ssl-certificate",
+    "dns",
+    "typescript",
+    "bun",
+    "stdio",
+    "streamable-http"
+  ]
+}

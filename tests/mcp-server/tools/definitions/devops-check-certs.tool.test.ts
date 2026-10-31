@@ -3,10 +3,54 @@
  * @module tests/mcp-server/tools/definitions/devops-check-certs.tool.test
  */
 
+import { checkServerIdentity, type PeerCertificate } from 'node:tls';
 import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
+import MarkdownIt from 'markdown-it';
 import { describe, expect, it, vi } from 'vitest';
 import { devopsCheckCerts } from '@/mcp-server/tools/definitions/devops-check-certs.tool.js';
 import type { CertResult } from '@/services/cert/cert-service.js';
+
+/** A CommonMark parser with raw HTML on, as a GFM client parses content[]. */
+const commonMark = new MarkdownIt('default', { html: true });
+
+/**
+ * The whole content[] text parsed once and read back one source line at a time: text as a
+ * reader gets it, every other node named in place (`⟨code_inline:…⟩`, `⟨strong⟩…⟨/strong⟩`,
+ * `⟨em⟩`, `⟨html_inline:…⟩`), so an expectation written as text and spans fails on any live
+ * syntax.
+ */
+function readLines(text: string): string[] {
+  const lines: string[] = [];
+  for (const token of commonMark.parse(text, {})) {
+    if (token.type !== 'inline') continue;
+    let line = '';
+    for (const child of token.children ?? []) {
+      if (child.type === 'softbreak' || child.type === 'hardbreak') {
+        lines.push(line);
+        line = '';
+      } else if (child.type === 'text' || child.type === 'text_special') line += child.content;
+      else if (child.nesting === 1) line += `⟨${child.tag}⟩`;
+      else if (child.nesting === -1) line += `⟨/${child.tag}⟩`;
+      else line += `⟨${child.type}:${child.content}⟩`;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+/** content[] of a tool result as one string. */
+const contentText = (content: Array<{ type: string; text?: string }>) =>
+  content.map((b) => (b.type === 'text' ? (b.text ?? '') : '')).join('\n');
+
+/** A value that reads back byte-identical as its own code span. */
+const exact = (value: string): [sent: string, readBack: string] => [
+  value,
+  `⟨code_inline:${value}⟩`,
+];
+
+/** `chain_depth_unavailable_reason` when no issuer for the leaf was found (#86). */
+const NO_ISSUER_FOUND =
+  'No issuer for the leaf certificate was found among the certificates the server sent or in the trust store, so no chain could be assembled from it, as when a server sends its leaf without the certificate that issued it. Read authorization_error for the chain-trust verdict.';
 
 vi.mock('@/services/cert/cert-service.js', () => {
   const mockCheckDomains = vi.fn();
@@ -62,8 +106,7 @@ const CRITICAL_CERT: CertResult = {
     valid_until: '2025-06-04T00:00:00Z',
     days_until_expiry: 3,
     chain_depth: null,
-    chain_depth_unavailable_reason:
-      'This runtime did not expose issuerCertificate on the peer certificate.',
+    chain_depth_unavailable_reason: NO_ISSUER_FOUND,
     hostname_verification_error: null,
     authorization_error: null,
     serial: 'DEF456',
@@ -100,8 +143,7 @@ const MISMATCH_CERT: CertResult = {
     valid_until: '2026-01-01T00:00:00Z',
     days_until_expiry: 90,
     chain_depth: null,
-    chain_depth_unavailable_reason:
-      'This runtime did not expose issuerCertificate on the peer certificate.',
+    chain_depth_unavailable_reason: NO_ISSUER_FOUND,
     hostname_verification_error:
       "Hostname/IP does not match certificate's altnames: Host: wrong.host.example.com. is not in the cert's altnames: DNS:*.example.com",
     authorization_error: null,
@@ -126,8 +168,7 @@ const UNTRUSTED_CERT: CertResult = {
     valid_until: '2027-01-01T00:00:00Z',
     days_until_expiry: 500,
     chain_depth: null,
-    chain_depth_unavailable_reason:
-      'This runtime did not expose issuerCertificate on the peer certificate.',
+    chain_depth_unavailable_reason: NO_ISSUER_FOUND,
     hostname_verification_error: null,
     authorization_error: 'SELF_SIGNED_CERT_IN_CHAIN',
     serial: 'UNTRUSTED1',
@@ -268,12 +309,14 @@ describe('devopsCheckCerts', () => {
     );
   });
 
-  it('brackets an IPv6 host in the rendered heading (#68)', () => {
+  it('brackets an IPv6 host in the rendered heading, the host reading back as its own span (#68, #75)', () => {
     const blocks = devopsCheckCerts.format!({
       deferred_domains: [],
       results: [{ ...VALID_CERT, domain: '2606:4700:4700::1111', port: 853 }],
     });
-    expect((blocks[0] as { text: string }).text).toContain('[2606:4700:4700::1111]:853 — ok');
+    const text = (blocks[0] as { text: string }).text;
+    expect(text).toContain('### ✅ [`2606:4700:4700::1111`]:853 — ok');
+    expect(readLines(text)).toContain('✅ [⟨code_inline:2606:4700:4700::1111⟩]:853 — ok');
   });
 
   it('returns warning status for cert expiring in 20 days', async () => {
@@ -358,8 +401,7 @@ describe('devopsCheckCerts', () => {
     const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('**Chain depth:** unavailable');
-    expect(text).toContain('Chain depth unavailable:');
-    expect(text).toContain('issuerCertificate');
+    expect(text).toContain(`**Chain depth unavailable:** ${NO_ISSUER_FOUND}`);
     expect(text).not.toContain('**Chain depth:** 1');
   });
 
@@ -374,52 +416,178 @@ describe('devopsCheckCerts', () => {
   });
 
   /**
-   * The subject, issuer, and SANs are whatever the inspected host's certificate carries, and
-   * a hostname mismatch quotes its SANs, so content[] renders them as relayed text: one line
-   * each, `<` and entity-starting `&` escaped. structuredContent keeps them as presented.
+   * The subject, SANs, and issuer are whatever the inspected host's certificate carries, and a
+   * hostname mismatch quotes its SANs, so content[] renders each as its own code span that a
+   * CommonMark parse reads back as presented. structuredContent keeps them as presented (#75).
    */
-  it('escapes certificate-supplied names in content[], keeping structuredContent as presented', async () => {
-    const MARKUP_CERT: CertResult = {
-      ...VALID_CERT,
-      domain: 'markup.example.com',
-      cert: {
-        ...VALID_CERT.cert!,
-        subject: 'evil.example\n# heading <b>',
-        san: ['<img src=x>.example', 'ok.example'],
-        issuer: 'Acme &amp; Co <i>CA</i>',
-        hostname_verification_error:
-          "Hostname/IP does not match certificate's altnames: Host: markup.example.com. is not in the cert's altnames: DNS:<img src=x>.example",
-      },
-    };
-    const { _mockCheckDomains } = (await import('@/services/cert/cert-service.js')) as unknown as {
-      _mockCheckDomains: ReturnType<typeof vi.fn>;
-    };
-    _mockCheckDomains.mockResolvedValue([MARKUP_CERT]);
+  describe('certificate names in content[] (#75)', () => {
+    const SUBJECT = exact(' *CA* [x](https://evil.example) `t` <b> ');
+    const SANS: Array<[sent: string, readBack: string]> = [
+      exact('*.a.example.com'),
+      exact('_x_.example.com'),
+      exact('a\\.b\\\\c.example'),
+      exact('&amp; &#60; &copy;'),
+      exact('``'),
+      exact(' both '),
+      exact('leading '),
+      exact('one, two'),
+      ['line\nbreak', '⟨code_inline:line break⟩'],
+      ['nul\u0000', '⟨code_inline:nul�⟩'],
+      ['', '(empty)'],
+    ];
+    const ISSUER = exact('Acme *CA* <i>R3</i> &copy;');
+    /** The runtime's own message for a host that one-label wildcard SANs do not cover. */
+    const MISMATCH = checkServerIdentity('x.y.appspot.com', {
+      subject: { CN: '*.appspot.com' },
+      subjectaltname:
+        'DNS:*.appspot.com, DNS:*.thinkwithgoogle.com, DNS:*.appspot-preview.com, DNS:appspot.com',
+    } as unknown as PeerCertificate)?.message;
 
-    const result = await runToolContract(devopsCheckCerts, { domains: ['markup.example.com'] });
-    expect(result.isError).toBeFalsy();
-    const structured = result.structuredContent as { results: CertResult[] };
-    expect(structured.results[0]!.cert).toEqual(MARKUP_CERT.cert);
+    it('reads every name back from its own code span, structuredContent as presented', async () => {
+      expect(MISMATCH?.split('*').length).toBeGreaterThan(3);
+      const NAMES_CERT: CertResult = {
+        ...VALID_CERT,
+        domain: 'x.y.appspot.com',
+        status: 'critical',
+        cert: {
+          ...VALID_CERT.cert!,
+          subject: SUBJECT[0],
+          san: SANS.map(([sent]) => sent),
+          issuer: ISSUER[0],
+          hostname_verification_error: MISMATCH!,
+        },
+      };
+      const { _mockCheckDomains } = (await import(
+        '@/services/cert/cert-service.js'
+      )) as unknown as { _mockCheckDomains: ReturnType<typeof vi.fn> };
+      _mockCheckDomains.mockReset();
+      _mockCheckDomains.mockResolvedValue([NAMES_CERT]);
 
-    const lines = result.content
-      .map((b) => (b.type === 'text' ? b.text : ''))
-      .join('\n')
-      .split('\n');
-    expect(lines).toContain('**Subject:** evil.example # heading &lt;b>');
-    expect(lines).toContain('**SANs:** &lt;img src=x>.example, ok.example');
-    expect(lines).toContain('**Issuer:** Acme &amp;amp; Co &lt;i>CA&lt;/i>');
-    expect(lines).toContain(
-      "**Hostname mismatch:** Hostname/IP does not match certificate's altnames: Host: markup.example.com. is not in the cert's altnames: DNS:&lt;img src=x>.example",
+      const result = await runToolContract(devopsCheckCerts, { domains: ['x.y.appspot.com'] });
+      expect(result.isError).toBeFalsy();
+      const structured = result.structuredContent as { results: CertResult[] };
+      expect(structured.results[0]!.cert).toEqual(NAMES_CERT.cert);
+
+      const lines = readLines(contentText(result.content));
+      expect(lines).toContain(`⟨strong⟩Subject:⟨/strong⟩ ${SUBJECT[1]}`);
+      expect(lines).toContain(`⟨strong⟩SANs:⟨/strong⟩ ${SANS.map(([, r]) => r).join(', ')}`);
+      expect(lines).toContain(`⟨strong⟩Issuer:⟨/strong⟩ ${ISSUER[1]}`);
+      expect(lines).toContain(`⟨strong⟩Hostname mismatch:⟨/strong⟩ ⟨code_inline:${MISMATCH}⟩`);
+      expect(lines).toContain('🔴 ⟨code_inline:x.y.appspot.com⟩:443 — critical');
+    });
+
+    it('renders an empty subject as (empty) and no SANs as none', () => {
+      const text = (
+        devopsCheckCerts.format!({
+          deferred_domains: [],
+          results: [{ ...VALID_CERT, cert: { ...VALID_CERT.cert!, subject: '', san: [] } }],
+        })[0] as { text: string }
+      ).text;
+      const lines = readLines(text);
+      expect(lines).toContain('⟨strong⟩Subject:⟨/strong⟩ (empty)');
+      expect(lines).toContain('⟨strong⟩SANs:⟨/strong⟩ none');
+    });
+
+    it("reads the caller's own entries back as sent: heading, error, and deferred list", async () => {
+      type Entry =
+        | { kind: 'host'; host: string; port: number | null }
+        | { kind: 'invalid'; input: string; error: string };
+      const { _mockCheckDomains } = (await import(
+        '@/services/cert/cert-service.js'
+      )) as unknown as { _mockCheckDomains: ReturnType<typeof vi.fn> };
+      _mockCheckDomains.mockReset();
+      _mockCheckDomains.mockImplementation(async (entries: Entry[]) =>
+        entries.map((e) =>
+          e.kind === 'invalid'
+            ? { ...ERROR_CERT, domain: e.input, error: e.error }
+            : e.host === '_x_.example.com'
+              ? { ...ERROR_CERT, domain: e.host, error: 'getaddrinfo ENOTFOUND _x_.example.com' }
+              : { ...VALID_CERT, domain: e.host },
+        ),
+      );
+      const rejected = '*a* [l](https://e.x) b';
+      const deferred = ['*deferred* `x`', ' both ', '[x](y) <b>'];
+      const result = await runToolContract(devopsCheckCerts, {
+        domains: [
+          rejected,
+          '_x_.example.com',
+          ...Array.from({ length: 8 }, (_, i) => `h${i}.example.com`),
+          ...deferred,
+        ],
+      });
+      expect(result.isError).toBeFalsy();
+      const structured = result.structuredContent as {
+        results: CertResult[];
+        deferred_domains: string[];
+      };
+      expect(structured.results[0]!.domain).toBe(rejected);
+      expect(structured.deferred_domains).toEqual(deferred);
+      const [rejectedError, lookupError] = structured.results.map((r) => r.error);
+      expect(rejectedError).toContain(rejected);
+
+      const lines = readLines(contentText(result.content));
+      expect(lines).toContain(`❌ ⟨code_inline:${rejected}⟩:443 — error`);
+      expect(lines).toContain(`⟨strong⟩Error:⟨/strong⟩ ${rejectedError}`);
+      expect(lines).toContain('❌ ⟨code_inline:_x_.example.com⟩:443 — error');
+      expect(lines).toContain(`⟨strong⟩Error:⟨/strong⟩ ${lookupError}`);
+      expect(lines).toContain(
+        `⟨strong⟩Deferred domains (not inspected):⟨/strong⟩ ${deferred.map((d) => `⟨code_inline:${d}⟩`).join(', ')}`,
+      );
+    });
+
+    /**
+     * Line breaks are flattened before the span is built, so the pass is timed over the two
+     * line-break shapes and a backtick run (the span's fence outgrows it), each in its own
+     * thread's CPU time across a 64× span of name lengths.
+     */
+    it.each([
+      ['one long line ending in a break', (n: number) => `${'§1 x'.repeat(n / 4)}\ny`],
+      ['line breaks throughout', (n: number) => '  \r\n'.repeat(n / 4)],
+      ['one backtick run', (n: number) => '`'.repeat(n)],
+    ])('renders a certificate name in time linear in its length: %s', (_label, build) => {
+      const timings = [5_000, 10_000, 20_000, 40_000, 80_000, 160_000, 320_000].map((size) => {
+        const result = {
+          deferred_domains: [],
+          results: [{ ...VALID_CERT, cert: { ...VALID_CERT.cert!, subject: build(size) } }],
+        };
+        devopsCheckCerts.format!(result);
+        let best = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < 3; i++) {
+          const start = process.threadCpuUsage();
+          devopsCheckCerts.format!(result);
+          const used = process.threadCpuUsage(start);
+          best = Math.min(best, used.user + used.system);
+        }
+        // Absolute bound at this size, before the next (200 ms of this thread's CPU time).
+        expect(best).toBeLessThan(200_000);
+        return best;
+      });
+      // A floor on the smallest run keeps timer granularity from inflating the ratio.
+      expect(timings.at(-1)! / Math.max(timings[0]!, 50)).toBeLessThan(256);
+    });
+  });
+
+  it('describes chain_depth as the chain this runtime assembled, and a null depth as a finding (#86)', () => {
+    const { chain_depth, chain_depth_unavailable_reason } =
+      devopsCheckCerts.output.shape.results.element.shape.cert.unwrap().shape;
+    expect(chain_depth.description).toContain(
+      'Length of the certificate chain this runtime assembled from the leaf, counting the leaf',
     );
-    expect(lines).not.toContain('# heading <b>');
-    expect(lines.some((l) => /<(b|i|img)\b/.test(l))).toBe(false);
+    expect(chain_depth.description).toContain(
+      'can differ from the number of certificates the server sent',
+    );
+    expect(chain_depth.description).not.toContain('Number of certificates the server sent');
+    expect(chain_depth_unavailable_reason.description).toContain(
+      'no issuer for the leaf was found',
+    );
+    expect(chain_depth_unavailable_reason.description).not.toContain('runtime limitation');
   });
 
   it('formats error result gracefully (null cert), stating the failure once', () => {
     const result = { deferred_domains: [], results: [ERROR_CERT] };
     const blocks = devopsCheckCerts.format!(result);
     const text = (blocks[0] as { text: string }).text;
-    expect(text).toContain('### ❌ unreachable.example.com:443 — error');
+    expect(text).toContain('### ❌ `unreachable.example.com`:443 — error');
     expect(text.split('ECONNREFUSED')).toHaveLength(2);
     expect(text).not.toContain('**Flags:**');
   });
@@ -479,7 +647,7 @@ describe('devopsCheckCerts', () => {
       expect(structured.notice).toBe(notice);
       expect(text.split(notice)).toHaveLength(2);
       expect(text).toContain(
-        '**Deferred domains (not inspected):** https://H11.example.com/login, h12.example.com:8443',
+        '**Deferred domains (not inspected):** `https://H11.example.com/login`, `h12.example.com:8443`',
       );
     });
 

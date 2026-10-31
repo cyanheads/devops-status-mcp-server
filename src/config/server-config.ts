@@ -39,8 +39,7 @@ const ServerConfigSchema = z.object({
     .default('false')
     .transform((v) => v === 'true')
     .describe(
-      'When "true", disables SSRF guards for user-supplied URLs and domains. ' +
-        'For trusted local/intranet deployments only. Defaults to false (guards enabled).',
+      'When "true", disables the SSRF guards on user-supplied status-page URLs, devops_check_certs hosts, and devops_check_dns resolver IPs. For trusted local/intranet deployments only. Defaults to false (guards enabled).',
     ),
   disableActiveProbes: z
     .enum(['true', 'false'])

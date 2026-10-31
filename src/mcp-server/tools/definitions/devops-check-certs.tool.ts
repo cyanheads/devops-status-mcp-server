@@ -6,11 +6,12 @@
 
 import { isIP } from 'node:net';
 import { tool, z } from '@cyanheads/mcp-ts-core';
+import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getServerConfig } from '@/config/server-config.js';
 import { getCertService } from '@/services/cert/cert-service.js';
 import { normalizeDomainInput } from '@/utils/domain-input.js';
 import { clampMax, deferralNotice, splitBatch } from '@/utils/input-bounds.js';
-import { vendorInline } from '@/utils/vendor-markdown.js';
+import { literal } from '@/utils/markdown-literal.js';
 
 /** Hosts inspected per call; later entries come back in `deferred_domains`. */
 const DOMAINS_PER_CALL = 10;
@@ -106,13 +107,13 @@ export const devopsCheckCerts = tool('devops_check_certs', {
                   .int()
                   .nullable()
                   .describe(
-                    'Number of certificates the server sent, counting the leaf. Null when the runtime does not expose the issuer chain — read "chain_depth_unavailable_reason" in that case. Not a self-signed indicator: use "authorization_error" for that.',
+                    'Length of the certificate chain this runtime assembled from the leaf, counting the leaf: the certificates the server sent on the leaf\'s issuer path, then issuers from the runtime\'s own trust store, up to a self-signed certificate or one whose issuer was not found. It can include a root the server never sent, so it can differ from the number of certificates the server sent, and between runtimes. Null when no issuer for the leaf was found — read "chain_depth_unavailable_reason". Not a self-signed indicator or a trust verdict: use "authorization_error" for those.',
                   ),
                 chain_depth_unavailable_reason: z
                   .string()
                   .nullable()
                   .describe(
-                    'Why "chain_depth" is null, or null when a depth was measured. Absence of a depth is a runtime limitation, not a finding about the certificate.',
+                    'Why "chain_depth" is null, or null when a depth was measured. A null depth means no issuer for the leaf was found among the certificates the server sent or in the trust store, as when a server sends its leaf without the certificate that issued it.',
                   ),
                 hostname_verification_error: z
                   .string()
@@ -219,15 +220,16 @@ export const devopsCheckCerts = tool('devops_check_certs', {
             : r.status === 'critical'
               ? '🔴'
               : '❌';
-      const host = isIP(r.domain) === 6 ? `[${r.domain}]` : r.domain;
+      // An IPv6 host is bracketed outside its span, so the span still reads back as `domain`.
+      const host = isIP(r.domain) === 6 ? `[${literal(r.domain)}]` : literal(r.domain);
       lines.push(`### ${icon} ${host}:${r.port} — ${r.status}`);
-      if (r.error) lines.push(`**Error:** ${r.error}`);
+      if (r.error) lines.push(`**Error:** ${escapeMarkdownInline(r.error)}`);
       if (r.flags.length > 0) lines.push(`**Flags:** ${r.flags.join(' | ')}`);
       if (r.cert) {
         // The names are whatever the inspected host's certificate carries.
-        lines.push(`**Subject:** ${vendorInline(r.cert.subject)}`);
-        lines.push(`**SANs:** ${r.cert.san.map(vendorInline).join(', ') || 'none'}`);
-        lines.push(`**Issuer:** ${vendorInline(r.cert.issuer)}`);
+        lines.push(`**Subject:** ${literal(r.cert.subject)}`);
+        lines.push(`**SANs:** ${r.cert.san.map(literal).join(', ') || 'none'}`);
+        lines.push(`**Issuer:** ${literal(r.cert.issuer)}`);
         lines.push(
           `**Valid:** ${r.cert.valid_from} → ${r.cert.valid_until} (${r.cert.days_until_expiry} days remaining)`,
         );
@@ -239,7 +241,7 @@ export const devopsCheckCerts = tool('devops_check_certs', {
         }
         if (r.cert.hostname_verification_error) {
           // The verifier's message quotes the certificate's names.
-          lines.push(`**Hostname mismatch:** ${vendorInline(r.cert.hostname_verification_error)}`);
+          lines.push(`**Hostname mismatch:** ${literal(r.cert.hostname_verification_error)}`);
         }
         if (r.cert.authorization_error) {
           lines.push(`**Chain not trusted:** ${r.cert.authorization_error}`);
@@ -252,7 +254,9 @@ export const devopsCheckCerts = tool('devops_check_certs', {
       lines.push('');
     }
     if (result.deferred_domains.length > 0) {
-      lines.push(`**Deferred domains (not inspected):** ${result.deferred_domains.join(', ')}`);
+      lines.push(
+        `**Deferred domains (not inspected):** ${result.deferred_domains.map(literal).join(', ')}`,
+      );
     }
     return [{ type: 'text', text: lines.join('\n') }];
   },

@@ -8,6 +8,7 @@
 import { isIP } from 'node:net';
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import { escapeMarkdownInline } from '@cyanheads/mcp-ts-core/utils';
 import { getServerConfig } from '@/config/server-config.js';
 import type { DnsResult, RecordType } from '@/services/dns/dns-service.js';
 import {
@@ -17,8 +18,8 @@ import {
 } from '@/services/dns/dns-service.js';
 import { normalizeDomainInput } from '@/utils/domain-input.js';
 import { clampMax, deferralNotice, splitBatch, uniqueInOrder } from '@/utils/input-bounds.js';
+import { literal } from '@/utils/markdown-literal.js';
 import { parseResolverTarget, ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
-import { vendorInline } from '@/utils/vendor-markdown.js';
 
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'CAA', 'SOA'] as const;
 
@@ -69,12 +70,8 @@ function canonicalIPv6(address: string): string {
 const DEFAULT_RECORD_TYPES: RecordType[] = ['A', 'AAAA', 'MX', 'TXT'];
 const DEFAULT_RESOLVERS = ['8.8.8.8', '1.1.1.1', '9.9.9.9'];
 
-/**
- * Record values for one content[] line. TXT and CAA values are whatever the queried domain
- * publishes, so each is rendered as relayed text — one line, no markup a renderer would act
- * on. structuredContent keeps them as resolved.
- */
-const renderValues = (values: string[]) => values.map(vendorInline).join(', ');
+/** Record values for one content[] line: one span each, joined outside the spans. */
+const renderValues = (values: string[]) => values.map(literal).join(', ');
 
 export const devopsCheckDns = tool('devops_check_dns', {
   description:
@@ -231,7 +228,7 @@ export const devopsCheckDns = tool('devops_check_dns', {
               .string()
               .nullable()
               .describe(
-                'Set only when the domain could not be queried at all. Either it was rejected before any query — the entry is not a domain name (the message names the entry and the accepted shapes), or it is a private, loopback, or cloud-metadata target — and "resolver_results" is empty, or every resolver failed and none returned records, in which case each failing resolver is named with its own outcome ("8.8.8.8: SERVFAIL on A; 1.1.1.1: NXDOMAIN on A") so a split result stays visible. Null when at least one resolver answered; per-resolver failures are still in "resolver_results" and "flags".',
+                'Set only when the domain could not be queried at all: either the entry is not a domain name — rejected before any query, so "resolver_results" is empty, and the message names the entry and the accepted shapes — or every resolver failed and none returned records, in which case each failing resolver is named with its own outcome ("8.8.8.8: SERVFAIL on A; 1.1.1.1: NXDOMAIN on A") so a split result stays visible. Null when at least one resolver answered; per-resolver failures are still in "resolver_results" and "flags".',
               ),
           })
           .describe('DNS resolution result for one domain.'),
@@ -268,9 +265,8 @@ export const devopsCheckDns = tool('devops_check_dns', {
     },
   ],
   /**
-   * An entry that is not a domain name and an SSRF-blocked domain surface as per-domain results
-   * with the error field set. SSRF-blocked resolver IPs are caught in the handler and rethrown as
-   * target_blocked.
+   * An entry that is not a domain name surfaces as a per-domain result with the error field set.
+   * SSRF-blocked resolver IPs are caught in the handler and rethrown as target_blocked.
    */
 
   async handler(input, ctx) {
@@ -357,8 +353,8 @@ export const devopsCheckDns = tool('devops_check_dns', {
         r.flags.length > 0 ||
         r.propagation_discrepancies.some((d) => d.kind === 'partial_resolution');
       const icon = r.error ? '❌' : needsAttention ? '⚠️' : '✅';
-      lines.push(`### ${icon} ${r.domain}`);
-      if (r.error) lines.push(`**Error:** ${r.error}`);
+      lines.push(`### ${icon} ${literal(r.domain)}`);
+      if (r.error) lines.push(`**Error:** ${escapeMarkdownInline(r.error)}`);
       if (r.flags.length > 0) lines.push(`**Flags:** ${r.flags.join(' | ')}`);
 
       // Records summary, naming the resolver they came from
@@ -421,10 +417,12 @@ export const devopsCheckDns = tool('devops_check_dns', {
       lines.push('');
     }
     if (result.deferred_domains.length > 0) {
-      lines.push(`**Deferred domains (not queried):** ${result.deferred_domains.join(', ')}`);
+      lines.push(`**Deferred domains (not queried):** ${renderValues(result.deferred_domains)}`);
     }
     if (result.deferred_resolvers.length > 0) {
-      lines.push(`**Deferred resolvers (not queried):** ${result.deferred_resolvers.join(', ')}`);
+      lines.push(
+        `**Deferred resolvers (not queried):** ${renderValues(result.deferred_resolvers)}`,
+      );
     }
     return [{ type: 'text', text: lines.join('\n') }];
   },

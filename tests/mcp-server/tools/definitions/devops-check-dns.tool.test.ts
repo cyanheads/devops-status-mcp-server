@@ -4,9 +4,48 @@
  */
 
 import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
+import MarkdownIt from 'markdown-it';
 import { describe, expect, it, vi } from 'vitest';
 import { devopsCheckDns } from '@/mcp-server/tools/definitions/devops-check-dns.tool.js';
 import type { DnsResult } from '@/services/dns/dns-service.js';
+
+/** A CommonMark parser with raw HTML on, as a GFM client parses content[]. */
+const commonMark = new MarkdownIt('default', { html: true });
+
+/**
+ * The whole content[] text parsed once and read back one source line at a time: text as a
+ * reader gets it, every other node named in place (`⟨code_inline:…⟩`, `⟨strong⟩…⟨/strong⟩`,
+ * `⟨em⟩`, `⟨html_inline:…⟩`), so an expectation written as text and spans fails on any live
+ * syntax. A list item reads without its marker.
+ */
+function readLines(text: string): string[] {
+  const lines: string[] = [];
+  for (const token of commonMark.parse(text, {})) {
+    if (token.type !== 'inline') continue;
+    let line = '';
+    for (const child of token.children ?? []) {
+      if (child.type === 'softbreak' || child.type === 'hardbreak') {
+        lines.push(line);
+        line = '';
+      } else if (child.type === 'text' || child.type === 'text_special') line += child.content;
+      else if (child.nesting === 1) line += `⟨${child.tag}⟩`;
+      else if (child.nesting === -1) line += `⟨/${child.tag}⟩`;
+      else line += `⟨${child.type}:${child.content}⟩`;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+/** content[] of a tool result as one string. */
+const contentText = (content: Array<{ type: string; text?: string }>) =>
+  content.map((b) => (b.type === 'text' ? (b.text ?? '') : '')).join('\n');
+
+/** A value that reads back byte-identical as its own code span. */
+const exact = (value: string): [sent: string, readBack: string] => [
+  value,
+  `⟨code_inline:${value}⟩`,
+];
 
 vi.mock('@/services/dns/dns-service.js', () => {
   const mockCheckDomains = vi.fn();
@@ -168,15 +207,15 @@ const NXDOMAIN_DNS_RESULT: DnsResult = {
 /** The deferral fields of a call at or under every cap, for format() inputs. */
 const NOTHING_DEFERRED = { deferred_domains: [], deferred_resolvers: [] };
 
-/** A domain the SSRF guard rejected before any resolver was queried. */
+/** An entry rejected before any resolver was queried: an IP address passed as a domain. */
 const REJECTED_DNS_RESULT: DnsResult = {
-  domain: 'localhost',
+  domain: '10.0.0.1',
   records: {},
   records_source: null,
   resolver_results: [],
   propagation_discrepancies: [],
   flags: [],
-  error: 'Domain "localhost" names a known internal host ("localhost").',
+  error: '"10.0.0.1" is an IP address — DNS records are looked up by domain name, not by address.',
 };
 
 describe('devopsCheckDns', () => {
@@ -314,7 +353,7 @@ describe('devopsCheckDns', () => {
     const text = (blocks[0] as { text: string }).text;
     expect(text).toContain('- 8.8.8.8: ok in 55 ms');
     expect(text).toContain('A: ok → same values as the domain-level A records above');
-    expect(text).toContain('A: ok → 5.6.7.8');
+    expect(text).toContain('A: ok → `5.6.7.8`');
   });
 
   it('formats a value_variation as expected steering rather than a problem', () => {
@@ -356,7 +395,7 @@ describe('devopsCheckDns', () => {
 
   it('states a rejected domain once, with no empty resolver header (#45)', () => {
     const message =
-      'Domain "localhost" names a known internal host ("localhost"). Requests to private, loopback, or cloud-metadata addresses are not permitted.';
+      '"10.0.0.1" is an IP address — DNS records are looked up by domain name, not by address. Pass a domain name ("example.com"); a URL or a host:port is reduced to its host.';
     const text = (
       devopsCheckDns.format!({
         ...NOTHING_DEFERRED,
@@ -364,7 +403,7 @@ describe('devopsCheckDns', () => {
       })[0] as { text: string }
     ).text;
 
-    expect(text).toContain('### ❌ localhost');
+    expect(text).toContain('### ❌ `10.0.0.1`');
     expect(text.split(message)).toHaveLength(2);
     expect(text).not.toContain('**Flags:**');
     expect(text).not.toContain('**Resolver results:**');
@@ -422,9 +461,9 @@ describe('devopsCheckDns', () => {
       const structured = result.structuredContent as { results: DnsResult[] };
       expect(structured.results[0]!.records).toEqual(CAA_SOA_RESULT.records);
       const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
-      expect(text).toContain('- CAA: 0 issue "letsencrypt.org", 0 issuewild "digicert.com"');
+      expect(text).toContain('- CAA: `0 issue "letsencrypt.org"`, `0 issuewild "digicert.com"`');
       expect(text).toContain(
-        '- SOA: ns1.example.net hostmaster.example.net 2026101401 43200 7200 1209600 3600',
+        '- SOA: `ns1.example.net hostmaster.example.net 2026101401 43200 7200 1209600 3600`',
       );
       expect(text).toContain('CAA: ok → same values as the domain-level CAA records above');
     });
@@ -716,8 +755,8 @@ describe('devopsCheckDns', () => {
           deferred_resolvers: ['8.8.4.4'],
         })[0] as { text: string }
       ).text;
-      expect(text).toContain('**Deferred domains (not queried):** later.example.com');
-      expect(text).toContain('**Deferred resolvers (not queried):** 8.8.4.4');
+      expect(text).toContain('**Deferred domains (not queried):** `later.example.com`');
+      expect(text).toContain('**Deferred resolvers (not queried):** `8.8.4.4`');
     });
 
     it('states the caps in the input descriptions', () => {
@@ -735,17 +774,42 @@ describe('devopsCheckDns', () => {
   });
 
   /**
-   * TXT and CAA values are whatever the named domain publishes, so content[] renders them
-   * the way it renders vendor text: one line each, `<` and entity-starting `&` escaped.
-   * structuredContent keeps them exactly as resolved (#75).
+   * Record values are whatever the queried domain publishes, so content[] renders each one as
+   * its own code span that a CommonMark parse reads back as resolved, joined with ", " outside
+   * the spans. structuredContent keeps them exactly as resolved (#75).
    */
   describe('record values in content[] (#75)', () => {
-    const MARKUP_DOMAIN = '[text](https://example.com) <b>';
-    const MARKUP_LINE_BREAK = 'v=spf1 &amp; ok\n# not a heading';
-    const MARKUP_RESOLVER = '<img src=x> &#60;';
-    const MARKUP_RESULT: DnsResult = {
+    /** Each value as resolved, and what its slot in a content[] line reads back as. */
+    const VALUES: Array<[sent: string, readBack: string]> = [
+      exact('*literal* _under_ [text](https://example.com) <b>x</b>'),
+      exact('a `tick` and ``two`` inside'),
+      exact('```'),
+      exact('`'),
+      exact('&amp; &#60; &copy; & bare'),
+      exact('a\\.b\\\\c\\032d.example.com'),
+      exact('0 iodef "mailto:a\\"b@example.com"'),
+      exact('v=spf1 include:_spf.example.com ~all, second'),
+      exact(' leading'),
+      exact('trailing '),
+      exact(' both '),
+      exact('  two each  '),
+      exact('   '),
+      exact('tab\tinside'),
+      ['line\nbreak', '⟨code_inline:line break⟩'],
+      ['crlf\r\n\r\nbreaks', '⟨code_inline:crlf breaks⟩'],
+      // CommonMark replaces NUL on input, under any renderer.
+      ['nul\u0000byte', '⟨code_inline:nul�byte⟩'],
+      ['', '(empty)'],
+    ];
+    const DOMAIN_VALUES = VALUES.map(([sent]) => sent);
+    const RESOLVER_VALUES = [...DOMAIN_VALUES].reverse();
+    const readBackOf = (values: Array<[string, string]>) => values.map(([, r]) => r).join(', ');
+    const DOMAIN_READ_BACK = readBackOf(VALUES);
+    const RESOLVER_READ_BACK = readBackOf([...VALUES].reverse());
+
+    const VALUES_RESULT: DnsResult = {
       domain: 'markup.example.com',
-      records: { TXT: [MARKUP_DOMAIN, MARKUP_LINE_BREAK] },
+      records: { TXT: DOMAIN_VALUES },
       records_source: '8.8.8.8',
       resolver_results: [
         {
@@ -760,7 +824,7 @@ describe('devopsCheckDns', () => {
         {
           resolver: '1.1.1.1',
           latency_ms: 21,
-          records: { TXT: [MARKUP_RESOLVER] },
+          records: { TXT: RESOLVER_VALUES },
           records_same_as_domain: [],
           status: 'ok',
           status_by_type: { TXT: 'ok' },
@@ -772,10 +836,7 @@ describe('devopsCheckDns', () => {
           record_type: 'TXT',
           resolvers_agree: false,
           kind: 'value_variation',
-          values_by_resolver: {
-            '8.8.8.8': [MARKUP_DOMAIN, MARKUP_LINE_BREAK],
-            '1.1.1.1': [MARKUP_RESOLVER],
-          },
+          values_by_resolver: { '8.8.8.8': DOMAIN_VALUES, '1.1.1.1': RESOLVER_VALUES },
           status_by_resolver: { '8.8.8.8': 'ok', '1.1.1.1': 'ok' },
         },
       ],
@@ -783,41 +844,133 @@ describe('devopsCheckDns', () => {
       error: null,
     };
 
-    it('escapes record values on every content[] line and keeps structuredContent as resolved', async () => {
+    async function serve(results: DnsResult[]) {
       const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as unknown as {
         _mockCheckDomains: ReturnType<typeof vi.fn>;
       };
-      _mockCheckDomains.mockResolvedValue([MARKUP_RESULT]);
+      _mockCheckDomains.mockReset();
+      _mockCheckDomains.mockResolvedValue(results);
+    }
 
+    it('reads each value back from its own code span on every line, structuredContent as resolved', async () => {
+      await serve([VALUES_RESULT]);
       const result = await runToolContract(devopsCheckDns, {
         domains: ['markup.example.com'],
         record_types: ['TXT'],
         resolvers: ['8.8.8.8', '1.1.1.1'],
       });
       expect(result.isError).toBeFalsy();
-      const structured = result.structuredContent as { results: DnsResult[] };
-      expect(structured.results[0]!.records).toEqual(MARKUP_RESULT.records);
-      expect(structured.results[0]!.resolver_results[1]!.records).toEqual({
-        TXT: [MARKUP_RESOLVER],
+      const [row] = (result.structuredContent as { results: DnsResult[] }).results;
+      expect(row!.records).toEqual({ TXT: DOMAIN_VALUES });
+      expect(row!.resolver_results[1]!.records).toEqual({ TXT: RESOLVER_VALUES });
+      expect(row!.propagation_discrepancies[0]!.values_by_resolver).toEqual({
+        '8.8.8.8': DOMAIN_VALUES,
+        '1.1.1.1': RESOLVER_VALUES,
       });
-      expect(structured.results[0]!.propagation_discrepancies[0]!.values_by_resolver).toEqual(
-        MARKUP_RESULT.propagation_discrepancies[0]!.values_by_resolver,
-      );
 
-      const lines = result.content
-        .map((b) => (b.type === 'text' ? b.text : ''))
-        .join('\n')
-        .split('\n');
-      const domainValues =
-        '[text](https://example.com) &lt;b>, v=spf1 &amp;amp; ok # not a heading';
-      const resolverValues = '&lt;img src=x> &amp;#60;';
-      expect(lines).toContain(`- TXT: ${domainValues}`);
-      expect(lines).toContain(`  - TXT: ok → ${resolverValues}`);
-      expect(lines).toContain(`  - 8.8.8.8 (ok): ${domainValues}`);
-      expect(lines).toContain(`  - 1.1.1.1 (ok): ${resolverValues}`);
-      // No value opens a line of its own or carries raw markup.
-      expect(lines).not.toContain('# not a heading');
-      expect(lines.some((l) => l.includes('<b>') || l.includes('<img'))).toBe(false);
+      const lines = readLines(contentText(result.content));
+      expect(lines).toContain(`TXT: ${DOMAIN_READ_BACK}`);
+      expect(lines).toContain(`TXT: ok → ${RESOLVER_READ_BACK}`);
+      expect(lines).toContain(`8.8.8.8 (ok): ${DOMAIN_READ_BACK}`);
+      expect(lines).toContain(`1.1.1.1 (ok): ${RESOLVER_READ_BACK}`);
+      // No value opened a line of its own: the agreeing resolver keeps its one sub-line.
+      expect(lines).toContain('TXT: ok → same values as the domain-level TXT records above');
+    });
+
+    it('renders two TXT values as exactly two spans, a ", " inside one included', async () => {
+      const values = ['v=spf1 include:_spf.example.com ~all, second', 'second'];
+      await serve([{ ...CLEAN_DNS_RESULT, records: { TXT: values } }]);
+      const result = await runToolContract(devopsCheckDns, {
+        domains: ['example.com'],
+        record_types: ['TXT'],
+      });
+
+      const line = readLines(contentText(result.content)).find((l) => l.startsWith('TXT: '));
+      expect(line).toBe(
+        'TXT: ⟨code_inline:v=spf1 include:_spf.example.com ~all, second⟩, ⟨code_inline:second⟩',
+      );
+      expect(line!.split('⟨code_inline:')).toHaveLength(3);
+    });
+
+    it("reads the caller's own entries back as sent: heading, error, and deferred lists", async () => {
+      type Entry =
+        | { kind: 'host'; host: string }
+        | { kind: 'invalid'; input: string; error: string };
+      const { _mockCheckDomains } = (await import('@/services/dns/dns-service.js')) as unknown as {
+        _mockCheckDomains: ReturnType<typeof vi.fn>;
+      };
+      _mockCheckDomains.mockReset();
+      _mockCheckDomains.mockImplementation(async (entries: Entry[]) =>
+        entries.map((e) =>
+          e.kind === 'host'
+            ? { ...CLEAN_DNS_RESULT, domain: e.host }
+            : { ...REJECTED_DNS_RESULT, domain: e.input, error: e.error },
+        ),
+      );
+      const rejected = '*a* [l](https://e.x) b';
+      const deferred = ['*deferred* `x`', ' both ', '[x](y) <b>'];
+      const result = await runToolContract(devopsCheckDns, {
+        domains: [
+          rejected,
+          '_x_.example.com',
+          ...Array.from({ length: 8 }, (_, i) => `d${i}.example.com`),
+          ...deferred,
+        ],
+        resolvers: ['8.8.8.8', '1.1.1.1', '9.9.9.9', '8.8.4.4', '1.0.0.1', '*r* `x`'],
+      });
+      expect(result.isError).toBeFalsy();
+      const structured = result.structuredContent as {
+        results: DnsResult[];
+        deferred_domains: string[];
+        deferred_resolvers: string[];
+      };
+      expect(structured.results[0]!.domain).toBe(rejected);
+      expect(structured.deferred_domains).toEqual(deferred);
+      expect(structured.deferred_resolvers).toEqual(['*r* `x`']);
+      const error = structured.results[0]!.error!;
+      expect(error).toContain(rejected);
+
+      const lines = readLines(contentText(result.content));
+      expect(lines).toContain(`❌ ⟨code_inline:${rejected}⟩`);
+      expect(lines).toContain(`⟨strong⟩Error:⟨/strong⟩ ${error}`);
+      expect(lines).toContain('✅ ⟨code_inline:_x_.example.com⟩');
+      expect(lines).toContain(
+        `⟨strong⟩Deferred domains (not queried):⟨/strong⟩ ${deferred.map((d) => `⟨code_inline:${d}⟩`).join(', ')}`,
+      );
+      expect(lines).toContain(
+        '⟨strong⟩Deferred resolvers (not queried):⟨/strong⟩ ⟨code_inline:*r* `x`⟩',
+      );
+    });
+
+    /**
+     * Line breaks are flattened before the span is built, so the pass is timed over the two
+     * line-break shapes and a backtick run (the span's fence outgrows it), each in its own
+     * thread's CPU time across a 64× span of value lengths.
+     */
+    it.each([
+      ['one long line ending in a break', (n: number) => `${'§1 x'.repeat(n / 4)}\ny`],
+      ['line breaks throughout', (n: number) => '  \r\n'.repeat(n / 4)],
+      ['one backtick run', (n: number) => '`'.repeat(n)],
+    ])('renders a record value in time linear in its length: %s', (_label, build) => {
+      const timings = [5_000, 10_000, 20_000, 40_000, 80_000, 160_000, 320_000].map((size) => {
+        const result = {
+          ...NOTHING_DEFERRED,
+          results: [{ ...CLEAN_DNS_RESULT, records: { TXT: [build(size)] } }],
+        };
+        devopsCheckDns.format!(result);
+        let best = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < 3; i++) {
+          const start = process.threadCpuUsage();
+          devopsCheckDns.format!(result);
+          const used = process.threadCpuUsage(start);
+          best = Math.min(best, used.user + used.system);
+        }
+        // Absolute bound at this size, before the next (200 ms of this thread's CPU time).
+        expect(best).toBeLessThan(200_000);
+        return best;
+      });
+      // A floor on the smallest run keeps timer granularity from inflating the ratio.
+      expect(timings.at(-1)! / Math.max(timings[0]!, 50)).toBeLessThan(256);
     });
   });
 });

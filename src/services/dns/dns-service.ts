@@ -6,11 +6,7 @@
 
 import { performance } from 'node:perf_hooks';
 import type { DomainEntry } from '@/utils/domain-input.js';
-import {
-  assertSafeDomain,
-  assertSafeResolverIp,
-  ssrfRejectionMessage,
-} from '@/utils/ssrf-guard.js';
+import { assertSafeResolverIp } from '@/utils/ssrf-guard.js';
 import { parseResolverAddress, queryRecordTypes } from './dns-wire-client.js';
 
 export type RecordType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS' | 'CAA' | 'SOA';
@@ -250,9 +246,9 @@ function elideAgreeingRecords(
 
 export class DnsService {
   /**
-   * One row per entry, in entry order. An invalid entry and a guard rejection are never queried.
-   * Caller cancellation (`signal`) stops in-flight queries and rejects the whole call rather than
-   * surfacing as per-row failures.
+   * One row per entry, in entry order. An invalid entry is never queried. Caller cancellation
+   * (`signal`) stops in-flight queries and rejects the whole call rather than surfacing as
+   * per-row failures.
    */
   async checkDomains(
     entries: DomainEntry[],
@@ -271,20 +267,22 @@ export class DnsService {
       parseResolverAddress(ip);
     }
 
+    /**
+     * Domains take no SSRF guard: every socket goes to a resolver checked above, and a domain
+     * travels only inside the DNS question, so the addresses it resolves to are reported, never
+     * connected to. A host-side lookup would only refuse public answers.
+     */
     const results = await Promise.allSettled(
-      entries.map(async (entry) => {
-        if (entry.kind === 'invalid') throw new Error(entry.error);
-        // SSRF guard: reject domains that resolve to private/loopback/cloud-metadata addresses.
-        await assertSafeDomain(entry.host);
-        signal.throwIfAborted();
-        return this.checkOneDomain(entry.host, types, resolverIps, timeoutMs, signal);
-      }),
+      entries.map((entry) =>
+        entry.kind === 'invalid'
+          ? Promise.reject(new Error(entry.error))
+          : this.checkOneDomain(entry.host, types, resolverIps, timeoutMs, signal),
+      ),
     );
     signal.throwIfAborted();
     /**
      * A rejected entry was never queried, so there is nothing to observe about it: the
-     * failure goes in `error` alone and `flags` stays empty. A guard rejection reads as
-     * its caller-facing text, as on every other rejection path. `domain` is the name that was
+     * failure goes in `error` alone and `flags` stays empty. `domain` is the name that was
      * checked, or the submitted string for an entry that never became one.
      */
     return results.map((r, i) => {
@@ -297,7 +295,7 @@ export class DnsService {
         resolver_results: [],
         propagation_discrepancies: [],
         flags: [],
-        error: ssrfRejectionMessage(r.reason) ?? (r.reason as Error).message,
+        error: (r.reason as Error).message,
       };
     });
   }
@@ -338,13 +336,15 @@ export class DnsService {
     if (types.includes('MX') && !anyRecords('MX') && anyNodata('MX')) {
       flags.push('No MX records found');
     }
-    if (
-      types.includes('A') &&
-      !anyRecords('A') &&
-      !anyRecords('AAAA') &&
-      (anyNodata('A') || anyNodata('AAAA'))
-    ) {
-      flags.push('No A or AAAA records found');
+    /**
+     * The address flag names only the requested address types some resolver answered NODATA
+     * for, in fixed A, AAAA order — a type that was not queried, or whose only outcomes were
+     * failures, is never claimed absent. Records for either type mean the name has an address.
+     */
+    const addressTypes = (['A', 'AAAA'] as const).filter((t) => types.includes(t));
+    const absentAddressTypes = addressTypes.filter(anyNodata);
+    if (!addressTypes.some(anyRecords) && absentAddressTypes.length > 0) {
+      flags.push(`No ${absentAddressTypes.join(' or ')} records found`);
     }
     if (anyRecords('CNAME')) {
       flags.push('CNAME detected — further records resolve via the CNAME target');

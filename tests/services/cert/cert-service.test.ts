@@ -5,9 +5,11 @@
  * @module tests/services/cert/cert-service.test
  */
 
+import { lookup } from 'node:dns/promises';
 import { EventEmitter } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { DEFAULT_CIPHERS } from 'node:tls';
+import MarkdownIt from 'markdown-it';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ──────────────────────────────────────────────
@@ -136,6 +138,12 @@ vi.mock('@/utils/ssrf-guard.js', async (importOriginal) => ({
   assertSafeResolverIp: vi.fn(),
 }));
 
+/** The resolver answer the real guard reads, for the case that runs it on a hostname. */
+vi.mock('node:dns/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:dns/promises')>()),
+  lookup: vi.fn(),
+}));
+
 // ──────────────────────────────────────────────
 // Import AFTER the mock is registered
 // ──────────────────────────────────────────────
@@ -164,6 +172,23 @@ function checkHosts(
   return service.checkDomains(entries, port, timeoutMs, signal);
 }
 
+/**
+ * content[] text as a reader sees it: parsed as CommonMark, escapes resolved, emphasis reduced
+ * to its text, one line per source line.
+ */
+function readableContent(content: Array<{ type: string; text?: string }>): string {
+  const markdown = content.map((b) => (b.type === 'text' ? (b.text ?? '') : '')).join('\n');
+  return new MarkdownIt()
+    .parse(markdown, {})
+    .filter((token) => token.type === 'inline')
+    .map((token) =>
+      (token.children ?? [])
+        .map((child) => (child.type.endsWith('break') ? '\n' : child.content))
+        .join(''),
+    )
+    .join('\n');
+}
+
 /** Milliseconds from now for a cert that expires in `days` days. */
 function daysFromNow(days: number): Date {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -181,7 +206,7 @@ function fakeCert(daysUntilExpiry: number, isSelfSigned = false): Record<string,
     valid_to: validUntil.toString(),
     subjectaltname: `DNS:${cn}`,
     serialNumber: 'AABBCC1122',
-    // no issuerCertificate — matches what the runtime actually exposes for a real handshake
+    // no issuerCertificate — a leaf the runtime found no issuer for, so chain_depth is null
   };
 }
 
@@ -375,7 +400,7 @@ describe('CertService — a domain rejected before any connection (#45)', () => 
     expect(text.split(GUARD_SENTENCE)).toHaveLength(2);
     expect(text).not.toContain('SSRF_BLOCKED');
     const localhostBlock = text.split('### ')[1] ?? '';
-    expect(localhostBlock).toContain('❌ localhost:443 — error');
+    expect(localhostBlock).toContain('❌ `localhost`:443 — error');
     expect(localhostBlock).not.toContain('**Flags:**');
   });
 });
@@ -426,7 +451,7 @@ describe('CertService — a handshake that presents no certificate (#49)', () =>
     expect(result.isError).toBeFalsy();
     const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
     expect(text.split('presented no certificate')).toHaveLength(2);
-    expect(text).toContain('❌ no-cert.example.com:443 — error');
+    expect(text).toContain('❌ `no-cert.example.com`:443 — error');
     expect(text).toContain('**TLS:** TLSv1.3 / TLS_AES_256_GCM_SHA384');
   });
 });
@@ -545,13 +570,16 @@ describe('CertService — chain depth', () => {
   });
 
   it('reports chain_depth null with a reason when issuerCertificate is not exposed', async () => {
-    // The runtime leaves issuerCertificate unset even for CA-issued chains; a leaf-only "1"
-    // would read as "no intermediates were served", which is false.
+    // A CA-issued leaf whose issuer the runtime did not find (served without the certificate
+    // that issued it) carries no issuerCertificate; a leaf-only "1" would read as self-signed.
     mockSocketConfig = { cert: fakeCert(200), protocol: 'TLSv1.3', hsts: true };
     const results = await checkHosts(getCertService(), ['ca-issued.example.com'], 443, 5000);
 
     expect(results[0]!.cert!.chain_depth).toBeNull();
-    expect(results[0]!.cert!.chain_depth_unavailable_reason).toContain('issuerCertificate');
+    // The reason states a finding about the chain, never a runtime limitation (#86).
+    expect(results[0]!.cert!.chain_depth_unavailable_reason).toBe(
+      'No issuer for the leaf certificate was found among the certificates the server sent or in the trust store, so no chain could be assembled from it, as when a server sends its leaf without the certificate that issued it. Read authorization_error for the chain-trust verdict.',
+    );
     // Chain trust is answered by authorization_error, never inferred from a depth of 1.
     expect(results[0]!.cert!.authorization_error).toBeNull();
     expect(results[0]!.status).toBe('ok');
@@ -640,7 +668,7 @@ describe('devops_check_certs domains entries (#68)', () => {
       timeout_ms: 5000,
     });
     const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
-    expect(text).toContain('[2606:4700:4700::1111]:443 — ok');
+    expect(text).toContain('[`2606:4700:4700::1111`]:443 — ok');
   });
 
   it('reports each entry with no host reading in its own row and checks the rest', async () => {
@@ -693,6 +721,47 @@ describe('devops_check_certs domains entries (#68)', () => {
     } finally {
       vi.mocked(assertSafeDomain).mockReset();
       vi.mocked(assertSafeDomain).mockResolvedValue(undefined);
+    }
+  });
+
+  /**
+   * The address the guard checks a hostname against is the server resolver's answer, which
+   * belongs to the server's network rather than the caller's input — neither surface names it.
+   */
+  it('refuses a hostname without naming the address it resolved to, on both surfaces', async () => {
+    const { assertSafeDomain } = await import('@/utils/ssrf-guard.js');
+    const actual =
+      await vi.importActual<typeof import('@/utils/ssrf-guard.js')>('@/utils/ssrf-guard.js');
+    vi.mocked(assertSafeDomain).mockImplementation(actual.assertSafeDomain);
+    vi.mocked(lookup).mockResolvedValueOnce([{ address: '10.0.0.9', family: 4 }] as never);
+    const sentence =
+      'Domain "db.example" resolves to a non-public address. Requests to private, loopback, or cloud-metadata addresses are not permitted. Set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true to allow internal-network monitoring.';
+    try {
+      const result = await runToolContract(devopsCheckCerts, {
+        domains: ['db.example'],
+        timeout_ms: 5000,
+      });
+
+      expect(result.isError).toBeFalsy();
+      const { results } = result.structuredContent as { results: CertResult[] };
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        domain: 'db.example',
+        status: 'error',
+        cert: null,
+        flags: [],
+        error: sentence,
+      });
+      expect(JSON.stringify(result.structuredContent)).not.toContain('10.0.0.9');
+      const text = readableContent(result.content);
+      expect(text.split('\n')).toContain(`Error: ${sentence}`);
+      expect(text).not.toContain('10.0.0.9');
+      expect(text).not.toContain('(private (RFC 1918))');
+      expect(connectCalls).toEqual([]);
+    } finally {
+      vi.mocked(assertSafeDomain).mockReset();
+      vi.mocked(assertSafeDomain).mockResolvedValue(undefined);
+      vi.mocked(lookup).mockReset();
     }
   });
 });
@@ -823,9 +892,9 @@ describe('inspectCert against loopback TLS servers (#65)', () => {
     const [row] = (result.structuredContent as { results: CertResult[] }).results;
     expectCertKeptWithoutHsts(row!, s.port);
     const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
-    expect(text).toContain(`### 🔴 localhost:${s.port} — critical`);
+    expect(text).toContain(`### 🔴 \`localhost\`:${s.port} — critical`);
     expect(text).toContain(`**Flags:** Self-signed certificate | ${notChecked(s.port)}`);
-    expect(text).toContain('**Subject:** localhost');
+    expect(text).toContain('**Subject:** `localhost`');
     expect(text).not.toContain('**Error:**');
   });
 

@@ -37,12 +37,12 @@ export interface CertResult {
 }
 
 /**
- * Why `chain_depth` is null. `getPeerCertificate(true).issuerCertificate` is the only link to the
- * served chain, and it is not populated on every supported runtime (absent under Bun even for
- * CA-issued chains), so the count is reported as unavailable rather than as a confident `1`.
+ * Why `chain_depth` is null: the leaf carries no `issuerCertificate`, because the runtime found
+ * no certificate that issued it — none among those the server sent, none in its trust store. A
+ * CA-issued leaf served without the certificate that issued it reads this way.
  */
 const CHAIN_DEPTH_UNAVAILABLE =
-  'This runtime did not expose issuerCertificate on the peer certificate, so the number of certificates the server actually sent cannot be counted. Read authorization_error for chain-trust validity instead.';
+  'No issuer for the leaf certificate was found among the certificates the server sent or in the trust store, so no chain could be assembled from it, as when a server sends its leaf without the certificate that issued it. Read authorization_error for the chain-trust verdict.';
 
 /** `error` for a handshake that completed without the server presenting a certificate. */
 const NO_PEER_CERTIFICATE = 'The TLS handshake completed but the server presented no certificate.';
@@ -243,9 +243,12 @@ function gradeSession(
     const issuer = Array.isArray(issuerCN) ? (issuerCN[0] ?? 'unknown') : (issuerCN ?? 'unknown');
 
     /**
-     * Chain depth — walk the issuerCertificate chain when the runtime exposes it. With no
-     * link there is nothing to count: report null rather than the leaf-only `1`, which reads
-     * as "no intermediates were served" and is wrong for every CA-issued certificate.
+     * Chain depth — walk the issuerCertificate links of the chain the runtime assembled: the
+     * served certificates on the leaf's issuer path, then issuers from its own trust store, up
+     * to a self-issued certificate (linked to itself) or one whose issuer it did not find. It
+     * can hold a root the server never sent; neither Bun nor Node exposes the served list
+     * itself. With no issuer for the leaf there is nothing to count: report null rather than
+     * `1`, the depth of a self-signed leaf.
      */
     let chainDepth: number | null = null;
     if (cert.issuerCertificate) {

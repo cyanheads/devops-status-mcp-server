@@ -30,7 +30,7 @@
         },
         {
           "name": "DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS",
-          "description": "When 'true', disables SSRF guards for user-supplied URLs and domains. For trusted local/intranet deployments only. Leave unset or 'false' for hosted/public deployments.",
+          "description": "When 'true', disables the SSRF guards on user-supplied status-page URLs, devops_check_certs hosts, and devops_check_dns resolver IPs. For trusted local/intranet deployments only. Leave unset or 'false' for hosted/public deployments.",
           "format": "string",
           "isRequired": false,
           "default": "false"
@@ -97,7 +97,7 @@
         },
         {
           "name": "DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS",
-          "description": "When 'true', disables SSRF guards for user-supplied URLs and domains. For trusted local/intranet deployments only. Leave unset or 'false' for hosted/public deployments.",
+          "description": "When 'true', disables the SSRF guards on user-supplied status-page URLs, devops_check_certs hosts, and devops_check_dns resolver IPs. For trusted local/intranet deployments only. Leave unset or 'false' for hosted/public deployments.",
           "format": "string",
           "isRequired": false,
           "default": "false"

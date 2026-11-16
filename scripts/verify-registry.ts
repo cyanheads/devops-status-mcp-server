@@ -9,8 +9,8 @@
  * vendor tool starts failing: `bun run verify:registry`
  *
  * Exit code: 0 when every entry responds with a parseable status and every
- * Statuspage entry lists at least one component (umbrella pages with
- * `product_slugs` excepted), 1 otherwise.
+ * Statuspage and incident.io entry lists at least one component (umbrella pages
+ * with `product_slugs` excepted), 1 otherwise.
  * @module scripts/verify-registry
  */
 
@@ -46,11 +46,13 @@ async function probe(slug: string): Promise<ProbeResult> {
       };
     }
     /**
-     * A Statuspage summary with no components (after any component scope) can never report a
-     * degraded one. An umbrella page that sends readers to its products' entries publishes none
-     * by design. Native adapters are exempt: several publish components only during an incident.
+     * A Statuspage or incident.io summary with no components (after any component scope) can
+     * never report a degraded one: both publish their whole component table at all times. An
+     * umbrella page that sends readers to its products' entries publishes none by design. The
+     * other native adapters are exempt: several publish components only during an incident.
      */
-    if (target.api_type === 'statuspage' && data.components.length === 0 && !target.product_slugs) {
+    const listsComponents = target.api_type === 'statuspage' || target.api_type === 'incidentio';
+    if (listsComponents && data.components.length === 0 && !target.product_slugs) {
       return { slug, api_type: target.api_type, ok: false, detail: 'no components published' };
     }
     return {

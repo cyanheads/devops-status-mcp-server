@@ -39,6 +39,7 @@ import type {
 } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
+import { newestFirst } from '@/utils/newest-first.js';
 import { elementText, elementTexts, rssItems } from './rss-extract.js';
 
 const AZURE_FEED_URL = 'https://rssfeed.azure.status.microsoft/en-us/status/feed/';
@@ -170,7 +171,7 @@ export function mapAzureIncidents(
     page: buildPage(target),
     incidents: items
       .map((item) => mapAzureItem(item, target))
-      .sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0)),
+      .sort((a, b) => newestFirst(a.created_at, b.created_at)),
   };
 }
 

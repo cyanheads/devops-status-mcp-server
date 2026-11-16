@@ -1,13 +1,21 @@
 /**
- * @fileoverview Tests for reading Statuspage history-archive timestamps. Every
- * timestamp below is recorded verbatim from a live page; the expected instants
- * come from the same incident's v2 record where one exists, so a conversion is
- * checked against the vendor's own UTC value rather than against a hand calculation.
+ * @fileoverview Tests for the Statuspage history-archive reader: its timestamp parser
+ * and its page walk. Every parseHistorySpan timestamp is recorded verbatim from a live
+ * page; the expected instants come from the same incident's v2 record where one
+ * exists, so a conversion is checked against the vendor's own UTC value rather than
+ * against a hand calculation.
  * @module tests/services/statuspage/incident-history.test
  */
 
-import { describe, expect, it } from 'vitest';
-import { parseHistorySpan } from '@/services/statuspage/incident-history.js';
+import { createFetchMock } from '@cyanheads/mcp-ts-core/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseHistorySpan, readIncidentHistory } from '@/services/statuspage/incident-history.js';
+import { initStatuspageService } from '@/services/statuspage/statuspage-service.js';
+import { clearFetchCache } from '@/utils/cached-fetch.js';
+
+vi.mock('@/config/server-config.js', () => ({
+  getServerConfig: () => ({ cacheTtlMs: 60_000, fetchTimeoutMs: 8000 }),
+}));
 
 const var_ = (kind: 'date' | 'time', value: string) => `<var data-var='${kind}'>${value}</var>`;
 
@@ -119,5 +127,176 @@ describe('parseHistorySpan', () => {
         'Etc/UTC',
       ),
     ).toBeNull();
+  });
+});
+
+/**
+ * The walk runs the real service and fetch path down to a fetch fake serving a
+ * synthetic archive: page N is the quarter N−1 before the one holding NOW, with one
+ * record coded `pN`. The fetch timeout is the 8 s default.
+ */
+describe('readIncidentHistory', () => {
+  const http = createFetchMock();
+  const NOW = Date.parse('2026-11-16T08:00:00Z');
+  /** 24 months before NOW, the floor the tool reads back to at most. */
+  const FLOOR = Date.parse('2024-11-16T00:00:00Z');
+  /**
+   * A fresh host per case: concurrent reads of one URL share one request, so a walk a
+   * failed case left in flight would otherwise hold the next case's request.
+   */
+  let hosts = 0;
+  let base = '';
+  const QUARTER_MONTHS = [
+    ['January', 'Jan', '01'],
+    ['April', 'Apr', '04'],
+    ['July', 'Jul', '07'],
+    ['October', 'Oct', '10'],
+  ] as const;
+
+  const pageUrl = (page: number) => `${base}/history.json?page=${page}`;
+  const pages = (count: number) => Array.from({ length: count }, (_, i) => i + 1);
+  const records = (count: number) =>
+    pages(count).map((page) => expect.objectContaining({ code: `p${page}` }));
+  const requested = () => http.calls.map((c) => c.request.url);
+
+  function historyPage(page: number) {
+    const quarter = 2026 * 4 + 3 - (page - 1);
+    const year = Math.floor(quarter / 4);
+    const [name, abbreviation, month] = QUARTER_MONTHS[quarter % 4]!;
+    return {
+      start_time: `${year}-${month}-01T00:00:00Z`,
+      months: [
+        {
+          name,
+          year,
+          incidents: [
+            {
+              code: `p${page}`,
+              name: `Record on page ${page}`,
+              message: 'Resolved.',
+              impact: 'minor',
+              timestamp: `${abbreviation} ${var_('date', '2')}, ${var_('time', '10:00')} - ${var_('time', '11:00')} UTC`,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  /**
+   * Serve every page, each answered `delayMs` after its request, or at once. A request's
+   * abort rejects it early and is recorded in `aborted`; `onAnswer` runs as a page answers.
+   */
+  function serveArchive(delayMs: number, onAnswer?: (page: number) => void) {
+    const aborted: number[] = [];
+    http.route({
+      match: (request) => request.url.startsWith(`${base}/history.json?page=`),
+      respond: (request) => {
+        const page = Number(new URL(request.url).searchParams.get('page'));
+        const answer = () => {
+          onAnswer?.(page);
+          return Response.json(historyPage(page));
+        };
+        if (delayMs === 0) return answer();
+        return new Promise<Response>((resolve, reject) => {
+          const timer = setTimeout(() => resolve(answer()), delayMs);
+          request.signal.addEventListener(
+            'abort',
+            () => {
+              clearTimeout(timer);
+              aborted.push(page);
+              reject(request.signal.reason);
+            },
+            { once: true },
+          );
+        });
+      },
+    });
+    return aborted;
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(NOW);
+    base = `https://status-${++hosts}.walk.example`;
+    clearFetchCache();
+    initStatuspageService();
+    http.reset();
+    http.install();
+  });
+
+  afterEach(() => {
+    http.restore();
+    vi.useRealTimers();
+  });
+
+  it('reads one page per quarter, back to the first whose window starts at or before the floor', async () => {
+    serveArchive(0);
+    const walk = await readIncidentHistory(base, 'Etc/UTC', FLOOR);
+
+    expect(requested()).toEqual(pages(9).map(pageUrl));
+    expect(walk).toEqual({
+      records: records(9),
+      reachedFloor: true,
+      readBackTo: '2024-10-01',
+      gap: null,
+    });
+    expect(Date.now()).toBe(NOW);
+  });
+
+  it('gives a page the full fetch timeout while the limit leaves more, and names its own failure', async () => {
+    const aborted = serveArchive(9000);
+    const pending = readIncidentHistory(base, 'Etc/UTC', FLOOR);
+    await vi.advanceTimersByTimeAsync(8000);
+
+    expect(await pending).toEqual({
+      records: [],
+      reachedFloor: false,
+      readBackTo: null,
+      gap: `history page 1 failed: Timed out after 8000ms fetching ${pageUrl(1)}`,
+    });
+    expect(aborted).toEqual([1]);
+    expect(Date.now() - NOW).toBe(8000);
+  });
+
+  it('settles at the 30-second limit when every page answers just under the fetch timeout', async () => {
+    // Three pages fit in 23,997 ms; the fourth runs under the 6,003 ms left and is cut at
+    // 30 s, before the 31,996 ms at which it would have answered.
+    const aborted = serveArchive(7999);
+    let walk: Awaited<ReturnType<typeof readIncidentHistory>> | undefined;
+    const pending = readIncidentHistory(base, 'Etc/UTC', FLOOR).then((w) => {
+      walk = w;
+    });
+
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(walk).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(walk).toEqual({
+      records: records(3),
+      reachedFloor: false,
+      readBackTo: '2026-04-01',
+      gap: 'the 30-second limit on the read passed before history page 4',
+    });
+    await pending;
+    expect(Date.now() - NOW).toBe(30_000);
+    expect(requested()).toEqual(pages(4).map(pageUrl));
+    expect(aborted).toEqual([4]);
+  });
+
+  it('sends no request once no time is left, keeping the pages read before', async () => {
+    // Page 3 answers as the clock reaches the limit, so page 4 would start with none left.
+    serveArchive(0, (page) => {
+      if (page === 3) vi.setSystemTime(NOW + 30_000);
+    });
+    const walk = await readIncidentHistory(base, 'Etc/UTC', FLOOR);
+
+    expect(requested()).toEqual(pages(3).map(pageUrl));
+    expect(walk).toEqual({
+      records: records(3),
+      reachedFloor: false,
+      readBackTo: '2026-04-01',
+      gap: 'the 30-second limit on the read passed before history page 4',
+    });
   });
 });

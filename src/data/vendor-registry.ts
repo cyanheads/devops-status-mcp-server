@@ -23,7 +23,8 @@ export type VendorApiType =
   | 'azure'
   | 'azure-devops'
   | 'firehydrant'
-  | 'datadog';
+  | 'datadog'
+  | 'incidentio';
 
 interface VendorEntryBase {
   category: VendorCategory;
@@ -62,7 +63,10 @@ export type VendorEntry =
 /**
  * 71-entry curated list. Most entries are verified Atlassian Statuspage endpoints;
  * every other api_type is served through a native-API adapter
- * (src/services/status-adapters/) that normalizes into the Statuspage shapes.
+ * (src/services/status-adapters/) that normalizes into the Statuspage shapes. The
+ * incident.io-hosted pages also serve a Statuspage-compatible API, but it lists at most
+ * 25 components and 25 incidents and no maintenance, so their entries read the page's
+ * own feed instead.
  * Probe every entry for drift with `bun run verify:registry`.
  */
 export const VENDOR_REGISTRY: readonly VendorEntry[] = [
@@ -177,8 +181,10 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     slug: 'fly-io',
     name: 'Fly.io',
     category: 'dev-platform',
+    // Hosted on incident.io, as are planetscale, supabase, brevo, clerk, openai, elevenlabs,
+    // and cohere; the adapter reads the page's own feed at {page}/proxy/{host}.
     statuspage_url: 'https://status.flyio.net',
-    api_type: 'statuspage',
+    api_type: 'incidentio',
   },
   {
     slug: 'circleci',
@@ -301,14 +307,14 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     name: 'PlanetScale',
     category: 'data',
     statuspage_url: 'https://www.planetscalestatus.com',
-    api_type: 'statuspage',
+    api_type: 'incidentio',
   },
   {
     slug: 'supabase',
     name: 'Supabase',
     category: 'data',
     statuspage_url: 'https://status.supabase.com',
-    api_type: 'statuspage',
+    api_type: 'incidentio',
   },
   {
     slug: 'neon',
@@ -414,7 +420,7 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     name: 'Brevo (Sendinblue)',
     category: 'comms',
     statuspage_url: 'https://status.brevo.com',
-    api_type: 'statuspage',
+    api_type: 'incidentio',
   },
   {
     slug: 'courier',
@@ -444,7 +450,7 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     name: 'Clerk',
     category: 'auth',
     statuspage_url: 'https://status.clerk.com',
-    api_type: 'statuspage',
+    api_type: 'incidentio',
   },
   {
     slug: 'workos',
@@ -577,7 +583,7 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     name: 'OpenAI',
     category: 'ai',
     statuspage_url: 'https://status.openai.com',
-    api_type: 'statuspage',
+    api_type: 'incidentio',
   },
   {
     slug: 'anthropic',
@@ -592,7 +598,7 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     name: 'ElevenLabs',
     category: 'ai',
     statuspage_url: 'https://status.elevenlabs.io',
-    api_type: 'statuspage',
+    api_type: 'incidentio',
   },
   {
     slug: 'pinecone',
@@ -606,6 +612,6 @@ export const VENDOR_REGISTRY: readonly VendorEntry[] = [
     name: 'Cohere',
     category: 'ai',
     statuspage_url: 'https://status.cohere.com',
-    api_type: 'statuspage',
+    api_type: 'incidentio',
   },
 ] as const;

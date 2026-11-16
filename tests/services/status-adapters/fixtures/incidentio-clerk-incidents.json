@@ -1,0 +1,744 @@
+{
+  "incidents": [
+    {
+      "updates": [
+        {
+          "published_at": "2026-10-29T17:40:19.176Z",
+          "id": "01M64BZ539C5M76VJSJQPAXQY8",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We’re investigating SMS delivery issues affecting some users. Verification codes may be delayed or fail to arrive.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We’re investigating SMS delivery issues affecting some users. Verification codes may be delayed or fail to arrive.",
+          "to_status": "investigating",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "partial_outage"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-10-29T17:46:20.744Z",
+          "id": "01M64CA64NNS3DHJ9GGQYFPS2K",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We’re investigating SMS delivery issues with an upstream SMS provider.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We’re investigating SMS delivery issues with an upstream SMS provider.",
+          "to_status": "investigating",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "partial_outage"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-10-29T17:54:08.888Z",
+          "id": "01M64CRFB63GNATC798P9M9JNW",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We're continuing to investigate SMS delivery issues with an upstream vendor impacting users on AT&T.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We're continuing to investigate SMS delivery issues with an upstream vendor impacting users on AT&T.",
+          "to_status": "investigating",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "partial_outage"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-10-29T18:00:06.835Z",
+          "id": "01M64D3CWVFMDAXF6JGB94060R",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We’ve identified an issue with an upstream SMS provider’s delivery route to AT&T numbers. The provider is switching traffic to an alternate route. We’re monitoring delivery rates and will share updates as we learn more.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We’ve identified an issue with an upstream SMS provider’s delivery route to AT&T numbers. The provider is switching traffic to an alternate route. We’re monitoring delivery rates and will share updates as we learn more.",
+          "to_status": "investigating",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "partial_outage"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-10-29T18:05:04.342Z",
+          "id": "01M64DCFDVCHBD7K4PZ0RSJCS8",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "SMS verification completion rates have returned to normal levels following the provider’s switch to an alternate delivery route. We’re continuing to monitor delivery and verification rates.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "SMS verification completion rates have returned to normal levels following the provider’s switch to an alternate delivery route. We’re continuing to monitor delivery and verification rates.",
+          "to_status": "monitoring",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "partial_outage"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-10-29T18:16:44.935Z",
+          "id": "01M64E1VKGGVFP8DJN2GE55HYE",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "The SMS delivery issue is resolved. Delivery and verification completion rates have returned to normal following our upstream provider’s switch to an alternate route.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "The SMS delivery issue is resolved. Delivery and verification completion rates have returned to normal following our upstream provider’s switch to an alternate route.",
+          "to_status": "resolved",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "operational"
+            }
+          ],
+          "automated_update": false
+        }
+      ],
+      "component_impacts": [
+        {
+          "start_at": "2026-10-29T17:40:19.176Z",
+          "end_at": "2026-10-29T18:16:44.935Z",
+          "id": "01M64BZ539CHPTW5RY55T61JN7",
+          "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+          "status_page_incident_id": "01M64BZ539EBV61Y908QHE84C4",
+          "status": "partial_outage"
+        }
+      ],
+      "status_summaries": [
+        {
+          "start_at": "2026-10-29T17:40:19.176Z",
+          "end_at": "2026-10-29T17:46:20.744Z",
+          "worst_component_status": "partial_outage"
+        },
+        {
+          "start_at": "2026-10-29T17:46:20.744Z",
+          "end_at": "2026-10-29T17:54:08.888Z",
+          "worst_component_status": "partial_outage"
+        },
+        {
+          "start_at": "2026-10-29T17:54:08.888Z",
+          "end_at": "2026-10-29T18:00:06.835Z",
+          "worst_component_status": "partial_outage"
+        },
+        {
+          "start_at": "2026-10-29T18:00:06.835Z",
+          "end_at": "2026-10-29T18:05:04.342Z",
+          "worst_component_status": "partial_outage"
+        },
+        {
+          "start_at": "2026-10-29T18:05:04.342Z",
+          "end_at": "2026-10-29T18:16:44.935Z",
+          "worst_component_status": "partial_outage"
+        }
+      ],
+      "published_at": "2026-10-29T17:40:19.176Z",
+      "id": "01M64BZ539EBV61Y908QHE84C4",
+      "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ",
+      "name": "SMS Delivery Issues",
+      "status": "resolved",
+      "affected_components": [
+        {
+          "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+          "status": "partial_outage",
+          "current_status": "operational"
+        }
+      ],
+      "type": "incident"
+    },
+    {
+      "updates": [
+        {
+          "published_at": "2026-09-24T13:04:27.482Z",
+          "id": "01M39R8WAVCG0EDFZGTPR8Q9F9",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We'll be doing planned database maintenance on Saturday, September 26 from 9:00 to 9:30 AM CT (14:00–14:30 UTC). Some requests may briefly fail or be slow during this window. No action is needed on your part. We'll post an update here when the maintenance is complete.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We'll be doing planned database maintenance on Saturday, September 26 from 9:00 to 9:30 AM CT (14:00–14:30 UTC). Some requests may briefly fail or be slow during this window. No action is needed on your part. We'll post an update here when the maintenance is complete.",
+          "to_status": "maintenance_scheduled",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSB6DX634QMSE9V4003",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBC8ZX3XBYYF6VDHB1",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBEMMYR2Y9V1ZCY1XG",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBEVMEWRPZPJ9MEH5T",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBGGJCYCY10NJJ8099",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBQ2XMH6GC4EF7GF99",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBRG3EWYB5V521KKPV",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBS191E18P5FANYAWM",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K4TC9GXAYMA3FK9RYJM2QG8R",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01KKEKA0GFH9HWVE78RD7FSDZB",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01KPWM0YRQ2D421BJ2XRVJR54Z",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01KR1V0JQW9RJV3APZQ3XM8HZF",
+              "status": "under_maintenance"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-26T14:00:00.983Z",
+          "id": "01M3F081PANGJ9WGQPX37QPVBM",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "Maintenance has started",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "Maintenance has started",
+          "to_status": "maintenance_in_progress",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSB6DX634QMSE9V4003",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBC8ZX3XBYYF6VDHB1",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBEMMYR2Y9V1ZCY1XG",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBEVMEWRPZPJ9MEH5T",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBGGJCYCY10NJJ8099",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBQ2XMH6GC4EF7GF99",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBRG3EWYB5V521KKPV",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K41ZBMSBS191E18P5FANYAWM",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01K4TC9GXAYMA3FK9RYJM2QG8R",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01KKEKA0GFH9HWVE78RD7FSDZB",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01KPWM0YRQ2D421BJ2XRVJR54Z",
+              "status": "under_maintenance"
+            },
+            {
+              "component_id": "01KR1V0JQW9RJV3APZQ3XM8HZF",
+              "status": "under_maintenance"
+            }
+          ],
+          "automated_update": true
+        },
+        {
+          "published_at": "2026-09-26T14:30:00.755Z",
+          "id": "01M3F1YZ9GJMGCVD2GY6VF6YQE",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "Maintenance has completed",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "Maintenance has completed",
+          "to_status": "maintenance_complete",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSB6DX634QMSE9V4003",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSBC8ZX3XBYYF6VDHB1",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSBEMMYR2Y9V1ZCY1XG",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSBEVMEWRPZPJ9MEH5T",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSBGGJCYCY10NJJ8099",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSBQ2XMH6GC4EF7GF99",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSBRG3EWYB5V521KKPV",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K41ZBMSBS191E18P5FANYAWM",
+              "status": "operational"
+            },
+            {
+              "component_id": "01K4TC9GXAYMA3FK9RYJM2QG8R",
+              "status": "operational"
+            },
+            {
+              "component_id": "01KKEKA0GFH9HWVE78RD7FSDZB",
+              "status": "operational"
+            },
+            {
+              "component_id": "01KPWM0YRQ2D421BJ2XRVJR54Z",
+              "status": "operational"
+            },
+            {
+              "component_id": "01KR1V0JQW9RJV3APZQ3XM8HZF",
+              "status": "operational"
+            }
+          ],
+          "automated_update": true
+        }
+      ],
+      "component_impacts": [
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAVJK6SZF0Z0HVAYT0J",
+          "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAVANA9FF3YB6X61FSB",
+          "component_id": "01K4TC9GXAYMA3FK9RYJM2QG8R",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAV1CWZ2E90FE50Z8B0",
+          "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAV2AYEJ264VKHA8CH8",
+          "component_id": "01KKEKA0GFH9HWVE78RD7FSDZB",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAVGNJT587KMANQNHGN",
+          "component_id": "01K41ZBMSB6DX634QMSE9V4003",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAV3TDTH0JER6JE4ZCP",
+          "component_id": "01KR1V0JQW9RJV3APZQ3XM8HZF",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAV85R30FB07K0H23F4",
+          "component_id": "01K41ZBMSBQ2XMH6GC4EF7GF99",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAVDWERRBCHSG5TPKJ0",
+          "component_id": "01K41ZBMSBC8ZX3XBYYF6VDHB1",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAVMJ3H2FQ1XFFYDTT3",
+          "component_id": "01K41ZBMSBGGJCYCY10NJJ8099",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAV1B17HAK465HQR2GR",
+          "component_id": "01K41ZBMSBRG3EWYB5V521KKPV",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAVGQYX0P248HH1B2ZA",
+          "component_id": "01K41ZBMSBEVMEWRPZPJ9MEH5T",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAV8TM55WTM96DPHV94",
+          "component_id": "01K41ZBMSBS191E18P5FANYAWM",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAVH5NXTHTTX7JGEVZ5",
+          "component_id": "01K41ZBMSBEMMYR2Y9V1ZCY1XG",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        },
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "id": "01M39R8WAV9M9WV0FQTKK5ECJ8",
+          "component_id": "01KPWM0YRQ2D421BJ2XRVJR54Z",
+          "status_page_incident_id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+          "status": "under_maintenance"
+        }
+      ],
+      "status_summaries": [
+        {
+          "start_at": "2026-09-26T14:00:00Z",
+          "end_at": "2026-09-26T14:30:00Z",
+          "worst_component_status": "under_maintenance"
+        }
+      ],
+      "published_at": "2026-09-24T13:04:27.482Z",
+      "id": "01M39R8WAV5ZXHKQPK3HSV6FEK",
+      "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ",
+      "name": "Scheduled Database Maintenance",
+      "status": "maintenance_complete",
+      "affected_components": [
+        {
+          "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSB6DX634QMSE9V4003",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSBC8ZX3XBYYF6VDHB1",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSBEMMYR2Y9V1ZCY1XG",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSBEVMEWRPZPJ9MEH5T",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSBGGJCYCY10NJJ8099",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSBQ2XMH6GC4EF7GF99",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSBRG3EWYB5V521KKPV",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K41ZBMSBS191E18P5FANYAWM",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01K4TC9GXAYMA3FK9RYJM2QG8R",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01KKEKA0GFH9HWVE78RD7FSDZB",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01KPWM0YRQ2D421BJ2XRVJR54Z",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        },
+        {
+          "component_id": "01KR1V0JQW9RJV3APZQ3XM8HZF",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        }
+      ],
+      "type": "maintenance"
+    },
+    {
+      "updates": [
+        {
+          "published_at": "2026-09-16T12:31:37.167Z",
+          "id": "01M2N3706G7T87F5YP1TDZ3FHM",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "Currently there are delays for some customers in webhook delivery. The issue has been identified and we are working towards a resolution",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "Currently there are delays for some customers in webhook delivery. The issue has been identified and we are working towards a resolution",
+          "to_status": "identified",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "degraded_performance"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-16T13:24:10.156Z",
+          "id": "01M2N6777RJPGEJNCDX6EJY0ZB",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "A mitigation has been applied. Webhooks are being delivered at the normal pace. We continue monitoring",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "A mitigation has been applied. Webhooks are being delivered at the normal pace. We continue monitoring",
+          "to_status": "monitoring",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "degraded_performance"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-16T13:39:10.078Z",
+          "id": "01M2N72P2EPZ55JPNYZX9ZYX13",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "All systems are working",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "All systems are working",
+          "to_status": "resolved",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "operational"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-16T14:33:14.345Z",
+          "id": "01M2NA5P9C3RMH7ZECP60A08BQ",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "Delays in webhook deliveries for some customers",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "Delays in webhook deliveries for some customers",
+          "to_status": "investigating",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "degraded_performance"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-16T14:58:35.099Z",
+          "id": "01M2NBM3D1PH6Z0702PTMSB05C",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "Webhook delivery is normal at  the moment. We are closely monitoring",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "Webhook delivery is normal at  the moment. We are closely monitoring",
+          "to_status": "monitoring",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "operational"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-16T15:20:58.791Z",
+          "id": "01M2NCX3KC2VF6Q2F6CXJ1M0T5",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "All systems are functional",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "All systems are functional",
+          "to_status": "resolved",
+          "component_statuses": [
+            {
+              "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+              "status": "operational"
+            }
+          ],
+          "automated_update": false
+        }
+      ],
+      "component_impacts": [
+        {
+          "start_at": "2026-09-16T12:31:37.167Z",
+          "end_at": "2026-09-16T13:39:10.078Z",
+          "id": "01M2N3706G1PH32GZDCB3B0RAP",
+          "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+          "status_page_incident_id": "01M2N3706GY2Z4BNNZYFGXP4Y7",
+          "status": "degraded_performance"
+        },
+        {
+          "start_at": "2026-09-16T14:33:14.345Z",
+          "end_at": "2026-09-16T14:58:35.099Z",
+          "id": "01M2NA5P9CXJJ4BHS9F9PVG5FT",
+          "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+          "status_page_incident_id": "01M2N3706GY2Z4BNNZYFGXP4Y7",
+          "status": "degraded_performance"
+        }
+      ],
+      "status_summaries": [
+        {
+          "start_at": "2026-09-16T12:31:37.167Z",
+          "end_at": "2026-09-16T13:24:10.156Z",
+          "worst_component_status": "degraded_performance"
+        },
+        {
+          "start_at": "2026-09-16T13:24:10.156Z",
+          "end_at": "2026-09-16T13:39:10.078Z",
+          "worst_component_status": "degraded_performance"
+        },
+        {
+          "start_at": "2026-09-16T13:39:10.078Z",
+          "end_at": "2026-09-16T14:33:14.345Z",
+          "worst_component_status": "operational"
+        },
+        {
+          "start_at": "2026-09-16T14:33:14.345Z",
+          "end_at": "2026-09-16T14:58:35.099Z",
+          "worst_component_status": "degraded_performance"
+        }
+      ],
+      "published_at": "2026-09-16T12:31:37.167Z",
+      "id": "01M2N3706GY2Z4BNNZYFGXP4Y7",
+      "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ",
+      "name": "Delays in webhook delivery",
+      "status": "resolved",
+      "affected_components": [
+        {
+          "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+          "status": "degraded_performance",
+          "current_status": "operational"
+        }
+      ],
+      "type": "incident"
+    }
+  ]
+}

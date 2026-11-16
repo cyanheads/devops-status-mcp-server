@@ -9,6 +9,7 @@ import {
   createFetchMock,
   createMockContext,
   getEnrichment,
+  type MockContextLogger,
   runToolContract,
 } from '@cyanheads/mcp-ts-core/testing';
 import MarkdownIt from 'markdown-it';
@@ -78,7 +79,10 @@ vi.mock('@/services/status-adapters/status-dispatch.js', async (importOriginal) 
   return { ...actual, vendorHistory: vi.fn(actual.vendorHistory) };
 });
 
-vi.mock('@/services/statuspage/statuspage-service.js', () => {
+vi.mock('@/services/statuspage/statuspage-service.js', async (importOriginal) => {
+  // The dispatch layer classifies a raw URL's failures with the real predicate.
+  const { lacksStatuspageFields } =
+    await importOriginal<typeof import('@/services/statuspage/statuspage-service.js')>();
   const mockFetchIncidents = vi.fn();
   const mockFetchScheduledMaintenances = vi.fn();
   const mockFetchHistory = vi.fn();
@@ -92,6 +96,7 @@ vi.mock('@/services/statuspage/statuspage-service.js', () => {
       fetchSummary: mockFetchSummary,
     }),
     initStatuspageService: vi.fn(),
+    lacksStatuspageFields,
     _mockFetchIncidents: mockFetchIncidents,
     _mockFetchScheduledMaintenances: mockFetchScheduledMaintenances,
     _mockFetchHistory: mockFetchHistory,
@@ -198,7 +203,9 @@ async function useRealStatuspageService() {
   _mockFetchScheduledMaintenances.mockImplementation((url: string) =>
     real.fetchScheduledMaintenances(url),
   );
-  _mockFetchHistory.mockImplementation((url: string, page: number) => real.fetchHistory(url, page));
+  _mockFetchHistory.mockImplementation((...args: Parameters<typeof real.fetchHistory>) =>
+    real.fetchHistory(...args),
+  );
 }
 
 describe('devopsGetIncidents', () => {
@@ -353,7 +360,8 @@ describe('devopsGetIncidents', () => {
   });
 
   it('handles null started_at and shortlink (vendors using newer Statuspage format)', async () => {
-    // Regression: some vendors (e.g., OpenAI) omit started_at and shortlink entirely.
+    // Regression: some Statuspage-compatible APIs (e.g., the one incident.io serves at
+    // status.openai.com, read here as a raw URL) omit started_at and shortlink entirely.
     // The API returns these fields as absent (undefined at runtime, null after ?? null coercion).
     // The output schema must accept null/undefined; durationMinutes must not throw.
     const SPARSE_INCIDENTS: StatuspageIncidentsResponse = {
@@ -398,7 +406,10 @@ describe('devopsGetIncidents', () => {
     _mockFetchIncidents.mockResolvedValue({ data: SPARSE_INCIDENTS, cached: false });
 
     const ctx = createMockContext({ errors: devopsGetIncidents.errors });
-    const input = devopsGetIncidents.input.parse({ vendor: 'openai', filter: 'resolved' });
+    const input = devopsGetIncidents.input.parse({
+      vendor: 'https://status.openai.com',
+      filter: 'resolved',
+    });
     const result = await devopsGetIncidents.handler(input, ctx);
 
     expect(result.incidents).toHaveLength(1);
@@ -406,6 +417,115 @@ describe('devopsGetIncidents', () => {
     expect(result.incidents[0]!.shortlink).toBeNull();
     // duration_minutes should be null when started_at is absent (can't compute elapsed time)
     expect(result.incidents[0]!.duration_minutes).toBeNull();
+  });
+
+  it('keeps a merged list newest first when one record has no timestamp, and lists an undated update oldest', async () => {
+    const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
+      _mockFetchIncidents: ReturnType<typeof vi.fn>;
+      _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+    };
+    const base = RESOLVED_INCIDENT.incidents[0]!;
+    // created_at '' is what the incident.io adapter writes for a record with no published_at.
+    const on = (id: string, day: number | null) => ({
+      ...base,
+      id,
+      created_at: day === null ? '' : `2026-11-${String(day).padStart(2, '0')}T10:00:00Z`,
+      started_at: null,
+    });
+    const undatedUpdate = {
+      id: 'u-undated',
+      body: 'Undated note.',
+      status: 'monitoring',
+      created_at: '',
+      display_at: '',
+      affected_components: null,
+    };
+    _mockFetchIncidents.mockResolvedValue({
+      data: {
+        ...RESOLVED_INCIDENT,
+        incidents: [
+          { ...on('i14', 14), incident_updates: [...base.incident_updates, undatedUpdate] },
+          on('i12', 12),
+          on('i10', 10),
+          on('i08', 8),
+          on('i06', 6),
+          on('i04', 4),
+          on('undated', null),
+        ],
+      },
+      cached: false,
+    });
+    _mockFetchScheduledMaintenances.mockResolvedValue({
+      data: {
+        ...EMPTY_SCHEDULED,
+        scheduled_maintenances: [on('m13', 13), on('m07', 7), on('m03', 3)],
+      },
+      cached: false,
+    });
+
+    const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+    const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'all', limit: 50 });
+    const result = await devopsGetIncidents.handler(input, ctx);
+
+    expect(result.incidents.map((i) => i.id)).toEqual([
+      'i14',
+      'm13',
+      'i12',
+      'i10',
+      'i08',
+      'm07',
+      'i06',
+      'i04',
+      'm03',
+      'undated',
+    ]);
+    expect(result.incidents[0]!.updates.map((u) => u.body)).toEqual([
+      'Undated note.',
+      'We are investigating an issue.',
+      'Issue resolved.',
+    ]);
+  });
+
+  it('suggests a filter that takes no until without the until the call set', async () => {
+    const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
+      _mockFetchIncidents: ReturnType<typeof vi.fn>;
+      _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+    };
+    _mockFetchScheduledMaintenances.mockResolvedValue({ data: EMPTY_SCHEDULED, cached: false });
+    const ctx = () => createMockContext({ errors: devopsGetIncidents.errors });
+
+    // No incident record at all: only "scheduled" can return more, and it rejects until.
+    _mockFetchIncidents.mockResolvedValue({
+      data: { ...RESOLVED_INCIDENT, incidents: [] },
+      cached: false,
+    });
+    const emptyCtx = ctx();
+    await devopsGetIncidents.handler(
+      devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', until: '2026-11-15' }),
+      emptyCtx,
+    );
+    expect(getEnrichment(emptyCtx).notice).toBe(
+      'GitHub currently lists no incidents. Try filter: "scheduled" without since or until for its maintenance windows.',
+    );
+
+    // Records, none resolved: "active" and "scheduled" are offered and reject until too.
+    const open = { ...RESOLVED_INCIDENT.incidents[0]!, status: 'investigating', resolved_at: null };
+    _mockFetchIncidents.mockResolvedValue({
+      data: { ...RESOLVED_INCIDENT, incidents: [open] },
+      cached: false,
+    });
+    const openCtx = ctx();
+    await devopsGetIncidents.handler(
+      devopsGetIncidents.input.parse({ vendor: 'github', filter: 'resolved', until: '2026-11-15' }),
+      openCtx,
+    );
+    expect(getEnrichment(openCtx).notice).toBe(
+      'No incidents matched filter "resolved" for GitHub. Try filter: "all" or "active" or "scheduled". Drop since and until for "active" or "scheduled", which accept neither.',
+    );
   });
 
   it('non-truncated results pass the effective-output parse without enrichment (#5)', async () => {
@@ -1926,7 +2046,8 @@ describe('devopsGetIncidents', () => {
 
   describe('pages that publish no scheduled-maintenances endpoint', () => {
     /**
-     * Six registry vendors 404 on scheduled-maintenances.json. Under filter:'all'
+     * Statuspage-compatible pages (incident.io's, read as a raw URL) 404 on
+     * scheduled-maintenances.json. Under filter:'all'
      * the incidents fetch already proved the base URL is a real Statuspage, so the
      * 404 means "publishes no maintenance data" and must not fail the whole call.
      */
@@ -1954,15 +2075,19 @@ describe('devopsGetIncidents', () => {
     });
 
     /**
-     * filter:'scheduled' fetches nothing else, so a 404 is indistinguishable from a
-     * wrong base URL — it must stay an error rather than silently return empty.
+     * filter:'scheduled' fetches nothing else, so the 404 alone is indistinguishable from a
+     * wrong base URL. The incidents feed settles it: serving, the page publishes no
+     * maintenance feed and the result is empty with that said; not serving, the call fails.
      */
-    it('filter:scheduled still surfaces the 404 as statuspage_unavailable', async () => {
-      const { _mockFetchScheduledMaintenances } = (await import(
+    it('filter:scheduled reads incidents.json on the 404 and returns an empty result when it serves', async () => {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
         '@/services/statuspage/statuspage-service.js'
       )) as unknown as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
         _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
       };
+      _mockFetchIncidents.mockReset();
+      _mockFetchIncidents.mockResolvedValue({ data: RESOLVED_INCIDENT, cached: false });
       _mockFetchScheduledMaintenances.mockRejectedValue(
         new McpError(JsonRpcErrorCode.ServiceUnavailable, 'HTTP 404 from .../scheduled', {
           reason: 'statuspage_unavailable',
@@ -1972,9 +2097,373 @@ describe('devopsGetIncidents', () => {
 
       const ctx = createMockContext({ errors: devopsGetIncidents.errors });
       const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'scheduled' });
+      const result = await devopsGetIncidents.handler(input, ctx);
+
+      expect(result.incidents).toEqual([]);
+      expect(_mockFetchIncidents).toHaveBeenCalledWith('https://www.githubstatus.com');
+      expect(getEnrichment(ctx).notice).toBe(
+        'GitHub publishes no scheduled-maintenance feed, so filter: "scheduled" is always empty for it. Try filter: "all" or "active" or "resolved".',
+      );
+    });
+
+    it("filter:scheduled keeps a registry entry's 404 statuspage_unavailable when incidents.json 404s too", async () => {
+      const { _mockFetchIncidents, _mockFetchScheduledMaintenances } = (await import(
+        '@/services/statuspage/statuspage-service.js'
+      )) as unknown as {
+        _mockFetchIncidents: ReturnType<typeof vi.fn>;
+        _mockFetchScheduledMaintenances: ReturnType<typeof vi.fn>;
+      };
+      const notServed = (path: string) =>
+        new McpError(JsonRpcErrorCode.ServiceUnavailable, `HTTP 404 from ${path}`, {
+          reason: 'statuspage_unavailable',
+          status: 404,
+        });
+      _mockFetchIncidents.mockRejectedValueOnce(notServed('.../incidents.json'));
+      _mockFetchScheduledMaintenances.mockRejectedValue(notServed('.../scheduled'));
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const input = devopsGetIncidents.input.parse({ vendor: 'github', filter: 'scheduled' });
       await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
+        message: 'HTTP 404 from .../incidents.json',
         data: { reason: 'statuspage_unavailable' },
       });
+    });
+  });
+
+  /**
+   * A raw URL is read only as a Statuspage base (#103). Every case runs the real service,
+   * fetch, redirect, and shape-gate path down to a strict fetch fake; the mechanism's
+   * full status table is proved at the dispatch seam, so these prove the wiring.
+   */
+  describe('raw URL that serves no Statuspage API (#103)', () => {
+    const http = createFetchMock();
+    const RAW = 'https://www.raw-status.example';
+    const RECOVERY =
+      "Pass the vendor's registry slug (devops_list_vendors lists them) or the base URL of a page hosted on Atlassian Statuspage.";
+
+    beforeEach(async () => {
+      http.reset();
+      http.install();
+      await useRealStatuspageService();
+      const { assertSafeUrl } = await import('@/utils/ssrf-guard.js');
+      vi.mocked(assertSafeUrl).mockClear();
+    });
+
+    afterEach(() => {
+      http.restore();
+    });
+
+    const requested = () => http.calls.map((c) => c.request.url);
+    const notFound = () => new Response('Not Found', { status: 404 });
+    const incidentsBody = () => Response.json(RESOLVED_INCIDENT);
+    const text = (result: { content: unknown }) =>
+      (result.content as { type: string; text: string }[]).map((c) => c.text).join('\n');
+
+    it('rejects a URL on an adapter-backed status page before any request, naming its slug', async () => {
+      const { assertSafeUrl } = await import('@/utils/ssrf-guard.js');
+      const result = await runToolContract(devopsGetIncidents, {
+        vendor: 'https://status.gitlab.com',
+        filter: 'all',
+      });
+
+      const message =
+        'https://status.gitlab.com serves no Atlassian Statuspage API at that base: its status page runs on another backend, which this server reads only by the vendor\'s registry slug. The registry entry for this host\'s status page is "gitlab" — pass that slug as the vendor instead.';
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        error: {
+          code: JsonRpcErrorCode.NotFound,
+          message,
+          data: {
+            reason: 'statuspage_not_found',
+            url: 'https://status.gitlab.com',
+            recovery: { hint: RECOVERY },
+          },
+        },
+      });
+      expect(text(result)).toContain(message);
+      expect(text(result)).toContain('statuspage_not_found');
+      expect(requested()).toEqual([]);
+      expect(vi.mocked(assertSafeUrl)).not.toHaveBeenCalled();
+    });
+
+    it('a 404 from incidents.json is statuspage_not_found, not a retryable outage', async () => {
+      http.route({ match: /\/api\/v2\//, respond: notFound });
+
+      const result = await runToolContract(devopsGetIncidents, {
+        vendor: RAW,
+        filter: 'resolved',
+      });
+
+      expect(result.structuredContent).toMatchObject({
+        error: {
+          code: JsonRpcErrorCode.NotFound,
+          message: `${RAW} serves no Atlassian Statuspage API at that base: HTTP 404 from ${RAW}/api/v2/incidents.json. ${RECOVERY}`,
+          data: { reason: 'statuspage_not_found', url: RAW, recovery: { hint: RECOVERY } },
+        },
+      });
+      expect(text(result)).not.toContain('Retry after 30s');
+      expect(requested()).toEqual([`${RAW}/api/v2/incidents.json`]);
+    });
+
+    it('filter all: both v2 endpoints 404ing fail as statuspage_not_found', async () => {
+      http.route({ match: /\/api\/v2\//, respond: notFound });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const input = devopsGetIncidents.input.parse({ vendor: RAW, filter: 'all' });
+      await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
+        code: JsonRpcErrorCode.NotFound,
+        data: { reason: 'statuspage_not_found' },
+      });
+      expect(requested().sort()).toEqual([
+        `${RAW}/api/v2/incidents.json`,
+        `${RAW}/api/v2/scheduled-maintenances.json`,
+      ]);
+    });
+
+    it('a 200 JSON echo without the Statuspage fields is statuspage_not_found', async () => {
+      http.route({
+        match: /\/api\/v2\//,
+        respond: () => Response.json({ args: {}, headers: {}, method: 'GET' }),
+      });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const input = devopsGetIncidents.input.parse({ vendor: RAW, filter: 'active' });
+      await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
+        code: JsonRpcErrorCode.NotFound,
+        message: `${RAW} serves no Atlassian Statuspage API at that base: ${RAW}/api/v2/incidents.json answered JSON without the Statuspage fields. ${RECOVERY}`,
+        data: { reason: 'statuspage_not_found' },
+      });
+    });
+
+    it('a 503 from a raw URL stays retryable statuspage_unavailable', async () => {
+      http.route({ match: /\/api\/v2\//, respond: () => new Response(null, { status: 503 }) });
+
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const input = devopsGetIncidents.input.parse({ vendor: RAW, filter: 'active' });
+      await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
+        code: JsonRpcErrorCode.ServiceUnavailable,
+        data: { reason: 'statuspage_unavailable', status: 503 },
+      });
+    });
+
+    it('declares statuspage_not_found as NotFound and leaves it non-retryable', () => {
+      const entry = devopsGetIncidents.errors?.find((e) => e.reason === 'statuspage_not_found');
+      expect(entry).toMatchObject({ code: JsonRpcErrorCode.NotFound, recovery: RECOVERY });
+      expect(entry).not.toHaveProperty('retryable');
+    });
+
+    describe('filter: "scheduled" on a page with no maintenance endpoint', () => {
+      // incident.io's Statuspage-compatible API, which a raw URL on its page reads, serves none.
+      const OPENAI = 'https://status.openai.com';
+      const GITHUB = 'https://www.githubstatus.com';
+      const NO_FEED =
+        'publishes no scheduled-maintenance feed, so filter: "scheduled" is always empty for it. Try filter: "all" or "active" or "resolved".';
+
+      it.each([
+        ['the raw URL', OPENAI, OPENAI, OPENAI],
+        ['a Statuspage registry slug', 'github', 'GitHub', GITHUB],
+      ])(
+        'returns an empty result with the no-feed notice for %s',
+        async (_label, vendor, name, base) => {
+          http.route(
+            { match: `${base}/api/v2/scheduled-maintenances.json`, respond: notFound },
+            { match: `${base}/api/v2/incidents.json`, respond: incidentsBody },
+          );
+
+          const result = await runToolContract(devopsGetIncidents, { vendor, filter: 'scheduled' });
+
+          expect(result.isError).toBeFalsy();
+          expect(result.structuredContent).toMatchObject({
+            vendor,
+            incidents: [],
+            total_returned: 0,
+            notice: `${name} ${NO_FEED}`,
+          });
+          expect(text(result)).toContain(`${name} ${NO_FEED}`);
+          expect(requested()).toEqual([
+            `${base}/api/v2/scheduled-maintenances.json`,
+            `${base}/api/v2/incidents.json`,
+          ]);
+        },
+      );
+
+      it('fails as statuspage_not_found on a raw URL whose incidents.json 404s too', async () => {
+        http.route({ match: /\/api\/v2\//, respond: notFound });
+
+        const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+        const input = devopsGetIncidents.input.parse({ vendor: RAW, filter: 'scheduled' });
+        await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
+          code: JsonRpcErrorCode.NotFound,
+          message: `${RAW} serves no Atlassian Statuspage API at that base: HTTP 404 from ${RAW}/api/v2/incidents.json. ${RECOVERY}`,
+        });
+      });
+
+      it('stays retryable when incidents.json is unavailable rather than missing', async () => {
+        http.route(
+          { match: `${RAW}/api/v2/scheduled-maintenances.json`, respond: notFound },
+          {
+            match: `${RAW}/api/v2/incidents.json`,
+            respond: () => new Response(null, { status: 503 }),
+          },
+        );
+
+        const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+        const input = devopsGetIncidents.input.parse({ vendor: RAW, filter: 'scheduled' });
+        await expect(devopsGetIncidents.handler(input, ctx)).rejects.toMatchObject({
+          code: JsonRpcErrorCode.ServiceUnavailable,
+          data: { reason: 'statuspage_unavailable', status: 503 },
+        });
+      });
+
+      it('reads only the maintenance endpoint when it serves, and returns its windows', async () => {
+        const window = {
+          ...RESOLVED_INCIDENT.incidents[0]!,
+          id: 'maint-raw',
+          name: 'Planned DB Migration',
+          impact: 'none',
+          status: 'scheduled',
+          resolved_at: null,
+          incident_updates: [],
+          scheduled_for: '2026-12-05T02:00:00Z',
+          scheduled_until: '2026-12-05T04:00:00Z',
+        };
+        http.route({
+          match: `${RAW}/api/v2/scheduled-maintenances.json`,
+          respond: () => Response.json({ ...EMPTY_SCHEDULED, scheduled_maintenances: [window] }),
+        });
+
+        const result = await runToolContract(devopsGetIncidents, {
+          vendor: RAW,
+          filter: 'scheduled',
+        });
+
+        expect(requested()).toEqual([`${RAW}/api/v2/scheduled-maintenances.json`]);
+        expect(result.isError).toBeFalsy();
+        expect(result.structuredContent).toMatchObject({
+          vendor: RAW,
+          total_returned: 1,
+          incidents: [
+            {
+              id: 'maint-raw',
+              name: 'Planned DB Migration',
+              impact: 'maintenance',
+              status: 'scheduled',
+              scheduled_for: '2026-12-05T02:00:00Z',
+              scheduled_until: '2026-12-05T04:00:00Z',
+            },
+          ],
+        });
+        expect(result.structuredContent).not.toHaveProperty('notice');
+        expect(text(result)).toContain('Planned DB Migration');
+        expect(text(result)).toContain(
+          '**Scheduled:** 2026-12-05T02:00:00Z → 2026-12-05T04:00:00Z',
+        );
+        expect(text(result)).not.toContain(NO_FEED);
+      });
+    });
+  });
+
+  /**
+   * A raw URL is read at its origin and path: a query string would otherwise swallow the
+   * appended API path, and userinfo would reach the upstream as Basic auth and every echo.
+   */
+  describe('raw URL normalization', () => {
+    const http = createFetchMock();
+    const GITHUB = 'https://www.githubstatus.com';
+
+    beforeEach(async () => {
+      http.reset();
+      http.install();
+      await useRealStatuspageService();
+    });
+
+    afterEach(() => {
+      http.restore();
+    });
+
+    async function call(vendor: string) {
+      const ctx = createMockContext({ errors: devopsGetIncidents.errors });
+      const result = await devopsGetIncidents.handler(
+        devopsGetIncidents.input.parse({ vendor, filter: 'resolved', limit: 50 }),
+        ctx,
+      );
+      const structured = devopsGetIncidents.output
+        .extend(devopsGetIncidents.enrichment!)
+        .parse({ ...result, ...getEnrichment(ctx) });
+      const text = (devopsGetIncidents.format!(result)[0] as { text: string }).text;
+      return { result, structured, text, logs: (ctx.log as MockContextLogger).calls };
+    }
+
+    it('reads the same incidents for a URL with a query string as for the bare base URL', async () => {
+      // The page root answers with its summary, whose few open incidents pass the incidents gate.
+      http.route({
+        match: (req) => new URL(req.url).hostname === 'www.githubstatus.com',
+        respond: (req) =>
+          new URL(req.url).pathname === '/api/v2/incidents.json'
+            ? Response.json(fixture('github-incidents.json'))
+            : Response.json(RESOLVED_INCIDENT),
+      });
+
+      const bare = await call(GITHUB);
+      const withQuery = await call(`${GITHUB}?ref=x`);
+
+      expect(http.calls.map((c) => c.request.url)).toEqual([
+        `${GITHUB}/api/v2/incidents.json`,
+        `${GITHUB}/api/v2/incidents.json`,
+      ]);
+      expect(withQuery.structured.totalCount).toBe(bare.structured.totalCount);
+      expect(withQuery.structured.upstreamCeiling).toBe(50);
+      expect(withQuery.result.incidents.map((i) => i.id)).toEqual(
+        bare.result.incidents.map((i) => i.id),
+      );
+      expect(withQuery.result.vendor).toBe(`${GITHUB}/`);
+      expect(withQuery.result.statuspage_url).toBe(GITHUB);
+    });
+
+    it('sends, echoes, and logs no credential, query, or fragment from the URL', async () => {
+      const { assertSafeUrl } = await import('@/utils/ssrf-guard.js');
+      http.route({
+        match: 'https://status.creds.example/api/v2/incidents.json',
+        respond: () => Response.json(RESOLVED_INCIDENT),
+      });
+
+      const { result, structured, text, logs } = await call(
+        'https://user:pass@status.creds.example/?token=x#frag',
+      );
+
+      const [request] = http.calls.map((c) => c.request);
+      expect(request?.url).toBe('https://status.creds.example/api/v2/incidents.json');
+      expect(request?.headers.get('authorization')).toBeNull();
+      expect(vi.mocked(assertSafeUrl)).toHaveBeenLastCalledWith('https://status.creds.example');
+      expect(result).toMatchObject({
+        vendor: 'https://status.creds.example/',
+        name: 'https://status.creds.example/',
+        statuspage_url: 'https://status.creds.example',
+      });
+      expect(logs.find((l) => l.msg === 'Incidents fetched')?.data).toMatchObject({
+        vendor: 'https://status.creds.example/',
+      });
+      for (const surface of [JSON.stringify(structured), text, JSON.stringify(logs)]) {
+        expect(surface).not.toMatch(/user|pass|token|frag/);
+      }
+    });
+
+    it('keeps them out of a failure too, on both surfaces', async () => {
+      http.route({ match: /creds\.example/, respond: () => new Response(null, { status: 503 }) });
+
+      const result = await runToolContract(devopsGetIncidents, {
+        vendor: 'https://user:pass@status.creds.example/?token=x',
+        filter: 'active',
+      });
+
+      expect(result.structuredContent).toMatchObject({
+        error: {
+          message: 'HTTP 503 from https://status.creds.example/api/v2/incidents.json',
+          data: { reason: 'statuspage_unavailable' },
+        },
+      });
+      const surfaces = [JSON.stringify(result.structuredContent), JSON.stringify(result.content)];
+      for (const surface of surfaces) expect(surface).not.toMatch(/user|pass|token/);
     });
   });
 
@@ -2516,6 +3005,34 @@ describe('devopsGetIncidents', () => {
       expect(structured.upstreamCeiling).toBe(50);
       expect(structured.notice).toContain('404');
       expect(structured.notice).toContain('2026-09-15');
+      expect(structured.notice).toContain(base);
+    });
+
+    // A raw URL's own 404s prove it serves no Statuspage API; the archive's never does (#103).
+    it('the same page by raw URL: an archive 404 stays a notice, never statuspage_not_found', async () => {
+      const base = 'https://www.cloudflarestatus.com';
+      http.route(
+        { match: `${base}/api/v2/incidents.json`, respond: json('cloudflare-incidents.json') },
+        {
+          match: `${base}/api/v2/scheduled-maintenances.json`,
+          respond: () =>
+            Response.json({ page: { name: 'Cloudflare Status' }, scheduled_maintenances: [] }),
+        },
+        { match: historyPage(base, 1), respond: () => new Response(null, { status: 404 }) },
+      );
+
+      const { result, structured } = await call({
+        vendor: base,
+        filter: 'resolved',
+        since: '2026-09-15',
+        limit: 50,
+      });
+
+      expect(historyRequests()).toEqual([historyPage(base, 1)]);
+      expect(result.vendor).toBe(base);
+      expect(result.total_returned).toBeGreaterThan(0);
+      expect(result.incidents.every((i) => i.source === 'api')).toBe(true);
+      expect(structured.notice).toContain('404');
       expect(structured.notice).toContain(base);
     });
 
@@ -4110,8 +4627,14 @@ describe('devopsGetIncidents', () => {
       vi.mocked(aws.fetchAwsIncidents).mockReset();
     });
 
-    const retry = (name: string, filters: string) =>
-      `No incidents matched filter "active" for ${name}. Try filter: ${filters}.`;
+    /**
+     * Every feed here lists no incident at all, so neither `all` nor `resolved` can return
+     * more than `active` did; only `scheduled`, which reads the maintenance feed, can (#101).
+     */
+    const scheduledOnly = (name: string) =>
+      `${name} currently lists no incidents. Try filter: "scheduled" for its maintenance windows.`;
+    const noFilter = (name: string, url: string) =>
+      `${name} currently lists no incidents. See ${url} to confirm on the vendor's own status page.`;
 
     it.each([
       {
@@ -4119,49 +4642,49 @@ describe('devopsGetIncidents', () => {
         vendor: 'github',
         feed: 'https://www.githubstatus.com/api/v2/incidents.json',
         body: () => Response.json({ ...RESOLVED_INCIDENT, incidents: [] }),
-        notice: retry('GitHub', '"all" or "resolved" or "scheduled"'),
+        notice: scheduledOnly('GitHub'),
       },
       {
         backend: 'statusio',
         vendor: 'gitlab',
         feed: 'https://status-api.hostedstatus.com/1.0/status/5b36dc6502d06804c08349f7',
         body: () => Response.json({ result: { status_overall: {}, status: [] } }),
-        notice: retry('GitLab', '"all" or "resolved" or "scheduled"'),
+        notice: scheduledOnly('GitLab'),
       },
       {
         backend: 'gcp',
         vendor: 'gcp',
         feed: 'https://status.cloud.google.com/incidents.json',
         body: () => Response.json([]),
-        notice: retry('Google Cloud', '"all" or "resolved"'),
+        notice: noFilter('Google Cloud', 'https://status.cloud.google.com'),
       },
       {
         backend: 'aws',
         vendor: 'aws',
         feed: 'https://health.aws.amazon.com/public/currentevents',
         body: () => new Response(Buffer.from('[]', 'utf16le')),
-        notice: retry('Amazon Web Services', '"all" or "resolved"'),
+        notice: noFilter('Amazon Web Services', 'https://health.aws.amazon.com'),
       },
       {
         backend: 'slack',
         vendor: 'slack',
         feed: 'https://status.slack.com/api/v2.0.0/history',
         body: () => Response.json([]),
-        notice: retry('Slack', '"all" or "resolved"'),
+        notice: noFilter('Slack', 'https://status.slack.com'),
       },
       {
         backend: 'firehydrant',
         vendor: 'redis-cloud',
         feed: 'https://status.redis.io/data/payload.json',
         body: () => Response.json({ incidents: [], components: [] }),
-        notice: retry('Redis Cloud', '"all" or "resolved" or "scheduled"'),
+        notice: scheduledOnly('Redis Cloud'),
       },
       {
         backend: 'datadog',
         vendor: 'datadog',
         feed: 'https://status.datadoghq.com/config.json',
         body: () => Response.json({ components: [], incidents: [], maintenances: null }),
-        notice: retry('Datadog US1', '"all" or "resolved" or "scheduled"'),
+        notice: scheduledOnly('Datadog US1'),
       },
       {
         backend: 'azure',
@@ -4717,15 +5240,25 @@ describe('devopsGetIncidents', () => {
     });
   });
 
-  it('names the backends whose scheduled filter lists completed maintenance windows (#85)', () => {
+  it('names the backends whose scheduled filter lists completed maintenance windows (#85, #98)', () => {
     const filter = devopsGetIncidents.input.shape.filter.description ?? '';
     expect(filter).toContain(
-      'scheduled: only maintenance windows — upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, Firehydrant ("redis-cloud"), and Datadog ("datadog", "datadog-eu1") vendors; Status.io vendors ("gitlab", "neon") list upcoming and in-progress windows only.',
+      'scheduled: only maintenance windows — upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, incident.io ("fly-io", "supabase"), Firehydrant ("redis-cloud"), and Datadog ("datadog", "datadog-eu1") vendors; Status.io vendors ("gitlab", "neon") list upcoming and in-progress windows only.',
     );
     expect(devopsGetIncidents.description).toContain(
-      'or maintenance windows: upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, Firehydrant, and Datadog vendors (Status.io vendors list upcoming and in-progress only).',
+      'or maintenance windows: upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, incident.io, Firehydrant, and Datadog vendors (Status.io vendors list upcoming and in-progress only).',
     );
     expect(devopsGetIncidents.description).not.toContain('upcoming maintenance windows');
+  });
+
+  it('says how since reaches past the default window on incident.io vendors (#98)', () => {
+    const { since } = devopsGetIncidents.input.shape;
+    const reach =
+      'On incident.io vendors ("openai", "supabase") it reads the status page\'s incident list one calendar quarter per request back to this date, 24 months back at most, past the last 90 days that list covers without since; those are full records, marked source: "api".';
+    expect(since.description).toContain(reach);
+    expect(devopsGetIncidents.description).toContain(
+      'On incident.io vendors (such as "openai"), whose feed lists the last 90 days by default, since reads the page\'s incident list one calendar quarter at a time back to that date, 24 months back at most, and returns full records (source: "api").',
+    );
   });
 
   it('says where a whole-history feed gets its start date, in the since and until descriptions alike (#94)', () => {
@@ -4741,5 +5274,839 @@ describe('devopsGetIncidents', () => {
     for (const description of [since.description, until.description]) {
       expect(description).not.toContain('on most is a recent window');
     }
+  });
+});
+
+/**
+ * The eight incident.io-hosted entries read the page's own feed (#98): the summary at
+ * {page}/proxy/{host}, the default incident list (the last 90 days) beside it, and, for
+ * since, the same list one calendar quarter per request. Every case runs the real adapter
+ * down to a strict fetch fake serving the captures from 2026-11-16, on that day's clock.
+ */
+describe('devops_get_incidents on incident.io vendors (#98)', () => {
+  const http = createFetchMock();
+  const NOW = '2026-11-16T08:00:00Z';
+
+  const CLERK = 'https://status.clerk.com';
+  const CLERK_SUMMARY = `${CLERK}/proxy/status.clerk.com`;
+  const CLERK_LIST = `${CLERK_SUMMARY}/incidents`;
+  const SUPABASE = 'https://status.supabase.com';
+  const SUPABASE_SUMMARY = `${SUPABASE}/proxy/status.supabase.com`;
+
+  // Captured records.
+  const SMS_ID = '01M64BZ539EBV61Y908QHE84C4'; // incident, resolved, 2026-10-29
+  const CLERK_WINDOW_ID = '01M39R8WAV5ZXHKQPK3HSV6FEK'; // maintenance, completed, 2026-09-26
+  const REOPENED_ID = '01M2N3706GY2Z4BNNZYFGXP4Y7'; // incident, resolved, 2026-09-16
+  const SUPABASE_WINDOW_ID = '01M7AHYK73ZAAYG8CSRJBMDTWH'; // maintenance, scheduled, 2026-11-30
+  const MIGRATION_ID = '01M3T5X0M7MY87TX29CFN1HCJS'; // maintenance, completed, no window
+
+  type Record = {
+    id?: string;
+    type?: string;
+    published_at?: string;
+    status_summaries?: unknown[];
+    updates?: Array<{ id?: string; published_at?: string }>;
+  };
+  type Summary = { summary: { data_available_since?: string } };
+
+  const capture = <T>(name: string): T =>
+    JSON.parse(
+      readFileSync(
+        new URL(
+          `../../../services/status-adapters/fixtures/incidentio-${name}.json`,
+          import.meta.url,
+        ),
+        'utf-8',
+      ),
+    ) as T;
+  const clerkRecord = (id: string) =>
+    capture<{ incidents: Record[] }>('clerk-incidents').incidents.find((r) => r.id === id)!;
+
+  /** A captured record moved to another id and start, its spans and updates moved with it. */
+  function moved(record: Record, id: string, startIso: string): Record {
+    const start = Date.parse(startIso);
+    const at = (minutes: number) => new Date(start + minutes * 60_000).toISOString();
+    return {
+      ...record,
+      id,
+      published_at: at(0),
+      status_summaries: [
+        {
+          start_at: at(0),
+          end_at: at(30),
+          worst_component_status:
+            record.type === 'maintenance' ? 'under_maintenance' : 'partial_outage',
+        },
+      ],
+      ...(record.updates && {
+        updates: record.updates.map((u, i) => ({ ...u, id: `${id}-u${i}`, published_at: at(i) })),
+      }),
+    };
+  }
+
+  const quarterUrl = (start: string, end: string) =>
+    `${CLERK_LIST}?start_at=${start}T00:00:00.000Z&end_at=${end}T00:00:00.000Z`;
+  const requested = () => http.calls.map((c) => c.request.url);
+  const windowRequests = () => requested().filter((u) => u.startsWith(`${CLERK_LIST}?`));
+
+  /** The notice a call without since gets on a page publishing records older than its default window. */
+  const windowNotice = (name: string) =>
+    `${name}'s status feed lists the last 90 days by default, back to 2026-08-18; its status page publishes older incidents, which since reaches up to 24 months back.`;
+
+  function serveClerk(
+    summary: unknown = capture('clerk-summary'),
+    list: unknown = capture('clerk-incidents'),
+  ) {
+    http.route(
+      { match: CLERK_SUMMARY, respond: () => Response.json(summary) },
+      { match: CLERK_LIST, respond: () => Response.json(list) },
+    );
+  }
+
+  /** Serves each quarter window its records, keyed by the window's start date. */
+  function serveWindows(
+    byStart: { [start: string]: Record[] },
+    respond?: (request: Request, body: unknown) => Response,
+  ) {
+    http.route({
+      match: (request) => request.url.startsWith(`${CLERK_LIST}?`),
+      respond: (request) => {
+        const start = new URL(request.url).searchParams.get('start_at')?.slice(0, 10) ?? '';
+        const body = { incidents: byStart[start] ?? [] };
+        return respond ? respond(request, body) : Response.json(body);
+      },
+    });
+  }
+
+  async function call(args: { [key: string]: unknown }) {
+    const contract = await runToolContract(devopsGetIncidents, args as never);
+    const text = contract.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+    const structured = contract.structuredContent as {
+      incidents: Array<{ [key: string]: unknown; id: string; source: string; status: string }>;
+      notice?: string;
+      upstreamCeiling?: number;
+      truncated?: boolean;
+    };
+    return { contract, structured, text };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(NOW));
+    http.reset();
+    http.install();
+  });
+
+  afterEach(() => {
+    http.restore();
+    vi.useRealTimers();
+  });
+
+  it('pages the default window with full records, no ceiling, and names the window start and since', async () => {
+    serveClerk();
+    const { contract, structured, text } = await call({ vendor: 'clerk' });
+
+    expect(contract.isError).toBeFalsy();
+    // The summary and the default list, each read once: the maintenance read and the
+    // coverage read join the requests already in flight.
+    expect(requested()).toEqual([CLERK_SUMMARY, CLERK_LIST]);
+    expect(structured.incidents.map((i) => [i.id, i.impact, i.status, i.source])).toEqual([
+      [SMS_ID, 'major', 'resolved', 'api'],
+      [CLERK_WINDOW_ID, 'maintenance', 'completed', 'api'],
+      [REOPENED_ID, 'minor', 'resolved', 'api'],
+    ]);
+    expect(structured.incidents[0]).toMatchObject({
+      started_at: '2026-10-29T17:40:19.176Z',
+      shortlink: `${CLERK}/incidents/${SMS_ID}`,
+      affected_components: ['Authentication & User'],
+    });
+    expect(structured.incidents[1]).toMatchObject({
+      scheduled_for: '2026-09-26T14:00:00Z',
+      scheduled_until: '2026-09-26T14:30:00Z',
+    });
+    expect(structured.upstreamCeiling).toBeUndefined();
+    expect(structured.truncated).toBeUndefined();
+    expect(structured.notice).toBe(windowNotice('Clerk'));
+    expect(text.split(windowNotice('Clerk'))).toHaveLength(2);
+    expect(text).toContain(`[Incident page](${CLERK}/incidents/${SMS_ID})`);
+    expect(requested().some((u) => u.includes('/api/v2/'))).toBe(false);
+  });
+
+  it('names the default window only where the page publishes older records and the call reads history', async () => {
+    serveClerk();
+    const active = await call({ vendor: 'clerk', filter: 'active' });
+    // The default list holds records, so the empty active keeps its wording, and since
+    // is not accepted with active, so the window notice is left out.
+    expect(active.structured.notice).toBe(
+      'No incidents matched filter "active" for Clerk. Try filter: "all" or "resolved" or "scheduled".',
+    );
+    const scheduled = await call({ vendor: 'clerk', filter: 'scheduled' });
+    expect(scheduled.structured.incidents.map((i) => i.id)).toEqual([CLERK_WINDOW_ID]);
+    expect(scheduled.structured.notice).toBeUndefined();
+
+    http.reset();
+    const recent = capture<Summary>('clerk-summary');
+    recent.summary.data_available_since = '2026-10-01T00:00:00Z';
+    serveClerk(recent);
+    expect((await call({ vendor: 'clerk', filter: 'resolved' })).structured.notice).toBeUndefined();
+
+    http.reset();
+    const unstated = capture<Summary>('clerk-summary');
+    delete unstated.summary.data_available_since;
+    serveClerk(unstated);
+    // With no stated start, older records may exist, so the window is named without claiming them.
+    const unstatedCall = await call({ vendor: 'clerk' });
+    const unstatedNotice =
+      "Clerk's status feed lists the last 90 days by default, back to 2026-08-18; since reaches up to 24 months back.";
+    expect(unstatedCall.structured.notice).toBe(unstatedNotice);
+    expect(unstatedCall.text).toContain(unstatedNotice);
+
+    // A stated start that does not parse states no more than an absent one, so it reads the same.
+    http.reset();
+    const unreadable = capture<Summary>('clerk-summary');
+    unreadable.summary.data_available_since = 'not-a-date';
+    serveClerk(unreadable);
+    const unreadableCall = await call({ vendor: 'clerk' });
+    expect(unreadableCall.structured.notice).toBe(unstatedNotice);
+    expect(unreadableCall.text).toContain(unstatedNotice);
+
+    // A parent page's placeholder date predates the window too.
+    http.reset();
+    http.route(
+      { match: SUPABASE_SUMMARY, respond: () => Response.json(capture('supabase-summary')) },
+      {
+        match: `${SUPABASE_SUMMARY}/incidents`,
+        respond: () => Response.json(capture('supabase-incidents')),
+      },
+    );
+    const supabase = await call({ vendor: 'supabase', filter: 'resolved', limit: 1 });
+    expect(supabase.structured.notice).toBe(
+      `Showing incidents 1–1 of 2. Call again with offset: 1 for the next page, or narrow with filter, since, until, or match. ${windowNotice('Supabase')}`,
+    );
+  });
+
+  it('names the default window only for a stated start before the window start, to the millisecond', async () => {
+    // The window starts at NOW less 90 days: 2026-08-18T08:00:00.000Z.
+    const atStart = capture<Summary>('clerk-summary');
+    atStart.summary.data_available_since = '2026-08-18T08:00:00.000Z';
+    serveClerk(atStart);
+    expect((await call({ vendor: 'clerk', filter: 'resolved' })).structured.notice).toBeUndefined();
+
+    http.reset();
+    const justBefore = capture<Summary>('clerk-summary');
+    justBefore.summary.data_available_since = '2026-08-18T07:59:59.999Z';
+    serveClerk(justBefore);
+    expect((await call({ vendor: 'clerk', filter: 'resolved' })).structured.notice).toBe(
+      windowNotice('Clerk'),
+    );
+  });
+
+  it('filter "scheduled" lists the maintenance records, upcoming and completed, from the summary and the list', async () => {
+    http.route(
+      { match: SUPABASE_SUMMARY, respond: () => Response.json(capture('supabase-summary')) },
+      {
+        match: `${SUPABASE_SUMMARY}/incidents`,
+        respond: () => Response.json(capture('supabase-incidents')),
+      },
+    );
+    const { structured, text } = await call({ vendor: 'supabase', filter: 'scheduled' });
+
+    expect(requested()).toEqual([SUPABASE_SUMMARY, `${SUPABASE_SUMMARY}/incidents`]);
+    expect(structured.incidents.map((i) => [i.id, i.impact, i.status])).toEqual([
+      [SUPABASE_WINDOW_ID, 'maintenance', 'scheduled'],
+      [MIGRATION_ID, 'maintenance', 'completed'],
+    ]);
+    expect(structured.incidents[0]).toMatchObject({
+      scheduled_for: '2026-11-30T13:00:00Z',
+      scheduled_until: '2026-11-30T15:00:00Z',
+    });
+    expect(structured.incidents[1]).toMatchObject({ scheduled_for: null, scheduled_until: null });
+    expect(structured.notice).toBeUndefined();
+    expect(text).toContain('**Scheduled:** 2026-11-30T13:00:00Z → 2026-11-30T15:00:00Z');
+  });
+
+  describe('since', () => {
+    const OLDER_Q3 = 'older-incident-q3';
+    const OLDER_Q2 = 'older-incident-q2';
+    const WINDOW_Q2 = 'older-window-q2';
+    const quarters = () => ({
+      // The capture's incident overlaps the current quarter; the window list repeats it.
+      '2026-10-01': [clerkRecord(SMS_ID)],
+      '2026-07-01': [
+        clerkRecord(REOPENED_ID),
+        clerkRecord(CLERK_WINDOW_ID),
+        moved(clerkRecord(SMS_ID), OLDER_Q3, '2026-07-20T10:00:00.000Z'),
+      ],
+      '2026-04-01': [
+        moved(clerkRecord(SMS_ID), OLDER_Q2, '2026-05-10T10:00:00.000Z'),
+        moved(clerkRecord(CLERK_WINDOW_ID), WINDOW_Q2, '2026-05-02T14:00:00.000Z'),
+      ],
+    });
+
+    it('merges the quarter windows with the default window by id, full records marked api', async () => {
+      serveClerk();
+      serveWindows(quarters());
+      const { structured, text } = await call({ vendor: 'clerk', since: '2026-04-01', limit: 50 });
+
+      expect(windowRequests()).toEqual([
+        quarterUrl('2026-10-01', '2027-01-01'),
+        quarterUrl('2026-07-01', '2026-10-01'),
+        quarterUrl('2026-04-01', '2026-07-01'),
+      ]);
+      // No window the endpoint would refuse: each spans one calendar quarter.
+      for (const url of windowRequests()) {
+        const params = new URL(url).searchParams;
+        const span = Date.parse(params.get('end_at')!) - Date.parse(params.get('start_at')!);
+        expect(span).toBeLessThanOrEqual(92 * 86_400_000);
+      }
+      expect(requested().some((u) => u.includes('history.json') || u.includes('/api/v2/'))).toBe(
+        false,
+      );
+      expect(structured.incidents.map((i) => [i.id, i.source])).toEqual([
+        [SMS_ID, 'api'],
+        [CLERK_WINDOW_ID, 'api'],
+        [REOPENED_ID, 'api'],
+        [OLDER_Q3, 'api'],
+        [OLDER_Q2, 'api'],
+        [WINDOW_Q2, 'api'],
+      ]);
+      const sms = structured.incidents[0]!;
+      expect(structured.incidents.find((i) => i.id === OLDER_Q3)).toMatchObject({
+        status: 'resolved',
+        started_at: '2026-07-20T10:00:00.000Z',
+        shortlink: `${CLERK}/incidents/${OLDER_Q3}`,
+        affected_components: sms.affected_components,
+      });
+      expect(structured.incidents.find((i) => i.id === WINDOW_Q2)).toMatchObject({
+        impact: 'maintenance',
+        status: 'completed',
+        scheduled_for: '2026-05-02T14:00:00.000Z',
+      });
+      expect(structured.notice).toBeUndefined();
+      expect(structured.upstreamCeiling).toBeUndefined();
+      expect(text).toContain(`\`${OLDER_Q2}\``);
+      expect(text).not.toContain('**Source:** history');
+    });
+
+    it('under "resolved", keeps the resolved incidents and leaves the maintenance records out', async () => {
+      serveClerk();
+      serveWindows(quarters());
+      const { structured } = await call({
+        vendor: 'clerk',
+        filter: 'resolved',
+        since: '2026-04-01',
+        limit: 50,
+      });
+
+      expect(windowRequests()).toHaveLength(3);
+      expect(structured.incidents.map((i) => i.id)).toEqual([
+        SMS_ID,
+        REOPENED_ID,
+        OLDER_Q3,
+        OLDER_Q2,
+      ]);
+      expect(structured.notice).toBeUndefined();
+    });
+
+    it('keeps the default window and says how far back it read when a quarter fails', async () => {
+      serveClerk();
+      serveWindows(quarters(), (request, body) =>
+        request.url.includes('start_at=2026-07-01')
+          ? new Response('upstream down', { status: 503 })
+          : Response.json(body),
+      );
+      const { contract, structured, text } = await call({ vendor: 'clerk', since: '2026-04-01' });
+
+      expect(contract.isError).toBeFalsy();
+      expect(windowRequests()).toHaveLength(2);
+      expect(structured.incidents.map((i) => i.id)).toEqual([SMS_ID, CLERK_WINDOW_ID, REOPENED_ID]);
+      const notice = `Clerk's incident history was read back to 2026-10-01, not to 2026-04-01: the quarter starting 2026-07-01 failed: HTTP 503 from ${quarterUrl('2026-07-01', '2026-10-01')}. Incidents between those two dates may be missing.`;
+      expect(structured.notice).toBe(notice);
+      expect(text.split(notice)).toHaveLength(2);
+      expect(notice).not.toContain('archive');
+    });
+
+    it('says the page summary failed when no quarter could be read', async () => {
+      let summaryReads = 0;
+      http.route(
+        {
+          match: CLERK_SUMMARY,
+          // The default read's summary serves; the history read's own summary read fails.
+          respond: () =>
+            ++summaryReads === 1
+              ? Response.json(capture('clerk-summary'))
+              : new Response(null, { status: 502 }),
+        },
+        { match: CLERK_LIST, respond: () => Response.json(capture('clerk-incidents')) },
+      );
+      serveWindows({});
+      const { structured } = await call({
+        vendor: 'clerk',
+        filter: 'resolved',
+        since: '2026-04-01',
+      });
+
+      expect(windowRequests()).toEqual([]);
+      expect(structured.incidents.map((i) => i.id)).toEqual([SMS_ID, REOPENED_ID]);
+      expect(structured.notice).toBe(
+        `Clerk's incident history past its default 90-day window could not be read: the page summary failed: HTTP 502 from ${CLERK_SUMMARY}. Incidents between 2026-04-01 and the start of that window may be missing.`,
+      );
+    });
+
+    it('reads back to the 24-month floor for an older since, in nine windows, and says so', async () => {
+      serveClerk();
+      serveWindows({});
+      const { structured } = await call({ vendor: 'clerk', since: '2023-01-01' });
+
+      expect(windowRequests()).toHaveLength(9);
+      expect(windowRequests().at(-1)).toBe(quarterUrl('2024-10-01', '2025-01-01'));
+      expect(structured.incidents.map((i) => i.id)).toEqual([SMS_ID, CLERK_WINDOW_ID, REOPENED_ID]);
+      expect(structured.notice).toBe(
+        'since 2023-01-01 is past the 24-month floor incident history is read back to; it was read back to 2024-10-01, so incidents that started before that are not returned.',
+      );
+    });
+
+    it('leaves the way past the default window to the window notice on an until with no since', async () => {
+      serveClerk();
+      const recent = await call({ vendor: 'clerk', until: '2026-01-01' });
+      expect(windowRequests()).toEqual([]);
+      expect(recent.structured.notice).toBe(
+        `No incidents matching filter "all" for Clerk started on or before 2026-01-01: all 3 matches started after it. ${windowNotice('Clerk')}`,
+      );
+
+      const old = await call({ vendor: 'clerk', until: '2024-01-01' });
+      expect(old.structured.notice).toBe(
+        `No incidents matching filter "all" for Clerk started on or before 2024-01-01: all 3 matches started after it. Incident history is read back 24 months at most, to 2024-11-16, so since cannot reach incidents that started on or before 2024-01-01. See ${CLERK} for earlier history. ${windowNotice('Clerk')}`,
+      );
+      expect(old.structured.notice).not.toContain('archive');
+    });
+
+    it('names the 24-month floor once, where the read stopped, on an empty range reaching back past it', async () => {
+      serveClerk();
+      serveWindows({});
+      const { structured, text } = await call({
+        vendor: 'clerk',
+        since: '2023-01-01',
+        until: '2023-06-30',
+      });
+
+      expect(windowRequests()).toHaveLength(9);
+      expect(structured.incidents).toEqual([]);
+      const notice =
+        'No incidents matching filter "all" for Clerk started between 2023-01-01 and 2023-06-30; 3 later matches were left out by until. Widen the range, or omit since and until for the most recent incidents regardless of date. since 2023-01-01 is past the 24-month floor incident history is read back to; it was read back to 2024-10-01, so incidents that started before that are not returned.';
+      expect(structured.notice).toBe(notice);
+      expect(text.split(notice)).toHaveLength(2);
+    });
+
+    it('counts a record the windows added, so an empty resolved still points at all (#101)', async () => {
+      const WINDOW_Q4 = 'older-window-q4';
+      serveClerk(capture('clerk-summary'), { incidents: [] });
+      serveWindows({
+        '2026-10-01': [moved(clerkRecord(CLERK_WINDOW_ID), WINDOW_Q4, '2026-10-20T14:00:00.000Z')],
+      });
+
+      const resolved = await call({ vendor: 'clerk', filter: 'resolved', since: '2026-10-01' });
+      expect(windowRequests()).toEqual([quarterUrl('2026-10-01', '2027-01-01')]);
+      expect(resolved.structured.incidents).toEqual([]);
+      expect(resolved.structured.notice).toBe(
+        'No incidents matched filter "resolved" for Clerk. Try filter: "all" or "active" or "scheduled". Drop since and until for "active" or "scheduled", which accept neither.',
+      );
+      // The suggestion is one hop: all returns the window record.
+      const all = await call({ vendor: 'clerk', since: '2026-10-01' });
+      expect(all.structured.incidents.map((i) => [i.id, i.status, i.source])).toEqual([
+        [WINDOW_Q4, 'completed', 'api'],
+      ]);
+    });
+
+    it('reads no maintenance list under "resolved", so a window the quarters repeat still counts (#101)', async () => {
+      serveClerk(capture('clerk-summary'), { incidents: [clerkRecord(CLERK_WINDOW_ID)] });
+      serveWindows({ '2026-07-01': [clerkRecord(CLERK_WINDOW_ID)] });
+
+      const { structured } = await call({
+        vendor: 'clerk',
+        filter: 'resolved',
+        since: '2026-07-01',
+      });
+      expect(structured.incidents).toEqual([]);
+      expect(structured.notice).toBe(
+        'No incidents matched filter "resolved" for Clerk. Try filter: "all" or "active" or "scheduled". Drop since and until for "active" or "scheduled", which accept neither.',
+      );
+    });
+  });
+});
+
+/**
+ * An empty `active` or `resolved` from a call that read no incident record — none left
+ * after the entry's component scope, and none from a history read — can be widened only by
+ * `scheduled`, which reads the maintenance feed instead; `all` adds nothing but that feed,
+ * and the other incident filter reads the same empty list (#101).
+ */
+describe('empty active or resolved when the call read no incident (#101)', () => {
+  const http = createFetchMock();
+
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-16T08:00:00Z'));
+    http.reset();
+    http.install();
+    await useRealStatuspageService();
+    const aws = await import('@/services/status-adapters/aws-adapter.js');
+    const actual = await vi.importActual<typeof aws>('@/services/status-adapters/aws-adapter.js');
+    vi.mocked(aws.fetchAwsIncidents).mockImplementation(actual.fetchAwsIncidents);
+  });
+
+  afterEach(async () => {
+    http.restore();
+    vi.useRealTimers();
+    const aws = await import('@/services/status-adapters/aws-adapter.js');
+    vi.mocked(aws.fetchAwsIncidents).mockReset();
+  });
+
+  async function call(args: { [key: string]: unknown }) {
+    const contract = await runToolContract(devopsGetIncidents, args as never);
+    const text = contract.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+    const structured = contract.structuredContent as {
+      incidents: Array<{ id: string }>;
+      notice?: string;
+      upstreamCeiling?: number;
+    };
+    return { contract, structured, text };
+  }
+
+  const scheduledOnly = ' Try filter: "scheduled" for its maintenance windows.';
+  const scheduledWithoutRange =
+    ' Try filter: "scheduled" without since or until for its maintenance windows.';
+  const confirm = (url: string) => ` See ${url} to confirm on the vendor's own status page.`;
+  const current =
+    ' It publishes only the incidents its status page currently lists, so older resolved history is not retrievable from it.';
+
+  describe('sendgrid at the Twilio feed ceiling, nothing in its scope', () => {
+    const TWILIO = 'https://status.twilio.com';
+    const ceiling = `The vendor's status API returns at most 50 incidents per fetch and offers no pagination, so incidents older than the oldest one it returned are not reachable through this tool at any offset. See ${TWILIO} for the older history.`;
+    const summary = () =>
+      JSON.parse(
+        readFileSync(
+          new URL(
+            '../../../services/status-adapters/fixtures/statuspage-twilio-summary.json',
+            import.meta.url,
+          ),
+          'utf-8',
+        ),
+      ) as { components: Array<{ id: string; name: string }> };
+    type Maintenances = { scheduled_maintenances: Array<{ id: string; components: unknown[] }> };
+
+    function route(maintenances: Maintenances) {
+      http.route(
+        { match: `${TWILIO}/api/v2/summary.json`, respond: () => Response.json(summary()) },
+        {
+          match: `${TWILIO}/api/v2/incidents.json`,
+          respond: () => Response.json(fixture('twilio-incidents.json')),
+        },
+        {
+          match: `${TWILIO}/api/v2/scheduled-maintenances.json`,
+          respond: () => Response.json(maintenances),
+        },
+      );
+    }
+
+    const notice = `None of the incidents SendGrid's status feed returned touch SendGrid's components.${scheduledOnly} ${ceiling}`;
+
+    it.each([
+      ['with', true],
+      ['without', false],
+    ])(
+      'active and resolved point at scheduled alone, %s an in-scope window',
+      async (_l, inScope) => {
+        const maintenances = fixture('twilio-scheduled-maintenances.json') as Maintenances;
+        if (inScope) {
+          const smtp = summary().components.find((c) => c.name === 'SMTP')!;
+          maintenances.scheduled_maintenances[0] = {
+            ...maintenances.scheduled_maintenances[0]!,
+            components: [smtp],
+          };
+        }
+        route(maintenances);
+
+        for (const filter of ['active', 'resolved']) {
+          const { structured, text } = await call({ vendor: 'sendgrid', filter });
+          expect(structured.incidents, filter).toEqual([]);
+          expect(structured.upstreamCeiling, filter).toBe(50);
+          expect(structured.notice, filter).toBe(notice);
+          expect(text.split(notice), filter).toHaveLength(2);
+          for (const named of ['"all"', '"active"', '"resolved"']) {
+            expect(structured.notice, filter).not.toContain(named);
+          }
+        }
+
+        // The suggestion is one hop: scheduled returns the in-scope window where there is one.
+        const scheduled = await call({ vendor: 'sendgrid', filter: 'scheduled' });
+        expect(scheduled.structured.incidents.map((i) => i.id)).toEqual(
+          inScope ? [maintenances.scheduled_maintenances[0]!.id] : [],
+        );
+        // An empty scheduled reads no incident feed, so it keeps its wording.
+        expect(scheduled.structured.notice).toBe(
+          inScope
+            ? undefined
+            : 'No incidents matched filter "scheduled" for SendGrid. Try filter: "all" or "active" or "resolved".',
+        );
+      },
+    );
+  });
+
+  const AZURE_DEVOPS_RSS =
+    '<rss version="2.0"><channel><title>Azure DevOps Status</title></channel></rss>';
+  const emptyAzureFeed = () =>
+    readFileSync(
+      new URL('../../../services/status-adapters/fixtures/azure-feed-empty.xml', import.meta.url),
+      'utf-8',
+    );
+
+  it.each([
+    {
+      vendor: 'gitlab',
+      name: 'GitLab',
+      feed: 'https://status-api.hostedstatus.com/1.0/status/5b36dc6502d06804c08349f7',
+      body: () => Response.json({ result: { status_overall: {}, status: [] } }),
+      active: scheduledOnly,
+      resolved: `${current}${scheduledOnly}`,
+      resolvedSince: `${current}${scheduledWithoutRange}`,
+    },
+    {
+      vendor: 'neon',
+      name: 'Neon',
+      feed: 'https://status-api.hostedstatus.com/1.0/status/6878fc85709daa75be6c7e3c',
+      body: () => Response.json({ result: { status_overall: {}, status: [] } }),
+      active: scheduledOnly,
+      resolved: `${current}${scheduledOnly}`,
+      resolvedSince: `${current}${scheduledWithoutRange}`,
+    },
+    {
+      vendor: 'aws',
+      name: 'Amazon Web Services',
+      feed: 'https://health.aws.amazon.com/public/currentevents',
+      body: () => new Response(Buffer.from('[]', 'utf16le')),
+      active: confirm('https://health.aws.amazon.com'),
+      resolved: `${current}${confirm('https://health.aws.amazon.com')}`,
+      resolvedSince: `${current}${confirm('https://health.aws.amazon.com')}`,
+    },
+    {
+      vendor: 'gcp',
+      name: 'Google Cloud',
+      feed: 'https://status.cloud.google.com/incidents.json',
+      body: () => Response.json([]),
+      active: confirm('https://status.cloud.google.com'),
+      resolved: confirm('https://status.cloud.google.com'),
+      resolvedSince: confirm('https://status.cloud.google.com'),
+    },
+    {
+      vendor: 'slack',
+      name: 'Slack',
+      feed: 'https://status.slack.com/api/v2.0.0/history',
+      body: () => Response.json([]),
+      active: confirm('https://status.slack.com'),
+      resolved: confirm('https://status.slack.com'),
+      resolvedSince: confirm('https://status.slack.com'),
+    },
+    {
+      vendor: 'azure-devops',
+      name: 'Azure DevOps',
+      feed: 'https://status.dev.azure.com/_rss',
+      body: () => new Response(AZURE_DEVOPS_RSS),
+      active: confirm('https://status.dev.azure.com'),
+      resolved: confirm('https://status.dev.azure.com'),
+      resolvedSince: confirm('https://status.dev.azure.com'),
+    },
+  ])('$vendor: an empty incident list suggests only what can hold more', async (row) => {
+    http.route({ match: row.feed, respond: row.body });
+
+    // "scheduled" rejects since, so the resolved call that set it is told to drop it.
+    for (const [label, args, tail] of [
+      ['active', { filter: 'active' }, row.active],
+      ['resolved', { filter: 'resolved' }, row.resolved],
+      ['resolved with since', { filter: 'resolved', since: '2026-10-01' }, row.resolvedSince],
+    ] as const) {
+      const { structured, text } = await call({ vendor: row.vendor, ...args });
+      const notice = `${row.name} currently lists no incidents.${tail}`;
+      expect(structured.notice, label).toBe(notice);
+      expect(text.split(notice), label).toHaveLength(2);
+      expect(text, label).toContain('No incidents matched this filter.');
+      expect(structured.notice, label).not.toMatch(/"all"|"active"|"resolved"/);
+    }
+    // Each call read the incident feed and nothing else.
+    expect(http.calls.map((c) => c.request.url)).toEqual([row.feed, row.feed, row.feed]);
+  });
+
+  it('azure: an empty feed under resolved keeps the lifecycle caveat and names no filter', async () => {
+    const feed = 'https://rssfeed.azure.status.microsoft/en-us/status/feed/';
+    http.route({ match: feed, respond: () => new Response(emptyAzureFeed()) });
+
+    const { structured } = await call({ vendor: 'azure', filter: 'resolved' });
+    expect(structured.notice).toBe(
+      `Microsoft Azure currently lists no incidents. It publishes currently-open events with no resolution lifecycle, so filter: "resolved" can never return incidents for it.${confirm('https://azure.status.microsoft/en-us/status/')}`,
+    );
+  });
+
+  it('github: a history-archive record counts as read, so an empty resolved still points at all', async () => {
+    const GITHUB = 'https://www.githubstatus.com';
+    const OPEN = 'open-archive-record';
+    http.route(
+      {
+        match: `${GITHUB}/api/v2/incidents.json`,
+        respond: () => Response.json({ ...RESOLVED_INCIDENT, incidents: [] }),
+      },
+      {
+        match: `${GITHUB}/api/v2/scheduled-maintenances.json`,
+        respond: () => Response.json(EMPTY_SCHEDULED),
+      },
+      {
+        match: `${GITHUB}/history.json?page=1`,
+        // A record with no end: its lifecycle stage is unknown, so resolved leaves it out.
+        respond: () =>
+          Response.json({
+            start_time: '2026-10-01T00:00:00Z',
+            months: [
+              {
+                name: 'November',
+                year: 2026,
+                incidents: [
+                  {
+                    code: OPEN,
+                    name: 'Degraded API requests',
+                    message: 'We are investigating.',
+                    impact: 'minor',
+                    timestamp:
+                      "Nov <var data-var='date'>10</var>, <var data-var='time'>16:51</var> UTC",
+                  },
+                ],
+              },
+            ],
+          }),
+      },
+    );
+
+    const resolved = await call({ vendor: 'github', filter: 'resolved', since: '2026-10-01' });
+    expect(resolved.structured.incidents).toEqual([]);
+    expect(resolved.structured.notice).toBe(
+      'No incidents matched filter "resolved" for GitHub. Try filter: "all" or "active" or "scheduled". Drop since and until for "active" or "scheduled", which accept neither.',
+    );
+    expect(http.calls.map((c) => c.request.url)).toContain(`${GITHUB}/history.json?page=1`);
+    // The suggestion is one hop: all returns the archive record.
+    const all = await call({ vendor: 'github', since: '2026-10-01' });
+    expect(all.structured.incidents.map((i) => i.id)).toEqual([OPEN]);
+  });
+
+  it('incident.io: an empty default window points at scheduled, then at since for older records', async () => {
+    const CLERK_SUMMARY = 'https://status.clerk.com/proxy/status.clerk.com';
+    http.route(
+      {
+        match: CLERK_SUMMARY,
+        respond: () =>
+          Response.json(
+            JSON.parse(
+              readFileSync(
+                new URL(
+                  '../../../services/status-adapters/fixtures/incidentio-clerk-summary.json',
+                  import.meta.url,
+                ),
+                'utf-8',
+              ),
+            ),
+          ),
+      },
+      { match: `${CLERK_SUMMARY}/incidents`, respond: () => Response.json({ incidents: [] }) },
+    );
+
+    const active = await call({ vendor: 'clerk', filter: 'active' });
+    expect(active.structured.notice).toBe(`Clerk currently lists no incidents.${scheduledOnly}`);
+    const resolved = await call({ vendor: 'clerk', filter: 'resolved' });
+    expect(resolved.structured.notice).toBe(
+      `Clerk currently lists no incidents.${scheduledOnly} Clerk's status feed lists the last 90 days by default, back to 2026-08-18; its status page publishes older incidents, which since reaches up to 24 months back.`,
+    );
+  });
+});
+
+/**
+ * since and until are accepted only with "all" and "resolved", so an empty resolved that set
+ * either says to drop them for each suggested filter that takes neither: "active", and
+ * "scheduled" only where the backend publishes maintenance windows. Each feed lists an open
+ * record inside the range, so the call read an incident and the suggestions stand.
+ */
+describe('an empty resolved with a date range names the suggested filters that take none', () => {
+  const http = createFetchMock();
+  const adapterFixture = (name: string) =>
+    readFileSync(
+      new URL(`../../../services/status-adapters/fixtures/${name}`, import.meta.url),
+      'utf-8',
+    );
+  const OPEN_AWS_EVENT = {
+    arn: 'open-arn',
+    status: '3',
+    service_name: 'Amazon S3',
+    region_name: 'N. Virginia',
+    date: '1772050000', // 2026-02-25T20:06:40Z
+    summary: 'Increased Error Rates',
+    event_log: [{ status: 3, message: 'Investigating.', timestamp: 1772050000 }],
+  };
+
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-16T08:00:00Z'));
+    http.reset();
+    http.install();
+    const aws = await import('@/services/status-adapters/aws-adapter.js');
+    const actual = await vi.importActual<typeof aws>('@/services/status-adapters/aws-adapter.js');
+    vi.mocked(aws.fetchAwsIncidents).mockImplementation(actual.fetchAwsIncidents);
+  });
+
+  afterEach(async () => {
+    http.restore();
+    vi.useRealTimers();
+    const aws = await import('@/services/status-adapters/aws-adapter.js');
+    vi.mocked(aws.fetchAwsIncidents).mockReset();
+  });
+
+  it.each([
+    {
+      // No resolution lifecycle, no maintenance windows; the feed's one item is 2026-07-23.
+      vendor: 'azure',
+      range: { since: '2026-07-23' },
+      feed: 'https://rssfeed.azure.status.microsoft/en-us/status/feed/',
+      body: () => new Response(adapterFixture('azure-feed-20260723.xml')),
+      notice:
+        'Microsoft Azure publishes currently-open events with no resolution lifecycle, so filter: "resolved" can never return incidents for it. Try filter: "all" or "active". Drop since and until for "active", which accepts neither.',
+    },
+    {
+      // Resolved events only while the feed still lists them, no maintenance windows.
+      vendor: 'aws',
+      range: { since: '2026-02-25', until: '2026-11-15' },
+      feed: 'https://health.aws.amazon.com/public/currentevents',
+      body: () => new Response(Buffer.from(JSON.stringify([OPEN_AWS_EVENT]), 'utf16le')),
+      notice:
+        'Amazon Web Services publishes only the incidents its status page currently lists, and it lists no resolved one now; older resolved history is not retrievable from it. Try filter: "all" or "active". Drop since and until for "active", which accepts neither.',
+    },
+    {
+      // Status.io: current incidents only, with maintenance windows; the incident is 2021-12-06.
+      vendor: 'gitlab',
+      range: { since: '2021-12-06' },
+      feed: 'https://status-api.hostedstatus.com/1.0/status/5b36dc6502d06804c08349f7',
+      body: () => new Response(adapterFixture('statusio-incident-doc-derived.json')),
+      notice:
+        'GitLab publishes only the incidents its status page currently lists, and it lists no resolved one now; older resolved history is not retrievable from it. Try filter: "all" or "active" or "scheduled". Drop since and until for "active" or "scheduled", which accept neither.',
+    },
+  ])('$vendor', async ({ vendor, range, feed, body, notice }) => {
+    http.route({ match: feed, respond: body });
+
+    const result = await runToolContract(devopsGetIncidents, {
+      vendor,
+      filter: 'resolved',
+      ...range,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ vendor, incidents: [], total_returned: 0 });
+    expect((result.structuredContent as { notice?: string }).notice).toBe(notice);
+    const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+    expect(text.split(notice)).toHaveLength(2);
+    expect(http.calls.map((c) => c.request.url)).toEqual([feed]);
   });
 });

@@ -382,6 +382,17 @@ describe('maintenance windows', () => {
     ]);
   });
 
+  it('lists a window with no start and no publish date last, after the dated ones', () => {
+    const undated = window('undated', 'scheduled', '');
+    delete undated.startDate;
+    delete undated.publishedDate;
+    const { scheduled_maintenances } = mapDatadogScheduledMaintenances(
+      withWindows(SCHEDULED, undated, COMPLETED),
+      US1,
+    );
+    expect(scheduled_maintenances.map((m) => m.id)).toEqual(['next', 'done', 'undated']);
+  });
+
   it('leaves scheduled_until unset on a window that publishes no end', () => {
     const open = window('open-ended', 'in_progress', '2026-10-31T10:00:00Z');
     const [m] = mapDatadogScheduledMaintenances(withWindows(open), US1).scheduled_maintenances;
@@ -408,6 +419,20 @@ describe('mapDatadogIncidents', () => {
       expect(i.started_at).toBe(i.created_at);
       expect(i.resolved_at).not.toBeNull();
     }
+  });
+
+  it('lists an incident with no publish date last, after the dated ones', () => {
+    const raw = fixture();
+    delete incident(raw, SERVICE_CHECK_ID).publishedDate;
+    expect(mapDatadogIncidents(raw, US1).incidents.map((i) => i.id)).toEqual([
+      METRICS_ID,
+      WORKFLOW_ID,
+      NOTIFICATIONS_ID,
+      AGENTS_ID,
+      EMPTY_GRAPHS_ID,
+      OLDEST_ID,
+      SERVICE_CHECK_ID,
+    ]);
   });
 
   it('rates each captured incident by the worst status any update recorded', () => {

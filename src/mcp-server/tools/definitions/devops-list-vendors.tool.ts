@@ -69,7 +69,7 @@ export const devopsListVendors = tool('devops_list_vendors', {
             statuspage_url: z
               .string()
               .describe(
-                'Status page base URL — the Statuspage API base for Statuspage-backed vendors, the public status page URL for adapter-backed vendors (aws, gcp, azure, azure-devops, gitlab, slack, neon, redis-cloud, and datadog with its datadog-* site entries).',
+                'Status page base URL — the Statuspage API base for Statuspage-backed vendors, the public status page URL for adapter-backed vendors (aws, gcp, azure, azure-devops, gitlab, slack, neon, redis-cloud, datadog with its datadog-* site entries, and the incident.io-hosted fly-io, planetscale, supabase, brevo, clerk, openai, elevenlabs, and cohere).',
               ),
           })
           .describe('A vendor entry from the built-in registry.'),

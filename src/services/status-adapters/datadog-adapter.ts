@@ -46,6 +46,7 @@ import type {
 import { SEVERITY_RANK } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
+import { newestFirst } from '@/utils/newest-first.js';
 
 const DATADOG_CONFIG_PATH = '/config.json';
 
@@ -190,10 +191,6 @@ function incidentImpact(item: DatadogIncidentItem): StatuspageSeverityIndicator 
     }
   }
   return worst === 'none' ? 'minor' : worst;
-}
-
-function newestFirst(a: string, b: string): number {
-  return new Date(b).getTime() - new Date(a).getTime();
 }
 
 function buildPage(target: DatadogTarget): StatuspagePage {

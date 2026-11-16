@@ -174,6 +174,21 @@ describe('mapGcpIncident', () => {
     expect(incident.incident_updates).toHaveLength(0);
   });
 
+  it('orders updates oldest-first, an update with no timestamp first', () => {
+    const incident = mapGcpIncident(
+      {
+        id: 'order',
+        updates: [
+          { text: 'New', when: '2026-10-01T12:00:00Z' },
+          { text: 'Undated' },
+          { text: 'Old', when: '2026-10-01T09:00:00Z' },
+        ],
+      },
+      GCP,
+    );
+    expect(incident.incident_updates.map((u) => u.body)).toEqual(['Undated', 'Old', 'New']);
+  });
+
   /** Google Cloud writes update text as markdown, never HTML — no conversion may touch it. */
   it('keeps every markdown update body byte-identical, blank lines and indentation included (#63)', () => {
     const records = liveIncidents();
@@ -327,6 +342,18 @@ describe('mapGcpIncidents', () => {
     expect(incidents).toHaveLength(liveIncidents().length);
     const times = incidents.map((i) => new Date(i.created_at).getTime());
     expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
+  it('sorts an incident with no timestamp last', () => {
+    const incidents = mapGcpIncidents(
+      [
+        { id: 'old', created: '2026-10-01T09:00:00Z' },
+        { id: 'undated' },
+        { id: 'new', created: '2026-10-01T12:00:00Z' },
+      ],
+      GCP,
+    ).incidents;
+    expect(incidents.map((i) => i.id)).toEqual(['new', 'old', 'undated']);
   });
 });
 

@@ -9,11 +9,39 @@ import { VENDOR_REGISTRY, type VendorApiType, type VendorEntry } from '@/data/ve
 const URL_RE = /^https?:\/\//i;
 
 /**
+ * Backends whose status page serves no Statuspage API at all, so a raw URL on one of
+ * their hosts can never be read as a Statuspage base. Listed one by one rather than
+ * taken as "every api_type but statuspage": a backend whose pages serve the
+ * Statuspage-compatible API stays out of this set, and a raw URL on its host is still
+ * read as Statuspage.
+ */
+const PAGES_WITHOUT_STATUSPAGE_API: ReadonlySet<VendorApiType> = new Set([
+  'aws',
+  'gcp',
+  'azure',
+  'azure-devops',
+  'statusio',
+  'slack',
+  'firehydrant',
+  'datadog',
+]);
+
+/** Whether a page on this backend serves a Statuspage API, so a raw URL on it can be read. */
+export function pageServesStatuspageApi(apiType: VendorApiType): boolean {
+  return !PAGES_WITHOUT_STATUSPAGE_API.has(apiType);
+}
+
+/**
  * A resolved vendor target — carries the api_type (plus adapter-specific fields)
  * so the status dispatch layer can route to the right adapter.
  */
 export type ResolvedVendor = {
   url: string;
+  /**
+   * The registry display name; for a raw URL, the URL as the caller typed it, or its
+   * origin and path alone when it carried credentials, a query, or a fragment — the
+   * form every echo, error, and log uses.
+   */
   name: string;
   slug: string | null;
   /** The registry entry's component scope on a shared status page; absent when it has none. */
@@ -27,19 +55,34 @@ export type ResolvedVendor = {
 
 export class VendorRegistryService {
   private readonly bySlug: Map<string, VendorEntry> = new Map();
+  /** Entries keyed by the hostname of their status page, each list in registry order. */
+  private readonly byHost: Map<string, VendorEntry[]> = new Map();
   private readonly all: readonly VendorEntry[] = VENDOR_REGISTRY;
 
   constructor() {
     for (const entry of VENDOR_REGISTRY) {
       this.bySlug.set(entry.slug.toLowerCase(), entry);
+      const host = new URL(entry.statuspage_url).hostname;
+      this.byHost.set(host, [...(this.byHost.get(host) ?? []), entry]);
     }
+  }
+
+  /**
+   * Registry entries whose status page is on `url`'s host, in registry order — an exact
+   * hostname match, so an alias host a vendor redirects from matches nothing. Empty for
+   * an unparseable URL.
+   */
+  entriesOnHost(url: string): readonly VendorEntry[] {
+    const host = URL.parse(url)?.hostname;
+    return (host && this.byHost.get(host)) || [];
   }
 
   /**
    * Resolve a vendor input to a status endpoint target.
    * Input may be a slug ("github") or a raw Atlassian Statuspage base URL —
-   * raw URLs always resolve as api_type 'statuspage'.
-   * Returns null when not found and not a URL.
+   * raw URLs always resolve as api_type 'statuspage', at their origin and path: the
+   * userinfo, query, and fragment are dropped before anything is fetched, echoed, or
+   * logged. Returns null when not found and not a parseable URL.
    */
   resolve(input: string): ResolvedVendor | null {
     const lower = input.trim().toLowerCase();
@@ -58,16 +101,27 @@ export class VendorRegistryService {
         ? { ...base, api_type: 'statusio', statusio_page_id: entry.statusio_page_id }
         : { ...base, api_type: entry.api_type };
     }
-    // Raw URL passthrough
-    if (URL_RE.test(input.trim())) {
-      return {
-        url: input.trim().replace(/\/$/, ''),
-        name: input.trim(),
-        slug: null,
-        api_type: 'statuspage',
-      };
-    }
-    return null;
+    const raw = input.trim();
+    if (!URL_RE.test(raw)) return null;
+    const parsed = URL.parse(raw);
+    if (!parsed) return null;
+    /**
+     * The API path is appended to the base, so a query or fragment left on it would
+     * swallow that path, and userinfo would reach the upstream as Basic auth and every
+     * echo of the URL. A URL with none of them is echoed as typed.
+     */
+    const base = `${parsed.origin}${parsed.pathname}`;
+    const carriesExtras =
+      parsed.username !== '' ||
+      parsed.password !== '' ||
+      parsed.search !== '' ||
+      parsed.hash !== '';
+    return {
+      url: base.replace(/\/$/, ''),
+      name: carriesExtras ? base : raw,
+      slug: null,
+      api_type: 'statuspage',
+    };
   }
 
   /** Look up a vendor entry by exact slug (case-insensitive). */

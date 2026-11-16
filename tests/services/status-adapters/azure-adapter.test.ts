@@ -416,6 +416,16 @@ describe('mapAzureSummary / mapAzureIncidents', () => {
       '2022-09-07T16:10:40.000Z',
     ]);
   });
+
+  it('lists an item whose pubDate does not parse last, after the dated ones', () => {
+    const undated: AzureFeedItem = { ...WEST_US()[0]!, guid: 'undated', pubDate: 'not a date' };
+    const items = [...WEST_US(), undated, ...parseAzureFeed(fixture('azure-feed-20220907.xml'))];
+    expect(mapAzureIncidents(items, AZURE).incidents.map((i) => i.created_at)).toEqual([
+      '2026-07-23T16:29:09.000Z',
+      '2022-09-07T16:10:40.000Z',
+      '',
+    ]);
+  });
 });
 
 describe('fetchers', () => {

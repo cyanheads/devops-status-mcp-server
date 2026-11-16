@@ -3,7 +3,11 @@
  * @module tests/mcp-server/tools/definitions/devops-suggest-action.tool.test
  */
 
-import { createMockContext, runToolContract } from '@cyanheads/mcp-ts-core/testing';
+import {
+  createMockContext,
+  type MockContextLogger,
+  runToolContract,
+} from '@cyanheads/mcp-ts-core/testing';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { devopsListVendors } from '@/mcp-server/tools/definitions/devops-list-vendors.tool.js';
 import { devopsSuggestAction } from '@/mcp-server/tools/definitions/devops-suggest-action.tool.js';
@@ -409,6 +413,72 @@ describe('devopsSuggestAction', () => {
       expect(result.nextToolSuggestions.map((s) => s.toolName)).not.toContain(
         'devops_list_vendors',
       );
+    });
+
+    /**
+     * The status tools reject a raw URL on the page of an entry read through another
+     * backend and name that entry, so the URL stands for the entry here (#103).
+     */
+    it('pre-fills the slug for a raw URL on an adapter-backed status page (#103)', async () => {
+      const result = await runToolContract(devopsSuggestAction, {
+        vendor: 'https://status.gitlab.com',
+      });
+      expect(result.structuredContent).toMatchObject({
+        vendor: 'https://status.gitlab.com',
+        vendor_category: 'dev-platform',
+      });
+      const [first] = (result.structuredContent as { nextToolSuggestions: unknown[] })
+        .nextToolSuggestions;
+      expect(first).toEqual({
+        toolName: 'devops_get_incidents',
+        reason: expect.any(String),
+        args: { vendor: 'gitlab', filter: 'active', limit: 5 },
+      });
+      const text = result.content.map((b) => (b.type === 'text' ? b.text : '')).join('\n');
+      expect(text).toContain('**Category:** dev-platform');
+      expect(text).toContain('**Args:** `{"vendor":"gitlab","filter":"active","limit":5}`');
+    });
+
+    it('keeps the URL for a raw URL on a Statuspage-backed registry page (#103)', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'https://status.twilio.com' });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      expect(result.vendor_category).toBeNull();
+      expect(result.nextToolSuggestions[0]).toMatchObject({
+        toolName: 'devops_get_incidents',
+        args: { vendor: 'https://status.twilio.com', filter: 'active', limit: 5 },
+      });
+    });
+
+    it('echoes, pre-fills, and logs a raw URL without its credentials, query, or fragment', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({
+        vendor: 'https://user:pass@status.example-internal.com/?token=x#frag',
+      });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      expect(result.vendor).toBe('https://status.example-internal.com/');
+      expect(result.nextToolSuggestions[0]).toMatchObject({
+        toolName: 'devops_get_incidents',
+        args: { vendor: 'https://status.example-internal.com', filter: 'active', limit: 5 },
+      });
+      const logs = (ctx.log as MockContextLogger).calls;
+      expect(logs.find((l) => l.msg === 'Action suggested')?.data).toEqual({
+        vendor: 'https://status.example-internal.com/',
+        category: null,
+      });
+      const text = (devopsSuggestAction.format!(result)[0] as { text: string }).text;
+      for (const surface of [JSON.stringify(result), text, JSON.stringify(logs)]) {
+        expect(surface).not.toMatch(/user:pass|token=|#frag/);
+      }
+    });
+
+    it('routes a URL that does not parse to a registry search, as typed', async () => {
+      const ctx = createMockContext();
+      const input = devopsSuggestAction.input.parse({ vendor: 'https://exa mple.test' });
+      const result = await devopsSuggestAction.handler(input, ctx);
+      expect(result.vendor).toBe('https://exa mple.test');
+      expect(result.nextToolSuggestions.map((s) => s.toolName)).toEqual(['devops_list_vendors']);
+      expect(result.nextToolSuggestions[0]!.args).toEqual({ query: 'https://exa mple.test' });
     });
 
     it('still adds the DNS and certificate checks for an unregistered vendor with your_domain', async () => {

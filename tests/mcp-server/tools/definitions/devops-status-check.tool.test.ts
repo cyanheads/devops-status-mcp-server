@@ -9,6 +9,7 @@ import {
   createFetchMock,
   createMockContext,
   getEnrichment,
+  type MockContextLogger,
   runToolContract,
 } from '@cyanheads/mcp-ts-core/testing';
 import MarkdownIt from 'markdown-it';
@@ -29,11 +30,15 @@ import {
 } from '@/services/vendor-registry/vendor-registry-service.js';
 
 // Mock the statuspage service module so no HTTP calls go out
-vi.mock('@/services/statuspage/statuspage-service.js', () => {
+vi.mock('@/services/statuspage/statuspage-service.js', async (importOriginal) => {
+  // The dispatch layer classifies a raw URL's failures with the real predicate.
+  const { lacksStatuspageFields } =
+    await importOriginal<typeof import('@/services/statuspage/statuspage-service.js')>();
   const mockFetchSummary = vi.fn();
   return {
     getStatuspageService: () => ({ fetchSummary: mockFetchSummary }),
     initStatuspageService: vi.fn(),
+    lacksStatuspageFields,
     _mockFetchSummary: mockFetchSummary,
   };
 });
@@ -312,10 +317,10 @@ function page(
 /**
  * A mixed batch keyed by the registry slug whose status page serves it. Qualifying:
  * github (major, mixed incident offsets and undated), npm (indicator none, open minor
- * incidents only, all undated), openai (critical, two incidents at the same instant in
+ * incidents only, all undated), anthropic (critical, two incidents at the same instant in
  * different offsets, degraded only by a maintenance window), elastic (minor, no
  * incidents). Not qualifying: cloudflare (none; a maintenance window and an
- * impact-none incident), brevo (maintenance), twilio (fetch fails).
+ * impact-none incident), courier (maintenance), twilio (fetch fails).
  */
 const MIXED_PAGES: Record<string, StatuspageSummaryResponse> = {
   github: page(
@@ -349,14 +354,14 @@ const MIXED_PAGES: Record<string, StatuspageSummaryResponse> = {
     [],
     [incident('Slow package installs', 'minor'), incident('Search indexing lag', 'minor')],
   ),
-  brevo: page(
-    'Brevo',
+  courier: page(
+    'Courier',
     'maintenance',
     [component('Transactional Email', 'under_maintenance')],
     [incident('Planned database upgrade', 'maintenance', '2025-03-01T00:00:00Z')],
   ),
-  openai: page(
-    'OpenAI',
+  anthropic: page(
+    'Anthropic',
     'critical',
     [component('Fine-tuning', 'under_maintenance')],
     [
@@ -398,10 +403,10 @@ const MIXED_VENDORS = [
   'GitHub',
   'cloudflare',
   'npm',
-  'brevo',
+  'courier',
   'twilio',
   'nope-vendor',
-  'openai',
+  'anthropic',
   'elastic',
   'github',
 ];
@@ -446,6 +451,48 @@ describe('devopsStatusCheck', () => {
     expect(result.results[0]!.active_incidents.length).toBeGreaterThan(0);
     expect(result.results[0]!.active_incidents[0]!.id).toBe('inc1');
     expect(result.summary.degraded).toBe(1);
+  });
+
+  it('latest_update is the newest dated update when one update carries no timestamp', async () => {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as {
+      _mockFetchSummary: ReturnType<typeof vi.fn>;
+    };
+    const [incident] = DEGRADED.incidents!;
+    const [update] = incident!.incident_updates;
+    _mockFetchSummary.mockResolvedValue({
+      data: {
+        ...DEGRADED,
+        incidents: [
+          {
+            ...incident!,
+            incident_updates: [
+              {
+                ...update!,
+                id: 'u-old',
+                body: 'Investigating.',
+                created_at: '2025-01-01T10:05:00Z',
+              },
+              { ...update!, id: 'u-undated', body: 'Undated note.', created_at: '' },
+              {
+                ...update!,
+                id: 'u-new',
+                body: 'Fix deployed.',
+                created_at: '2025-01-01T11:30:00Z',
+              },
+            ],
+          },
+        ],
+      },
+      cached: false,
+    });
+
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const input = devopsStatusCheck.input.parse({ vendors: ['cloudflare'] });
+    const result = await devopsStatusCheck.handler(input, ctx);
+
+    expect(result.results[0]!.active_incidents[0]!.latest_update).toBe('Fix deployed.');
   });
 
   it('throws vendor_not_found when the only vendor is unknown — nothing to return', async () => {
@@ -1029,7 +1076,9 @@ describe('devopsStatusCheck', () => {
     // reported in that vendor's `error` field and never surfaces as a JSON-RPC error.
     const reasons = devopsStatusCheck.errors?.map((e) => e.reason) ?? [];
     expect(reasons).not.toContain('statuspage_unavailable');
-    expect(reasons).toEqual(expect.arrayContaining(['vendor_not_found', 'target_blocked']));
+    expect(reasons).toEqual(
+      expect.arrayContaining(['vendor_not_found', 'target_blocked', 'statuspage_not_found']),
+    );
   });
 
   it('accepts a raw Statuspage URL in place of a slug', async () => {
@@ -1106,7 +1155,7 @@ describe('devopsStatusCheck', () => {
       _mockFetchSummary.mockResolvedValue({ data: MAINTENANCE_RESPONSE, cached: false });
 
       const ctx = createMockContext({ errors: devopsStatusCheck.errors });
-      const input = devopsStatusCheck.input.parse({ vendors: ['brevo'] });
+      const input = devopsStatusCheck.input.parse({ vendors: ['courier'] });
       return await devopsStatusCheck.handler(input, ctx);
     }
 
@@ -1543,8 +1592,8 @@ describe('devopsStatusCheck', () => {
           error: false,
         },
         {
-          vendor: 'brevo',
-          name: 'Brevo',
+          vendor: 'courier',
+          name: 'Courier',
           indicator: 'maintenance',
           degraded: ['Transactional Email:under_maintenance'],
           incidents: ['Planned database upgrade:maintenance:2025-03-01T00:00:00Z'],
@@ -1567,8 +1616,8 @@ describe('devopsStatusCheck', () => {
           error: true,
         },
         {
-          vendor: 'openai',
-          name: 'OpenAI',
+          vendor: 'anthropic',
+          name: 'Anthropic',
           indicator: 'critical',
           degraded: ['Fine-tuning:under_maintenance'],
           incidents: [
@@ -1639,7 +1688,7 @@ describe('devopsStatusCheck', () => {
         { vendor: 'npm', incident_summary: 'Slow package installs' },
         // Same instant in two offsets is a tie — the first listed wins. Only a
         // maintenance window is degraded, so affected_components is omitted.
-        { vendor: 'openai', vendor_indicator: 'critical', incident_summary: 'API errors' },
+        { vendor: 'anthropic', vendor_indicator: 'critical', incident_summary: 'API errors' },
         // No qualifying incident, so incident_summary is omitted.
         { vendor: 'elastic', vendor_indicator: 'minor', affected_components: ['Cloud Console'] },
       ]);
@@ -1657,7 +1706,7 @@ describe('devopsStatusCheck', () => {
 
     it('says in each reason why the vendor qualified', async () => {
       const { result } = await checkMixed();
-      const [github, npm, openai] = (result as { nextToolSuggestions: Suggestion[] })
+      const [github, npm, anthropic] = (result as { nextToolSuggestions: Suggestion[] })
         .nextToolSuggestions;
 
       /**
@@ -1671,7 +1720,7 @@ describe('devopsStatusCheck', () => {
       expect(npm!.reason).toBe(
         'npm reports none overall but has an open minor incident: "Slow package installs".',
       );
-      expect(openai!.reason).toBe('openai reports critical (full outage) overall.');
+      expect(anthropic!.reason).toBe('anthropic reports critical (full outage) overall.');
     });
 
     it('renders the suggestions in content[] and validates against the output schema', async () => {
@@ -2413,7 +2462,7 @@ describe('devopsStatusCheck', () => {
       'vercel',
       'netlify',
       'render',
-      'fly-io',
+      'segment',
       'circleci',
       'travis-ci',
       'snyk',
@@ -2421,8 +2470,8 @@ describe('devopsStatusCheck', () => {
       'figma',
       'launchdarkly',
       'mongodb-atlas',
-      'planetscale',
-      'supabase',
+      'upstash',
+      'cloudinary',
       'elastic',
       'influxdb',
     ];
@@ -2478,17 +2527,58 @@ describe('devopsStatusCheck', () => {
       expect(text).toContain(DEFERRAL_21);
     });
 
-    it('returns deferred entries verbatim and in input order', async () => {
+    /**
+     * A deferred URL is echoed as a checked one would be: at its origin and path when it
+     * carried credentials, a query, or a fragment, and trimmed. An entry that is no URL —
+     * a slug, a name, an unknown word, a URL that does not parse — comes back as typed.
+     */
+    it('returns deferred entries in input order, a URL in the form a checked row echoes', async () => {
       const fetchSummary = await mockSummary();
       fetchSummary.mockResolvedValue({ data: ALL_OPERATIONAL, cached: false });
-      const tail = ['GitHub', ' https://status.example.test/ ', 'nope-vendor', 'github'];
+      const tail = [
+        'GitHub',
+        ' https://status.example.test/ ',
+        'https://user:pass@status.example.test/?token=x#frag',
+        'nope-vendor',
+        'https://exa mple.test',
+        'github',
+      ];
 
-      const { structured } = await call({ vendors: [...SLUGS.slice(0, 20), ...tail] });
+      const { structured, text } = await call({ vendors: [...SLUGS.slice(0, 20), ...tail] });
 
-      expect(structured.deferred_vendors).toEqual(tail);
+      const echoed = [
+        'GitHub',
+        'https://status.example.test/',
+        'https://status.example.test/',
+        'nope-vendor',
+        'https://exa mple.test',
+        'github',
+      ];
+      expect(structured.deferred_vendors).toEqual(echoed);
+      expect(text).toContain(`**Deferred (6, not checked):** ${echoed.join(', ')}`);
       expect(structured.notice).toBe(
-        'Only the first 20 of 24 vendors were checked (20 per call); resend the 4 in deferred_vendors in another call.',
+        'Only the first 20 of 26 vendors were checked (20 per call); resend the 6 in deferred_vendors in another call.',
       );
+      for (const surface of [JSON.stringify(structured), text]) {
+        expect(surface).not.toMatch(/user:pass|token=|#frag/);
+      }
+    });
+
+    it('names a deferred URL in its echo form when every checked entry fails', async () => {
+      const fetchSummary = await mockSummary();
+      const unknown = Array.from({ length: 20 }, (_, i) => `nope-${i}`);
+
+      const { result } = await call({
+        vendors: [...unknown, 'https://user:pass@status.example.test/?token=x'],
+      });
+
+      expect(result.isError).toBe(true);
+      const { error } = result.structuredContent as { error: { message: string } };
+      expect(error.message).toMatch(
+        / 1 more past the first 20 was not checked: https:\/\/status\.example\.test\/\.$/,
+      );
+      expect(JSON.stringify(result)).not.toMatch(/user:pass|token=/);
+      expect(fetchSummary).not.toHaveBeenCalled();
     });
 
     it('accepts 100 vendors, checking 20 and deferring 80', async () => {
@@ -3036,6 +3126,244 @@ describe('devopsStatusCheck', () => {
       expect(read).toContain(
         'Maintenance: Mobile App Upgrade [scheduled] 2021-12-22T15:00:00.000Z → end not published',
       );
+    });
+  });
+});
+
+/**
+ * The vendors a check could not reach: a raw URL on a page that serves no Statuspage API
+ * fails before any request (#103), and the completion log names every unchecked vendor
+ * with the reason it failed, which the output carries only as error text (#104).
+ */
+describe('devopsStatusCheck: unchecked vendors', () => {
+  const GITHUB = 'https://www.githubstatus.com';
+  const CLOUDFLARE = 'https://www.cloudflarestatus.com';
+  const NPM = 'https://status.npmjs.org';
+  const EXAMPLE = 'https://status.example.com';
+
+  type Responder = () => Promise<unknown>;
+  const healthy: Responder = () => Promise.resolve({ data: ALL_OPERATIONAL, cached: false });
+  const failing =
+    (base: string, status: number): Responder =>
+    () => {
+      const url = `${base}/api/v2/summary.json`;
+      return Promise.reject(
+        serviceUnavailable(`HTTP ${status} from ${url}`, {
+          reason: 'statuspage_unavailable',
+          url,
+          status,
+        }),
+      );
+    };
+
+  /** Serve the mocked summary by base URL; an unrouted URL rejects with a name the row shows. */
+  async function serve(routes: Record<string, Responder>) {
+    const { _mockFetchSummary } = (await import(
+      '@/services/statuspage/statuspage-service.js'
+    )) as unknown as { _mockFetchSummary: ReturnType<typeof vi.fn> };
+    _mockFetchSummary.mockReset();
+    _mockFetchSummary.mockImplementation(
+      (url: string) => routes[url]?.() ?? Promise.reject(new Error(`Unrouted summary: ${url}`)),
+    );
+    return () => _mockFetchSummary.mock.calls.map(([url]) => url as string);
+  }
+
+  async function guard() {
+    const { assertSafeUrl } = await import('@/utils/ssrf-guard.js');
+    return vi.mocked(assertSafeUrl);
+  }
+
+  afterEach(async () => {
+    // The file's default: every raw URL passes the guard.
+    (await guard()).mockReset().mockResolvedValue(undefined);
+  });
+
+  async function check(vendors: string[]) {
+    const ctx = createMockContext({ errors: devopsStatusCheck.errors });
+    const result = await devopsStatusCheck.handler(devopsStatusCheck.input.parse({ vendors }), ctx);
+    const text = (devopsStatusCheck.format!(result)[0] as { text: string }).text;
+    const logs = (ctx.log as MockContextLogger).calls;
+    const completed = logs.find((l) => l.msg === 'Status check completed')?.data;
+    return { result, text, logs, completed };
+  }
+
+  it('logs each unchecked vendor with its reason, in row order, beside the counts (#104)', async () => {
+    (await guard()).mockImplementation(async (url) => {
+      if (new URL(url).hostname === '10.0.0.1') {
+        throw new Error(
+          'SSRF_BLOCKED: URL "http://10.0.0.1" resolves to 10.0.0.1 (private (RFC 1918)).',
+        );
+      }
+    });
+    const requested = await serve({ [GITHUB]: healthy, [CLOUDFLARE]: failing(CLOUDFLARE, 503) });
+
+    const { result, text, completed } = await check([
+      'nope-vendor',
+      'http://10.0.0.1',
+      'cloudflare',
+      'github',
+    ]);
+
+    expect(requested()).toEqual([CLOUDFLARE, GITHUB]);
+    expect(completed).toEqual({
+      vendors: 4,
+      deferred: 0,
+      total: 4,
+      operational: 1,
+      degraded: 0,
+      down: 0,
+      maintenance: 0,
+      unavailable: 3,
+      failures: [
+        { vendor: 'nope-vendor', reason: 'vendor_not_found' },
+        { vendor: 'http://10.0.0.1', reason: 'target_blocked' },
+        { vendor: 'cloudflare', reason: 'statuspage_unavailable' },
+      ],
+    });
+    // The reasons stay in the log: the output is what it was.
+    expect(Object.keys(result)).toEqual([
+      'results',
+      'deferred_vendors',
+      'summary',
+      'nextToolSuggestions',
+    ]);
+    for (const surface of [JSON.stringify(result), text]) {
+      expect(surface).not.toMatch(/vendor_not_found|target_blocked|statuspage_unavailable/);
+    }
+  });
+
+  it('logs the reason a fetch rejected with, and unclassified where it carries none (#104)', async () => {
+    await serve({
+      [GITHUB]: healthy,
+      [EXAMPLE]: failing(EXAMPLE, 404),
+      [NPM]: () => Promise.reject(new TypeError('data.components is undefined')),
+    });
+
+    const { completed } = await check(['https://status.gitlab.com', EXAMPLE, 'npm', 'github']);
+
+    expect(completed).toMatchObject({
+      unavailable: 3,
+      failures: [
+        { vendor: 'https://status.gitlab.com', reason: 'statuspage_not_found' },
+        { vendor: EXAMPLE, reason: 'statuspage_not_found' },
+        { vendor: 'npm', reason: 'unclassified' },
+      ],
+    });
+  });
+
+  it('logs no failures when every vendor was checked (#104)', async () => {
+    await serve({ [GITHUB]: healthy });
+
+    const { completed } = await check(['github']);
+
+    expect(completed).toMatchObject({ unavailable: 0, failures: [] });
+  });
+
+  it('logs a raw URL without its credentials, query, or fragment (#104)', async () => {
+    await serve({ [GITHUB]: healthy, [EXAMPLE]: failing(EXAMPLE, 503) });
+
+    const { result, logs, completed } = await check([
+      'github',
+      'https://user:pass@status.example.com/?token=x',
+    ]);
+
+    expect(result.results[1]!.vendor).toBe('https://status.example.com/');
+    expect(completed).toMatchObject({
+      failures: [{ vendor: 'https://status.example.com/', reason: 'statuspage_unavailable' }],
+    });
+    expect(JSON.stringify(logs)).not.toMatch(/user:pass|token=/);
+  });
+
+  it('names a raw URL rejected before any request without its credentials, query, or fragment (#104)', async () => {
+    await serve({ [GITHUB]: healthy });
+
+    const { result, logs, completed } = await check([
+      'github',
+      'https://user:pass@status.gitlab.com/?token=x#frag',
+    ]);
+
+    expect(result.results[1]!.vendor).toBe('https://status.gitlab.com/');
+    expect(completed).toMatchObject({
+      failures: [{ vendor: 'https://status.gitlab.com/', reason: 'statuspage_not_found' }],
+    });
+    expect(JSON.stringify(logs)).not.toMatch(/user:pass|token=|#frag/);
+  });
+
+  it('rejects a raw URL on an adapter-backed page before any request, naming its slug (#103)', async () => {
+    const requested = await serve({ [GITHUB]: healthy });
+
+    const { result, text } = await check(['github', 'https://status.gitlab.com']);
+
+    expect(requested()).toEqual([GITHUB]);
+    expect(await guard()).not.toHaveBeenCalled();
+    const row = result.results[1]!;
+    expect(row.vendor).toBe('https://status.gitlab.com');
+    expect(row.error).toContain('serves no Atlassian Statuspage API');
+    expect(row.error).toContain('"gitlab"');
+    expect(result.summary).toMatchObject({ total: 2, operational: 1, unavailable: 1 });
+    expect(text).toContain('1 unavailable');
+  });
+
+  it('throws statuspage_not_found with its recovery when every entry fails before any request (#103)', async () => {
+    const requested = await serve({});
+
+    const result = await runToolContract(devopsStatusCheck, {
+      vendors: ['https://status.gitlab.com'],
+    });
+
+    expect(requested()).toEqual([]);
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        message: expect.stringMatching(
+          /^None of the 1 requested vendors could be checked\. https:\/\/status\.gitlab\.com serves no Atlassian Statuspage API at that base: .*"gitlab"/,
+        ),
+        data: {
+          reason: 'statuspage_not_found',
+          recovery: { hint: expect.stringContaining('registry slug') },
+        },
+      },
+    });
+  });
+
+  it('reports a raw URL whose summary endpoint answers 404 as serving no Statuspage API (#103)', async () => {
+    await serve({ [GITHUB]: healthy, [EXAMPLE]: failing(EXAMPLE, 404) });
+
+    const { result } = await check(['github', EXAMPLE]);
+
+    expect(result.results[1]!.error).toContain(
+      `${EXAMPLE} serves no Atlassian Statuspage API at that base: HTTP 404 from ${EXAMPLE}/api/v2/summary.json`,
+    );
+    expect(result.summary.unavailable).toBe(1);
+  });
+
+  it('keeps a registry entry’s own 404 as the fetch reported it (#103)', async () => {
+    await serve({ [GITHUB]: healthy, [CLOUDFLARE]: failing(CLOUDFLARE, 404) });
+
+    const { result, completed } = await check(['github', 'cloudflare']);
+
+    expect(result.results[1]!.error).toBe(`HTTP 404 from ${CLOUDFLARE}/api/v2/summary.json`);
+    expect(completed).toMatchObject({
+      failures: [{ vendor: 'cloudflare', reason: 'statuspage_unavailable' }],
+    });
+  });
+
+  it('fails a URL that does not parse as vendor_not_found, naming it as typed', async () => {
+    const requested = await serve({});
+
+    const result = await runToolContract(devopsStatusCheck, { vendors: ['https://exa mple.test'] });
+
+    expect(requested()).toEqual([]);
+    expect(await guard()).not.toHaveBeenCalled();
+    expect(result.structuredContent).toMatchObject({
+      error: {
+        message:
+          'None of the 1 requested vendors could be checked. "https://exa mple.test" is not a known vendor slug and is not a valid URL. Call devops_list_vendors to browse.',
+        data: {
+          reason: 'vendor_not_found',
+          recovery: { hint: expect.stringContaining('devops_list_vendors') },
+        },
+      },
     });
   });
 });

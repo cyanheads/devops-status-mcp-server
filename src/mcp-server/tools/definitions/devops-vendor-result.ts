@@ -8,11 +8,15 @@
 import type { Context } from '@cyanheads/mcp-ts-core';
 import { z } from '@cyanheads/mcp-ts-core';
 import { McpError } from '@cyanheads/mcp-ts-core/errors';
-import { fetchVendorSummary } from '@/services/status-adapters/status-dispatch.js';
+import {
+  fetchVendorSummary,
+  rawTargetRejection,
+} from '@/services/status-adapters/status-dispatch.js';
 import type { StatuspageSummaryResponse } from '@/services/statuspage/types.js';
 import type { ResolvedVendor } from '@/services/vendor-registry/vendor-registry-service.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 import { deferralNotice, splitBatch } from '@/utils/input-bounds.js';
+import { newestFirst } from '@/utils/newest-first.js';
 import { assertSafeUrl, ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
 import { vendorInline, vendorQuote } from '@/utils/vendor-markdown.js';
 
@@ -65,14 +69,26 @@ export const MAX_VENDORS_INPUT = 100;
 /** A vendors list split at {@link MAX_VENDORS_PER_CALL}, with the notice for the deferral. */
 export type VendorBatch = {
   served: string[];
+  /** In input order, each in its {@link echoForm}. */
   deferred: string[];
   /** Present only when entries were deferred. */
   notice?: string;
 };
 
+/**
+ * The form an entry is echoed in without being checked — the form a checked row echoes:
+ * a raw URL as the registry resolves it (trimmed, and at its origin and path when it
+ * carried credentials, a query, or a fragment), anything else as given.
+ */
+function echoForm(input: string): string {
+  const target = getVendorRegistryService().resolve(input);
+  return target !== null && target.slug === null ? target.name : input;
+}
+
 /** Split a vendors list into the entries checked on this call and the ones to resend. */
 export function splitVendors(vendors: readonly string[]): VendorBatch {
-  const { served, deferred } = splitBatch(vendors, MAX_VENDORS_PER_CALL);
+  const { served, deferred: unchecked } = splitBatch(vendors, MAX_VENDORS_PER_CALL);
+  const deferred = unchecked.map(echoForm);
   if (deferred.length === 0) return { served, deferred };
   return {
     served,
@@ -112,7 +128,11 @@ const COMPONENT_GROUP_DESCRIPTION =
 /** Per-vendor result schema shared by devops_status_check and devops_watch_stack. */
 export const VendorResultSchema = z
   .object({
-    vendor: z.string().describe('Vendor slug or URL as provided.'),
+    vendor: z
+      .string()
+      .describe(
+        'Vendor slug or URL as provided — a URL that carried credentials, a query, or a fragment is echoed as its origin and path alone.',
+      ),
     name: z.string().describe('Display name of the vendor.'),
     indicator: z
       .enum(['none', 'minor', 'major', 'critical', 'maintenance'])
@@ -234,7 +254,7 @@ export const VendorResultSchema = z
       .string()
       .optional()
       .describe(
-        'Why this vendor could not be checked — unreachable status API, timeout, non-2xx, or a response that is not a Statuspage payload. Reported here rather than thrown so one bad vendor does not fail the batch. Absent when the vendor was fetched successfully.',
+        'Why this vendor could not be checked — an unresolvable entry, a blocked URL, a raw URL that serves no Atlassian Statuspage API at that base (named with the registry slugs whose status page is on its host, when there are any), an unreachable status API, a timeout, a non-2xx, or a response that is not a Statuspage payload. Reported here rather than thrown so one bad vendor does not fail the batch. Absent when the vendor was fetched successfully.',
       ),
   })
   .describe('Status result for a single vendor.');
@@ -382,8 +402,9 @@ export function renderVendorBlock(v: VendorResult): string[] {
 /**
  * Build the per-vendor entry for a vendor that could not be checked.
  *
- * Covers all three ways a vendor fails to produce a status: an input that resolves
- * to no target, a raw URL the SSRF guard blocks, and a status API that rejects.
+ * Covers every way a vendor fails to produce a status: an input that resolves to no
+ * target, a raw URL rejected before any request (its host's page serves no Statuspage
+ * API, or the SSRF guard blocks it), and a status API that rejects.
  * `indicator: 'none'` is the schema's only neutral value — the `error` field, the
  * ❓ icon, and the `unavailable` summary bucket are what mark it as unchecked, so
  * it is never counted as operational.
@@ -650,18 +671,25 @@ export function summarizeVendorResults(results: readonly VendorResult[]): Vendor
   return summary;
 }
 
-/** A vendor input that resolved to a fetchable target. */
+/**
+ * A vendor input that resolved to a fetchable target. `input` is the entry as given —
+ * for a raw URL, its echo form (`ResolvedVendor.name`), so a credential or query the
+ * caller typed is never echoed, saved, or logged.
+ */
 export type PreparedVendorTarget = {
   ok: true;
   input: string;
   target: ResolvedVendor;
 };
 
-/** A vendor input that can never be fetched, with the reason a caller would throw. */
+/**
+ * A vendor input that can never be fetched, with the reason a caller would throw. `input`
+ * is the entry as given, or a raw URL's echo form as on {@link PreparedVendorTarget}.
+ */
 export type PreparedVendorFailure = {
   ok: false;
   input: string;
-  reason: 'vendor_not_found' | 'target_blocked';
+  reason: 'vendor_not_found' | 'target_blocked' | 'statuspage_not_found';
   name: string;
   url: string;
   message: string;
@@ -670,8 +698,9 @@ export type PreparedVendorFailure = {
 export type PreparedVendor = PreparedVendorTarget | PreparedVendorFailure;
 
 /**
- * Resolve every vendor input and SSRF-check the raw URLs among them, returning one
- * entry per input in the order given.
+ * Resolve every vendor input and check the raw URLs among them — against the registry
+ * hosts whose page serves no Statuspage API, then the SSRF guard — returning one entry
+ * per input in the order given. No request is made.
  *
  * Failures are returned rather than thrown so a batch keeps the vendors it can
  * check — one bad slug or blocked URL used to discard every already-resolved
@@ -693,26 +722,27 @@ export function prepareVendors(inputs: readonly string[]): Promise<PreparedVendo
           message: `"${input}" is not a known vendor slug and is not a valid URL. Call devops_list_vendors to browse.`,
         };
       }
+      if (target.slug !== null) return { ok: true, input, target };
 
-      // Only raw URL inputs need the guard — registry entries are pre-verified public URLs.
-      if (target.slug === null) {
-        try {
-          await assertSafeUrl(target.url);
-        } catch (err) {
-          const blocked = ssrfRejectionMessage(err);
-          if (blocked === null) throw err;
-          return {
-            ok: false,
-            input,
-            reason: 'target_blocked',
-            name: target.name,
-            url: target.url,
-            message: blocked,
-          };
-        }
+      const failure = {
+        ok: false,
+        input: target.name,
+        name: target.name,
+        url: target.url,
+      } as const;
+      const rejection = rawTargetRejection(target);
+      if (rejection !== null) {
+        return { ...failure, reason: 'statuspage_not_found', message: rejection };
       }
-
-      return { ok: true, input, target };
+      // Only raw URL inputs need the guard — registry entries are pre-verified public URLs.
+      try {
+        await assertSafeUrl(target.url);
+      } catch (err) {
+        const blocked = ssrfRejectionMessage(err);
+        if (blocked === null) throw err;
+        return { ...failure, reason: 'target_blocked', message: blocked };
+      }
+      return { ok: true, input: target.name, target };
     }),
   );
 }
@@ -802,8 +832,8 @@ export function buildVendorResult(args: BuildVendorResultArgs): BuiltVendorResul
       status: component.status as DegradedStatus,
     })),
     active_incidents: activeIncidents.map((i) => {
-      const updates = [...i.incident_updates].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      const updates = [...i.incident_updates].sort((a, b) =>
+        newestFirst(a.created_at, b.created_at),
       );
       return {
         id: i.id,
@@ -916,8 +946,29 @@ function offsetPastEndNotice(
   return `component_offset ${offset} is past the last component of ${vendors}, so all_components is empty there. Pass a smaller component_offset, or 0 to start from the first component.`;
 }
 
+/** A vendor a check produced no status for, as the tools' completion logs name it. */
+export type VendorFailure = {
+  /** The row's `vendor`: a slug as given, a raw URL in its echo form. */
+  vendor: string;
+  /**
+   * The pre-request rejection's reason, the reason a rejected fetch carried
+   * (`statuspage_unavailable`, `statuspage_not_found`, or `target_blocked` for a refused
+   * redirect), or `unclassified` for a rejection that carries none.
+   */
+  reason: string;
+};
+
+/** The reason a rejected fetch carried, or `unclassified` when it carries none. */
+function rejectionReason(err: unknown): string {
+  const reason =
+    err instanceof McpError ? (err.data as { reason?: unknown } | undefined)?.reason : undefined;
+  return typeof reason === 'string' ? reason : 'unclassified';
+}
+
 /**
- * Fetch every prepared vendor and return one result per entry, in order.
+ * Fetch every prepared vendor and return one result per entry, in order, with the
+ * failures among them — one per `error` row, in row order. The rows carry only error
+ * text, so the reasons come back beside them for the caller's log, never in the output.
  *
  * Both tools run the identical check — fan out under `Promise.allSettled` so one
  * unreachable vendor doesn't fail the rest, turn every failure (unfetchable target,
@@ -934,7 +985,7 @@ export async function fetchVendorResults(
   ctx: Context,
   options: ComponentOptions,
   leadNotices: readonly string[] = [],
-): Promise<VendorResult[]> {
+): Promise<{ results: VendorResult[]; failures: VendorFailure[] }> {
   const settled = await Promise.allSettled(
     prepared.map(async (p): Promise<BuiltVendorResult> => {
       if (!p.ok) {
@@ -1017,15 +1068,26 @@ export async function fetchVendorResults(
     ctx.enrich.notice(notices.join(' '));
   }
 
-  return settled.map((s, i) => {
-    if (s.status === 'fulfilled') return s.value.result;
+  const rows = settled.map((s, i): { result: VendorResult; reason?: string } => {
     // i is always in bounds — settled and prepared have the same length
     const p = prepared[i] as PreparedVendor;
-    return vendorErrorResult(
-      p.input,
-      p.ok ? p.target.name : p.name,
-      p.ok ? p.target.url : p.url,
-      vendorErrorMessage(s.reason),
-    );
+    if (s.status === 'fulfilled') {
+      return p.ok ? { result: s.value.result } : { result: s.value.result, reason: p.reason };
+    }
+    return {
+      result: vendorErrorResult(
+        p.input,
+        p.ok ? p.target.name : p.name,
+        p.ok ? p.target.url : p.url,
+        vendorErrorMessage(s.reason),
+      ),
+      reason: rejectionReason(s.reason),
+    };
   });
+  return {
+    results: rows.map((r) => r.result),
+    failures: rows.flatMap(({ result, reason }) =>
+      reason === undefined ? [] : [{ vendor: result.vendor, reason }],
+    ),
+  };
 }

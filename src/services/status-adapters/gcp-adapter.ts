@@ -55,6 +55,7 @@ import type {
 import { SEVERITY_RANK } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
+import { newestFirst } from '@/utils/newest-first.js';
 
 const GCP_INCIDENTS_URL = 'https://status.cloud.google.com/incidents.json';
 
@@ -208,8 +209,8 @@ function permalink(incident: GcpIncident, target: GcpTarget): string | null {
 /** Normalize one Google Cloud incident into a Statuspage incident. */
 export function mapGcpIncident(incident: GcpIncident, target: GcpTarget): StatuspageIncident {
   // The feed lists updates newest-first; consumers render them oldest-first.
-  const updates = [...(incident.updates ?? [])].sort(
-    (a, b) => new Date(updateTime(a)).getTime() - new Date(updateTime(b)).getTime(),
+  const updates = [...(incident.updates ?? [])].sort((a, b) =>
+    newestFirst(updateTime(b), updateTime(a)),
   );
   const affected: AffectedComponent[] = (incident.affected_products ?? [])
     .map((p) => ({ code: p.id ?? '', name: productName(p), new_status: '', old_status: '' }))
@@ -329,7 +330,7 @@ export function mapGcpIncidents(
     page: buildPage(target),
     incidents: incidents
       .map((i) => mapGcpIncident(i, target))
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+      .sort((a, b) => newestFirst(a.created_at, b.created_at)),
   };
 }
 

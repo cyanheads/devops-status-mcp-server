@@ -26,7 +26,7 @@ import {
 
 export const devopsStatusCheck = tool('devops_status_check', {
   description:
-    'Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., "github", "aws", "gcp", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served by each vendor\'s native status API (Statuspage, Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Azure DevOps status, Firehydrant, Datadog) and normalized to one shape. Returns per-vendor operational indicator as the vendor published it (none = no degradation reported, minor, major, critical, maintenance = scheduled window), degraded components, and active incidents; summary counts each vendor at the worse of its indicator and its worst open incident rated minor or worse. Use mode: "detailed" for component lists and maintenance windows, narrowed with component_filter, bounded by component_limit, and paged with component_offset. Batch-friendly — pass a list to check your full stack in one call; up to 20 vendors are checked per call, and any past the 20th come back in deferred_vendors to resend. A vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions.',
+    'Check the current health status for one or more vendors. Accepts registered vendor slugs (e.g., "github", "aws", "gcp", "gitlab") or raw Atlassian Statuspage base URLs. Registry entries are served by each vendor\'s native status API (Statuspage, incident.io, Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Azure DevOps status, Firehydrant, Datadog) and normalized to one shape. Returns per-vendor operational indicator as the vendor published it (none = no degradation reported, minor, major, critical, maintenance = scheduled window), degraded components, and active incidents; summary counts each vendor at the worse of its indicator and its worst open incident rated minor or worse. Use mode: "detailed" for component lists and maintenance windows, narrowed with component_filter, bounded by component_limit, and paged with component_offset. Batch-friendly — pass a list to check your full stack in one call; up to 20 vendors are checked per call, and any past the 20th come back in deferred_vendors to resend. A vendor that cannot be resolved or reached is reported in its own result row, so one bad entry never discards the rest. Every vendor with an active problem gets a pre-filled devops_suggest_action call in nextToolSuggestions.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -40,7 +40,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
       .min(1)
       .max(MAX_VENDORS_INPUT)
       .describe(
-        'Vendor slugs from the built-in registry (e.g., "github", "aws") or raw Atlassian Statuspage base URLs (non-Statuspage backends are supported via registry slugs only). Mix freely. Use devops_list_vendors to discover available slugs. The first 20 are checked, in the order given; entries past the 20th are returned unchecked in deferred_vendors to resend in another call. Lists longer than 100 are rejected.',
+        'Vendor slugs from the built-in registry (e.g., "github", "aws") or raw Atlassian Statuspage base URLs, read at their origin and path (credentials, query, and fragment dropped). Most non-Statuspage backends are supported via registry slugs only: a URL on such a vendor\'s status page (https://status.gitlab.com) gets an error row naming its slug. A URL on an incident.io page (https://status.openai.com) is read through its Statuspage-compatible API instead, which lists 25 components and 25 incidents at most, with no component groups, and any maintenance window it lists comes without its start and end times; its slug ("openai") reads the page\'s full feed. Mix freely. Use devops_list_vendors to discover available slugs. The first 20 are checked, in the order given; entries past the 20th are returned unchecked in deferred_vendors to resend in another call. Lists longer than 100 are rejected.',
       ),
     mode: z
       .enum(['summary', 'detailed'])
@@ -79,9 +79,15 @@ export const devopsStatusCheck = tool('devops_status_check', {
         'Per-vendor status results for the vendors checked, in the same order as the input vendors list.',
       ),
     deferred_vendors: z
-      .array(z.string().describe('A vendor entry exactly as provided.'))
+      .array(
+        z
+          .string()
+          .describe(
+            'A vendor entry as provided — a URL that carried credentials, a query, or a fragment is echoed as its origin and path alone.',
+          ),
+      )
       .describe(
-        'Entries past the first 20 in vendors, verbatim and in input order. They were not checked; resend them in another call. Empty when every entry was checked.',
+        'Entries past the first 20 in vendors, in input order. They were not checked; resend them in another call. Empty when every entry was checked.',
       ),
     summary: z
       .object({
@@ -103,7 +109,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
         unavailable: z
           .number()
           .describe(
-            'Vendors that could not be checked (carry an error) — unresolvable slug, blocked target, or failed status fetch. Counted as unknown, never operational.',
+            'Vendors that could not be checked (carry an error) — unresolvable slug, blocked target, URL serving no Statuspage API, or failed status fetch. Counted as unknown, never operational.',
           ),
       })
       .describe(
@@ -148,7 +154,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
     {
       reason: 'vendor_not_found',
       code: JsonRpcErrorCode.NotFound,
-      when: 'No requested vendor among the first 20 could be checked and the first failure was a slug that matches no registry entry and is not a valid URL.',
+      when: 'No requested vendor among the first 20 could be checked and the first failure was an entry that matches no registry slug and is not a valid URL.',
       recovery:
         'Call devops_list_vendors to browse available slugs, or pass a full Statuspage base URL (e.g., "https://www.githubstatus.com").',
     },
@@ -159,12 +165,19 @@ export const devopsStatusCheck = tool('devops_status_check', {
       recovery:
         'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
     },
+    {
+      reason: 'statuspage_not_found',
+      code: JsonRpcErrorCode.NotFound,
+      when: 'No requested vendor among the first 20 could be checked and the first failure was a raw URL on the status page of a registry vendor whose backend serves no Atlassian Statuspage API.',
+      recovery:
+        "Pass the vendor's registry slug (devops_list_vendors lists them) or the base URL of a page hosted on Atlassian Statuspage.",
+    },
     /**
-     * Both contract entries fire only for an all-failed batch. When at least one
-     * vendor resolves, an unresolvable slug or blocked URL is reported as that
-     * vendor's `error` row instead — partial failure is data, total failure is an
-     * error, and one typed error carrying a recovery hint beats N error rows under
-     * a summary reading `operational: 0`.
+     * These contract entries fire only for an all-failed batch. When at least one
+     * vendor resolves, an unresolvable slug, blocked URL, or URL on a page with no
+     * Statuspage API is reported as that vendor's `error` row instead — partial failure
+     * is data, total failure is an error, and one typed error carrying a recovery hint
+     * beats N error rows under a summary reading `operational: 0`.
      */
     /**
      * A vendor whose status API errors or times out is not a failure mode of this
@@ -182,17 +195,17 @@ export const devopsStatusCheck = tool('devops_status_check', {
     // Nothing to return — degrade to the typed contract rather than a batch of
     // error rows. The message names every failure so one round trip fixes them all,
     // and any deferred entries, which an error response has no field for.
-    const failures = prepared.filter((p): p is PreparedVendorFailure => !p.ok);
-    if (failures.length === prepared.length) {
-      const first = failures[0] as PreparedVendorFailure;
+    const rejected = prepared.filter((p): p is PreparedVendorFailure => !p.ok);
+    if (rejected.length === prepared.length) {
+      const first = rejected[0] as PreparedVendorFailure;
       const scope = batch.deferred.length > 0 ? 'first ' : '';
       throw ctx.fail(
         first.reason,
-        `None of the ${scope}${prepared.length} requested vendors could be checked. ${failures.map((f) => f.message).join(' ')}${deferredVendorsSentence(batch.deferred)}`,
+        `None of the ${scope}${prepared.length} requested vendors could be checked. ${rejected.map((f) => f.message).join(' ')}${deferredVendorsSentence(batch.deferred)}`,
       );
     }
 
-    const results = await fetchVendorResults(
+    const { results, failures } = await fetchVendorResults(
       prepared,
       ctx,
       {
@@ -211,6 +224,7 @@ export const devopsStatusCheck = tool('devops_status_check', {
       vendors: input.vendors.length,
       deferred: batch.deferred.length,
       ...summary,
+      failures,
     });
     return { results, deferred_vendors: batch.deferred, summary, nextToolSuggestions };
   },

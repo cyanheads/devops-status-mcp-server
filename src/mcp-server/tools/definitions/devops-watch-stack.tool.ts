@@ -120,7 +120,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .max(MAX_VENDORS_INPUT)
       .optional()
       .describe(
-        'Vendor slugs (e.g., "github", "aws") or raw Atlassian Statuspage base URLs. When provided, saves this list as the stack where stacks are saved; a list longer than 20 is then rejected and nothing is saved. When omitted, uses the previously saved list for stack_name; required on every call on a deployment that does not authenticate callers, which saves no stacks — there the first 20 are checked and the rest return in deferred_vendors. Lists longer than 100 are rejected.',
+        'Vendor slugs (e.g., "github", "aws") or raw Atlassian Statuspage base URLs, read and saved at their origin and path (credentials, query, and fragment dropped). Most other backends are reached by registry slug only: a URL on such a vendor\'s status page (https://status.gitlab.com) gets an error row naming its slug. A URL on an incident.io page (https://status.openai.com) is read through its Statuspage-compatible API instead, which lists 25 components and 25 incidents at most, with no component groups, and any maintenance window it lists comes without its start and end times; its slug ("openai") reads the page\'s full feed. When provided, saves this list as the stack where stacks are saved; a list longer than 20 is then rejected and nothing is saved. When omitted, uses the previously saved list for stack_name; required on every call on a deployment that does not authenticate callers, which saves no stacks — there the first 20 are checked and the rest return in deferred_vendors. Lists longer than 100 are rejected.',
       ),
     stack_name: z
       .string()
@@ -180,7 +180,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
         unavailable: z
           .number()
           .describe(
-            'Vendors that could not be checked (carry an error) — unresolvable entry, blocked target, or failed status fetch. Counted as unknown, never operational.',
+            'Vendors that could not be checked (carry an error) — unresolvable entry, blocked target, URL serving no Statuspage API, or failed status fetch. Counted as unknown, never operational.',
           ),
       })
       .describe(
@@ -190,9 +190,15 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       .array(VendorResultSchema)
       .describe('Per-vendor status results for the vendors checked, in stack order.'),
     deferred_vendors: z
-      .array(z.string().describe('A vendor entry exactly as provided or saved.'))
+      .array(
+        z
+          .string()
+          .describe(
+            'A vendor entry as provided or saved — a URL that carried credentials, a query, or a fragment is echoed as its origin and path alone.',
+          ),
+      )
       .describe(
-        'Entries past the first 20, verbatim and in order, that were not checked on this call: the rest of a passed vendors list on a deployment that saves no stacks, or of a saved stack holding more than 20. Resend them in another call. Empty when every entry was checked.',
+        'Entries past the first 20, in order, that were not checked on this call: the rest of a passed vendors list on a deployment that saves no stacks, or of a saved stack holding more than 20. Resend them in another call. Empty when every entry was checked.',
       ),
     stack_persisted: z
       .boolean()
@@ -202,7 +208,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     omitted_vendors: z
       .array(z.string().describe('A vendor entry that cannot be part of a usable stack.'))
       .describe(
-        'Entries that could not be resolved or whose URL was blocked; they still appear in vendors[] with an error. A call that saved the stack left them out of the write; a call that reused a saved stack leaves them in it until you re-provide the vendors list. Empty when every entry resolved.',
+        'Entries that could not be resolved, whose URL was blocked, or whose URL is on the status page of a registry vendor read through another backend; they still appear in vendors[] with an error. A call that saved the stack left them out of the write; a call that reused a saved stack leaves them in it until you re-provide the vendors list. Empty when every entry resolved.',
       ),
     checked_at: z.string().describe('ISO 8601 UTC timestamp of this check.'),
     nextToolSuggestions: NextToolSuggestionsSchema,
@@ -279,7 +285,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     {
       reason: 'vendor_not_found',
       code: JsonRpcErrorCode.NotFound,
-      when: 'No vendor in the stack could be checked and the first failure was a slug that is not in the registry and is not a valid URL.',
+      when: 'No vendor in the stack could be checked and the first failure was an entry that matches no registry slug and is not a valid URL.',
       recovery:
         'Call devops_list_vendors to find available slugs or pass a full Statuspage base URL.',
     },
@@ -290,8 +296,15 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       recovery:
         'Pass a publicly routable Statuspage URL. If internal monitoring is intentional, set DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS=true.',
     },
+    {
+      reason: 'statuspage_not_found',
+      code: JsonRpcErrorCode.NotFound,
+      when: 'No vendor in the stack could be checked and the first failure was a raw URL on the status page of a registry vendor whose backend serves no Atlassian Statuspage API.',
+      recovery:
+        "Pass the vendor's registry slug (devops_list_vendors lists them) or the base URL of a page hosted on Atlassian Statuspage.",
+    },
     /**
-     * Both entries fire only when nothing in the stack is checkable, which is also
+     * These entries fire only when nothing in the stack is checkable, which is also
      * the only case that skips the state write where stacks persist — a stack with no
      * usable vendor is never saved. A partially-resolvable list saves its resolvable
      * subset and reports the rest in omitted_vendors.
@@ -337,12 +350,12 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     // Nothing in the stack is checkable — degrade to the typed contract rather than
     // a stack of error rows, and write nothing. The message names every failure,
     // and any deferred entries, which an error response has no field for.
-    const failures = prepared.filter((p): p is PreparedVendorFailure => !p.ok);
-    if (failures.length === prepared.length) {
-      const first = failures[0] as PreparedVendorFailure;
+    const rejected = prepared.filter((p): p is PreparedVendorFailure => !p.ok);
+    if (rejected.length === prepared.length) {
+      const first = rejected[0] as PreparedVendorFailure;
       throw ctx.fail(
         first.reason,
-        `No vendor in "${input.stack_name}" could be checked. ${failures.map((f) => f.message).join(' ')}${deferredVendorsSentence(batch.deferred)}`,
+        `No vendor in "${input.stack_name}" could be checked. ${rejected.map((f) => f.message).join(' ')}${deferredVendorsSentence(batch.deferred)}`,
       );
     }
 
@@ -361,7 +374,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
     // Save only what resolved: persisting an unresolvable slug would put a permanent
     // error row in every future sweep of this stack. omitted_vendors names the drops
     // so the caller knows the saved stack is smaller than what they passed.
-    const omittedVendors = failures.map((f) => f.input);
+    const omittedVendors = rejected.map((f) => f.input);
     let stackPersisted = false;
     if (!persist) {
       ctx.enrich({ persistence_notice: NOT_PERSISTED_NOTICE });
@@ -373,7 +386,7 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       stackPersisted = true;
     }
 
-    const vendors = await fetchVendorResults(
+    const { results: vendors, failures } = await fetchVendorResults(
       prepared,
       ctx,
       {
@@ -394,6 +407,8 @@ export const devopsWatchStack = tool('devops_watch_stack', {
       vendors: vendors.length,
       omitted: omittedVendors.length,
       deferred: batch.deferred.length,
+      unavailable: summary.unavailable,
+      failures,
     });
 
     return {

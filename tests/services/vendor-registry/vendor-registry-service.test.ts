@@ -8,6 +8,7 @@ import { VENDOR_REGISTRY } from '@/data/vendor-registry.js';
 import {
   getVendorRegistryService,
   initVendorRegistryService,
+  pageServesStatuspageApi,
 } from '@/services/vendor-registry/vendor-registry-service.js';
 
 beforeAll(() => {
@@ -69,6 +70,63 @@ describe('VendorRegistryService', () => {
   it('returns null for empty string', () => {
     const service = getVendorRegistryService();
     expect(service.resolve('')).toBeNull();
+  });
+
+  describe('raw URL: origin and path only', () => {
+    it('drops a query string, so the API path is appended to the base', () => {
+      const result = getVendorRegistryService().resolve('https://www.githubstatus.com?ref=x');
+      expect(result).toMatchObject({
+        url: 'https://www.githubstatus.com',
+        name: 'https://www.githubstatus.com/',
+        slug: null,
+        api_type: 'statuspage',
+      });
+    });
+
+    it('drops userinfo, query, and fragment before anything can echo them', () => {
+      const result = getVendorRegistryService().resolve(
+        'https://user:pass@status.example.com/?token=x#frag',
+      );
+      expect(result?.url).toBe('https://status.example.com');
+      expect(result?.name).toBe('https://status.example.com/');
+      expect(JSON.stringify(result)).not.toMatch(/user|pass|token|frag/);
+    });
+
+    it('drops userinfo alone, with no query or fragment beside it', () => {
+      const service = getVendorRegistryService();
+      expect(service.resolve('https://user:pass@status.example.com/')?.name).toBe(
+        'https://status.example.com/',
+      );
+      expect(service.resolve('https://user@status.example.com/')?.name).toBe(
+        'https://status.example.com/',
+      );
+      expect(service.resolve('https://:pass@status.example.com/')?.name).toBe(
+        'https://status.example.com/',
+      );
+    });
+
+    it('drops a fragment alone, with no userinfo or query beside it', () => {
+      expect(getVendorRegistryService().resolve('https://status.example.com/#frag')?.name).toBe(
+        'https://status.example.com/',
+      );
+    });
+
+    it('keeps a base path, and echoes a URL with nothing to drop as typed', () => {
+      const service = getVendorRegistryService();
+      expect(service.resolve(' https://status.example.com/acme/?a=1 ')).toMatchObject({
+        url: 'https://status.example.com/acme',
+        name: 'https://status.example.com/acme/',
+      });
+      expect(service.resolve(' https://status.example.com/acme/ ')).toMatchObject({
+        url: 'https://status.example.com/acme',
+        name: 'https://status.example.com/acme/',
+      });
+    });
+
+    it('returns null for a URL-shaped input that does not parse', () => {
+      expect(getVendorRegistryService().resolve('https://exa mple.com')).toBeNull();
+      expect(getVendorRegistryService().resolve('https://')).toBeNull();
+    });
   });
 
   it('getBySlug returns the entry for a known slug', () => {
@@ -162,6 +220,62 @@ describe('VendorRegistryService', () => {
     const service = getVendorRegistryService();
     const all = service.getAll();
     expect(all.length).toBeGreaterThan(10);
+  });
+});
+
+describe('status page hosts (#103)', () => {
+  it('lists every entry on a shared host, in registry order', () => {
+    const service = getVendorRegistryService();
+    expect(service.entriesOnHost('https://status.twilio.com/anything').map((e) => e.slug)).toEqual([
+      'twilio',
+      'sendgrid',
+    ]);
+    expect(service.entriesOnHost('https://STATUS.GITLAB.COM').map((e) => e.slug)).toEqual([
+      'gitlab',
+    ]);
+  });
+
+  it('matches the exact host only: an alias host, an unknown host, or an unparseable URL has none', () => {
+    const service = getVendorRegistryService();
+    // auth0's page is auth0.statuspage.io; status.auth0.com is only an alias of it.
+    expect(service.entriesOnHost('https://status.auth0.com')).toEqual([]);
+    expect(service.entriesOnHost('https://status.example.com')).toEqual([]);
+    expect(service.entriesOnHost('not a url')).toEqual([]);
+  });
+
+  it('indexes every registry entry under its own status page host', () => {
+    const service = getVendorRegistryService();
+    for (const entry of VENDOR_REGISTRY) {
+      expect(service.entriesOnHost(entry.statuspage_url)).toContain(entry);
+    }
+  });
+
+  it('marks exactly the 17 adapter-backed pages as serving no Statuspage API', () => {
+    const unreadable = VENDOR_REGISTRY.filter((e) => !pageServesStatuspageApi(e.api_type)).map(
+      (e) => e.slug,
+    );
+    expect(unreadable.sort()).toEqual(
+      [
+        'aws',
+        'gcp',
+        'azure',
+        'azure-devops',
+        'gitlab',
+        'neon',
+        'slack',
+        'redis-cloud',
+        'datadog',
+        'datadog-us3',
+        'datadog-us5',
+        'datadog-eu1',
+        'datadog-uk1',
+        'datadog-ap1',
+        'datadog-ap2',
+        'datadog-us1-fed',
+        'datadog-us2-fed',
+      ].sort(),
+    );
+    expect(pageServesStatuspageApi('statuspage')).toBe(true);
   });
 });
 

@@ -59,7 +59,7 @@ All resource data is also reachable via tools. Tool-only agents are fully suppor
 
 - Optional free-text `query` (name and slug, case-insensitive) and optional `category`: `cloud`, `cdn-edge`, `dev-platform`, `data`, `comms`, `auth`, `monitoring`, `ai`
 - Returns slug (what to pass to other tools), display name, category, and status page URL; an empty result carries a `notice` naming what missed
-- 71 built-in entries, most on Atlassian Statuspage; `aws`, `gcp`, `azure`, `azure-devops`, `gitlab`, `neon`, `slack`, `redis-cloud`, and the nine Datadog site entries (`datadog` for US1, `datadog-us3`, `datadog-us5`, `datadog-eu1`, `datadog-uk1`, `datadog-ap1`, `datadog-ap2`, `datadog-us1-fed`, `datadog-us2-fed`) use native-API adapters. Statuspage-compatible pages not in the registry work by passing a raw base URL to other tools
+- 71 built-in entries, most on Atlassian Statuspage; `fly-io`, `planetscale`, `supabase`, `brevo`, `clerk`, `openai`, `elevenlabs`, and `cohere` (incident.io-hosted pages, read through their own page feed); `aws`, `gcp`, `azure`, `azure-devops`, `gitlab`, `neon`, `slack`, `redis-cloud`, and the nine Datadog site entries (`datadog` for US1, `datadog-us3`, `datadog-us5`, `datadog-eu1`, `datadog-uk1`, `datadog-ap1`, `datadog-ap2`, `datadog-us1-fed`, `datadog-us2-fed`) use native-API adapters. Statuspage-compatible pages not in the registry work by passing a raw base URL to other tools
 - These Atlassian products have their own entry (`jira`, `confluence`, `bitbucket`, `jira-service-management`, `atlassian-compass`, `atlassian-developer`, `trello`, `opsgenie`, `atlassian-statuspage`, `atlassian-guard`). `atlassian` reads the umbrella page, which publishes no components and only cross-product incidents; any tool serving it says so in `notice` and names those slugs
 
 Built-in vendor registry:
@@ -79,7 +79,7 @@ Built-in vendor registry:
 
 ### `devops_status_check` <sub>tool</sub>
 
-- Accepts vendor slugs (e.g., `github`, `aws`) or raw Atlassian Statuspage base URLs, mixed freely. Up to 20 are checked per call; the rest come back in `deferred_vendors` with a `notice` to resend them. More than 100 entries is rejected (`invalid_arguments`)
+- Accepts vendor slugs (e.g., `github`, `aws`) or raw Atlassian Statuspage base URLs, mixed freely; a URL is read at its origin and path. A URL on the status page of a vendor read through another backend (`https://status.gitlab.com`) gets an `error` naming its slug, and a URL on an incident.io page reads that page's Statuspage-compatible API, which lists 25 components and 25 incidents at most, with no component groups and maintenance windows without their times — pass the slug (`openai`) for the full feed. Up to 20 are checked per call; the rest come back in `deferred_vendors` with a `notice` to resend them. More than 100 entries is rejected (`invalid_arguments`)
 - `mode: "summary"` (default) returns the indicator, degraded components, and active incidents; `mode: "detailed"` adds the full component list (`component_limit`, default 50, clamped to 500) and scheduled maintenance windows. `component_filter` matches component or group names
 - A list longer than `component_limit` pages: each capped vendor returns `next_component_offset`, which you pass back as `component_offset` (applied after `component_filter`). `degraded_components` and `active_incidents` are complete on every page
 - One failing vendor never blocks the rest (per-vendor `error` field). Results are cached for 60 seconds (`cached: true`), and `summary` counts `operational` / `degraded` / `down` / `maintenance` / `unavailable`
@@ -92,10 +92,10 @@ Built-in vendor registry:
 
 - `filter`: `all` (default), `active`, `resolved`, or `scheduled` (maintenance windows only). `limit` (default 20, max 50) with `offset` for paging
 - Returns per-update bodies as plain text in chronological order, affected component names, duration in minutes for resolved incidents, and a shortlink. Google Cloud and AWS incidents also carry `affected_locations` (region ID, name, and whether it is still affected; on AWS, the one region the event names, or `global`). Each incident carries `source`: `api`, or `history` for an archive record (title, impact, times, and final message only)
-- `since` and `until` (`YYYY-MM-DD`, UTC) bound the start date and work with `filter: "all"` or `"resolved"`; `since` also reads the Statuspage history archive back up to 24 months, past the API's newest-50 limit; a call that hits that limit without `since` is told to set it. `match` keeps incidents whose title, component names, or (on Google Cloud and AWS) location names and IDs contain every space-separated term given (up to 200 characters); a term joined by punctuation, such as `eu-central-1`, must find its words together and in order within one of them
+- `since` and `until` (`YYYY-MM-DD`, UTC) bound the start date and work with `filter: "all"` or `"resolved"`; `since` also reads the Statuspage history archive back up to 24 months, past the API's newest-50 limit; a call that hits that limit without `since` is told to set it. On incident.io vendors the feed lists the last 90 days, a `notice` says when the page publishes older incidents, and `since` reads them back up to 24 months as full records. `match` keeps incidents whose title, component names, or (on Google Cloud and AWS) location names and IDs contain every space-separated term given (up to 200 characters); a term joined by punctuation, such as `eu-central-1`, must find its words together and in order within one of them
 - Responses are capped at 64,000 bytes per surface; a cut page sets `truncated: true` and `nextOffset`. `full_updates: true` keeps every update on a single oversized incident
-- Errors: `invalid_since` and `invalid_until` (`filter: "active"` or `"scheduled"`, or `until` before `since`)
-- Feeds with no data for a filter return empty: `resolved` for Azure, `scheduled` for AWS, Azure, Azure DevOps, Google Cloud, and Slack. History is short where a vendor reads no archive: AWS keeps resolved events for a few hours, and Status.io (`gitlab`, `neon`) lists current incidents only. On those feeds a `since` earlier than the oldest record returned, or an `until` without `since`, gets a `notice` naming the date the feed starts
+- Errors: `invalid_since` and `invalid_until` (`filter: "active"` or `"scheduled"`, or `until` before `since`); `statuspage_not_found` (a raw URL that serves no Atlassian Statuspage API, naming the registry slug where one exists; not retryable, unlike `statuspage_unavailable`)
+- Feeds with no data for a filter return empty: `resolved` for Azure, `scheduled` for AWS, Azure, Azure DevOps, Google Cloud, and Slack, and for a Statuspage page that publishes no maintenance feed (a `notice` says so). An empty `active` or `resolved` that read no incident suggests `scheduled` only where the vendor publishes maintenance windows. History is short where a vendor reads no archive: AWS keeps resolved events for a few hours, and Status.io (`gitlab`, `neon`) lists current incidents only. On those feeds a `since` earlier than the oldest record returned, or an `until` without `since`, gets a `notice` naming the date the feed starts
 
 ---
 
@@ -135,7 +135,7 @@ Built-in vendor registry:
 
 ### `devops-status://vendors/{name}` <sub>resource</sub>
 
-- Returns the full registry entry for a vendor slug: status page URL, category, API type (`statuspage`, `statusio`, `slack`, `aws`, `gcp`, `azure`, `azure-devops`, `firehydrant`, `datadog`), `component_scope_prefix` where a vendor covers part of a shared page (`sendgrid`), and `product_slugs` on an umbrella page that publishes no components (`atlassian`)
+- Returns the full registry entry for a vendor slug: status page URL, category, API type (`statuspage`, `statusio`, `slack`, `aws`, `gcp`, `azure`, `azure-devops`, `firehydrant`, `datadog`, `incidentio`), `component_scope_prefix` where a vendor covers part of a shared page (`sendgrid`), and `product_slugs` on an umbrella page that publishes no components (`atlassian`)
 - Cached publicly for 1 hour; the same data is reachable via `devops_list_vendors`
 
 ---
@@ -147,9 +147,9 @@ Built on [`@cyanheads/mcp-ts-core`](https://github.com/cyanheads/mcp-ts-core): s
 DevOps-status-specific:
 
 - **No API keys required** — every status backend is a public API; TLS and DNS use the Node.js standard library
-- 71-vendor built-in registry across eight categories; native adapters normalize Status.io, Slack, AWS Health, Google Cloud, Azure, Azure DevOps, Firehydrant, and Datadog into the Statuspage shape
+- 71-vendor built-in registry across eight categories; native adapters normalize incident.io, Status.io, Slack, AWS Health, Google Cloud, Azure, Azure DevOps, Firehydrant, and Datadog into the Statuspage shape
 - Vendor-authored text is escaped so it reads as data, not markup; DNS record values and certificate names render as code spans that read back exactly as resolved
-- 60-second in-memory cache on status reads, shared across tenants
+- 60-second in-memory cache on status reads, shared across tenants; concurrent reads of one URL share a single request
 - `devops_watch_stack` saves named vendor lists for repeat checks and pre-deploy sweeps
 - `devops_suggest_action` is deterministic, with no LLM sampling dependency
 
@@ -204,7 +204,7 @@ No API keys required. All environment variables are optional.
 | Variable | Description | Default |
 |:---------|:------------|:--------|
 | `DEVOPS_STATUS_CACHE_TTL_MS` | In-memory cache TTL for vendor status reads (all backends) in milliseconds. | `60000` |
-| `DEVOPS_STATUS_FETCH_TIMEOUT_MS` | Per-request timeout for vendor status API calls (all backends) in milliseconds. | `8000` |
+| `DEVOPS_STATUS_FETCH_TIMEOUT_MS` | Per-request timeout for vendor status API calls (all backends) in milliseconds; a `since` history read also holds its pages to what is left of its 30-second limit. | `8000` |
 | `DEVOPS_STATUS_CERT_TIMEOUT_MS` | Default `timeout_ms` for `devops_check_certs` (1000–15000). | `5000` |
 | `DEVOPS_STATUS_DNS_TIMEOUT_MS` | Default `timeout_ms` for `devops_check_dns` (1000–10000). | `3000` |
 | `DEVOPS_STATUS_ALLOW_PRIVATE_TARGETS` | When `true`, disables the SSRF guards on user-supplied status-page URLs, `devops_check_certs` hosts, and `devops_check_dns` resolver IPs. Trusted local deployments only. | `false` |
@@ -227,7 +227,7 @@ See [`.env.example`](./.env.example) for the full list of optional overrides.
 
 ### Local development
 
-Requires [Bun v1.4.0](https://bun.sh/) or higher (or Node.js v24+).
+Requires [Bun v1.4.4](https://bun.sh/) or higher (or Node.js v24+).
 
 - **Clone and install:**
 
@@ -275,7 +275,7 @@ The image defaults to HTTP transport, stateless session mode, and logs to `/var/
 | `src/services/cert/` | `node:tls` — TLS handshake, X.509 parsing, expiry and protocol flagging, legacy-TLS retry, HSTS read. |
 | `src/services/dns/` | DNS wire client (`node:dgram` / `node:net`): message encoding and bounds-checked decoding, UDP with TCP retry; multi-resolver fan-out and propagation discrepancy detection. |
 | `src/services/statuspage/` | Statuspage public API client (reads through the shared cache in `src/utils/cached-fetch.ts`). |
-| `src/services/status-adapters/` | Native-API adapters (Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Azure DevOps status, Firehydrant, Datadog), the shared RSS extractor, + `api_type` dispatch, normalizing into the Statuspage shapes. |
+| `src/services/status-adapters/` | Native-API adapters (incident.io, Status.io, Slack, AWS Health, Google Cloud Service Health, Azure status, Azure DevOps status, Firehydrant, Datadog), the shared RSS extractor, + `api_type` dispatch, normalizing into the Statuspage shapes. |
 | `src/services/vendor-registry/` | In-memory vendor registry loaded from `src/data/vendor-registry.ts`. |
 | `src/data/` | Static vendor registry data file (`vendor-registry.ts`). |
 | `src/utils/` | Shared helpers — response cache and fetch, SSRF guard, domain-entry normalizer, HTML-to-text, vendor-text markdown escaping, code-span rendering of DNS and certificate values, input-bound notices, word matching. |

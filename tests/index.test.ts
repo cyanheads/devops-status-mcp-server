@@ -133,3 +133,12 @@ describe('entry point: active-probe flag', () => {
     expect(instructions).not.toMatch(/[a-z)][.;][A-Z]/);
   });
 });
+
+describe('entry point: instructions', () => {
+  it('names incident.io among the native adapters (#98)', () => {
+    const { instructions } = listSurface({});
+    expect(instructions).toContain(
+      'Azure DevOps status, incident.io (such as OpenAI and Supabase), Status.io (GitLab, Neon)',
+    );
+  });
+});

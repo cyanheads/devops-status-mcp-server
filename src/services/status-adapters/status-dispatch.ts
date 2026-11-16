@@ -5,14 +5,23 @@
  * @module services/status-adapters/status-dispatch
  */
 
-import { getStatuspageService } from '@/services/statuspage/statuspage-service.js';
+import { McpError, notFound } from '@cyanheads/mcp-ts-core/errors';
+import {
+  getStatuspageService,
+  lacksStatuspageFields,
+  type StatuspageService,
+} from '@/services/statuspage/statuspage-service.js';
 import type {
   StatuspageIncident,
   StatuspageIncidentsResponse,
   StatuspageScheduledMaintenancesResponse,
   StatuspageSummaryResponse,
 } from '@/services/statuspage/types.js';
-import type { ResolvedVendor } from '@/services/vendor-registry/vendor-registry-service.js';
+import {
+  getVendorRegistryService,
+  pageServesStatuspageApi,
+  type ResolvedVendor,
+} from '@/services/vendor-registry/vendor-registry-service.js';
 import {
   fetchAwsIncidents,
   fetchAwsScheduledMaintenances,
@@ -45,6 +54,11 @@ import {
   fetchGcpSummary,
 } from './gcp-adapter.js';
 import {
+  fetchIncidentioIncidents,
+  fetchIncidentioScheduledMaintenances,
+  fetchIncidentioSummary,
+} from './incidentio-adapter.js';
+import {
   fetchSlackIncidents,
   fetchSlackScheduledMaintenances,
   fetchSlackSummary,
@@ -57,11 +71,108 @@ import {
 
 type Fetched<T> = Promise<{ data: T; cached: boolean }>;
 
+/** What a raw-URL caller is told to pass when its host names no registry entry. */
+const STATUSPAGE_NOT_FOUND_RECOVERY =
+  "Pass the vendor's registry slug (devops_list_vendors lists them) or the base URL of a page hosted on Atlassian Statuspage.";
+
+/** HTTP statuses, after redirects, that mean the endpoint is not served at that base. */
+const NOT_SERVED_STATUSES: ReadonlySet<number> = new Set([404, 410]);
+
+/** The final HTTP status a Statuspage fetch failed on, when it failed on one. */
+function failedStatus(err: unknown): number | undefined {
+  if (!(err instanceof McpError)) return undefined;
+  const status = (err.data as { status?: unknown } | undefined)?.status;
+  return typeof status === 'number' ? status : undefined;
+}
+
+/** True when a Statuspage fetch failed on a 404 or 410 — the endpoint is not served there. */
+export function isNotServed(err: unknown): boolean {
+  const status = failedStatus(err);
+  return status !== undefined && NOT_SERVED_STATUSES.has(status);
+}
+
+/**
+ * The `statuspage_not_found` message for a raw URL: that it serves no Statuspage API at
+ * that base, `detail` saying how that is known, then the registry entries whose status
+ * page is on its host — never a claim that the vendor has no Statuspage page, since a
+ * vendor can serve one from a host the URL does not name.
+ */
+function statuspageNotFoundMessage(url: string, detail: string): string {
+  const slugs = getVendorRegistryService()
+    .entriesOnHost(url)
+    .map((entry) => `"${entry.slug}"`);
+  const pointer =
+    slugs.length === 0
+      ? STATUSPAGE_NOT_FOUND_RECOVERY
+      : slugs.length === 1
+        ? `The registry entry for this host's status page is ${slugs[0]} — pass that slug as the vendor instead.`
+        : `The registry entries for this host's status page are ${new Intl.ListFormat('en').format(slugs)} — pass one of those slugs as the vendor instead.`;
+  return `${url} serves no Atlassian Statuspage API at that base: ${detail}. ${pointer}`;
+}
+
+/**
+ * Why a raw URL is known before any request to serve no Statuspage API — its host is the
+ * status page of a registry entry whose backend serves none, so the registry names the
+ * slug to pass — or null when the URL is to be read. A registry lookup, not a probe: a
+ * host the registry does not record is always tried.
+ */
+export function rawTargetRejection(vendor: ResolvedVendor): string | null {
+  if (vendor.slug !== null) return null;
+  const entries = getVendorRegistryService().entriesOnHost(vendor.url);
+  if (entries.every((entry) => pageServesStatuspageApi(entry.api_type))) return null;
+  return statuspageNotFoundMessage(
+    vendor.url,
+    "its status page runs on another backend, which this server reads only by the vendor's registry slug",
+  );
+}
+
+/**
+ * A Statuspage read for `vendor`. A registry entry's failures leave as the service threw
+ * them. A raw URL's answers that show its base serves no Statuspage API leave as
+ * `statuspage_not_found`: JSON missing the endpoint's Statuspage fields, and — where
+ * `statusProves` — a 404 or 410 after redirects. Everything else (403, 429, 5xx, a
+ * timeout, a body that is not JSON) is an answer an outage or challenge page also gives,
+ * and stays as thrown.
+ */
+async function readStatuspage<T>(
+  vendor: ResolvedVendor,
+  read: (service: StatuspageService) => Promise<T>,
+  statusProves: boolean,
+): Promise<T> {
+  if (vendor.slug !== null) return read(getStatuspageService());
+  try {
+    return await read(getStatuspageService());
+  } catch (err) {
+    // The endpoint URL the service failed on; every Statuspage fetch failure carries it.
+    const endpoint =
+      (err instanceof McpError ? (err.data as { url?: string } | undefined)?.url : undefined) ??
+      vendor.url;
+    if (lacksStatuspageFields(err)) {
+      throw notFound(
+        statuspageNotFoundMessage(
+          vendor.url,
+          `${endpoint} answered JSON without the Statuspage fields`,
+        ),
+        { reason: 'statuspage_not_found', url: vendor.url },
+        { cause: err },
+      );
+    }
+    if (statusProves && isNotServed(err)) {
+      throw notFound(
+        statuspageNotFoundMessage(vendor.url, `HTTP ${failedStatus(err)} from ${endpoint}`),
+        { reason: 'statuspage_not_found', url: vendor.url },
+        { cause: err },
+      );
+    }
+    throw err;
+  }
+}
+
 /** The backend's summary for a resolved vendor, before any component scope. */
 function backendSummary(vendor: ResolvedVendor): Fetched<StatuspageSummaryResponse> {
   switch (vendor.api_type) {
     case 'statuspage':
-      return getStatuspageService().fetchSummary(vendor.url);
+      return readStatuspage(vendor, (s) => s.fetchSummary(vendor.url), true);
     case 'statusio':
       return fetchStatusioSummary(vendor);
     case 'slack':
@@ -78,6 +189,8 @@ function backendSummary(vendor: ResolvedVendor): Fetched<StatuspageSummaryRespon
       return fetchFirehydrantSummary(vendor);
     case 'datadog':
       return fetchDatadogSummary(vendor);
+    case 'incidentio':
+      return fetchIncidentioSummary(vendor);
   }
 }
 
@@ -85,7 +198,7 @@ function backendSummary(vendor: ResolvedVendor): Fetched<StatuspageSummaryRespon
 function backendIncidents(vendor: ResolvedVendor): Fetched<StatuspageIncidentsResponse> {
   switch (vendor.api_type) {
     case 'statuspage':
-      return getStatuspageService().fetchIncidents(vendor.url);
+      return readStatuspage(vendor, (s) => s.fetchIncidents(vendor.url), true);
     case 'statusio':
       return fetchStatusioIncidents(vendor);
     case 'slack':
@@ -102,6 +215,8 @@ function backendIncidents(vendor: ResolvedVendor): Fetched<StatuspageIncidentsRe
       return fetchFirehydrantIncidents(vendor);
     case 'datadog':
       return fetchDatadogIncidents(vendor);
+    case 'incidentio':
+      return fetchIncidentioIncidents(vendor);
   }
 }
 
@@ -111,7 +226,11 @@ function backendScheduledMaintenances(
 ): Fetched<StatuspageScheduledMaintenancesResponse> {
   switch (vendor.api_type) {
     case 'statuspage':
-      return getStatuspageService().fetchScheduledMaintenances(vendor.url);
+      /**
+       * A 404 here is no proof: Statuspage-compatible pages that serve the rest of the API
+       * answer it too. The caller decides it against incidents.json.
+       */
+      return readStatuspage(vendor, (s) => s.fetchScheduledMaintenances(vendor.url), false);
     case 'statusio':
       return fetchStatusioScheduledMaintenances(vendor);
     case 'slack':
@@ -128,6 +247,8 @@ function backendScheduledMaintenances(
       return fetchFirehydrantScheduledMaintenances(vendor);
     case 'datadog':
       return fetchDatadogScheduledMaintenances(vendor);
+    case 'incidentio':
+      return fetchIncidentioScheduledMaintenances(vendor);
   }
 }
 
@@ -349,6 +470,18 @@ export function backendHistory(apiType: ResolvedVendor['api_type']): BackendHist
         scheduledMaintenance: true,
         historyPages: false,
         wholeHistory: true,
+      };
+    case 'incidentio':
+      // {page}/proxy/{host}/incidents with no window lists the last 90 days, cut by age
+      // rather than by count, resolved incidents and maintenance windows (completed ones
+      // included) alike. Its windowed form is the archive: readIncidentioHistory reads one
+      // calendar quarter per request, full records, back to `since`. No history.json.
+      return {
+        incidentCeiling: null,
+        resolved: 'full',
+        scheduledMaintenance: true,
+        historyPages: true,
+        wholeHistory: false,
       };
   }
 }

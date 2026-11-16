@@ -442,6 +442,21 @@ describe('mapAzureDevOpsIncidents / mapAzureDevOpsItem', () => {
     ]);
   });
 
+  it('lists an item with no readable stamp or pubDate last, after the dated ones', () => {
+    const items = parseAzureDevOpsFeed(
+      feed(
+        rssItem({ event: '1', pubDate: 'Tue, 13 Oct 2026 12:00:00 GMT' }),
+        rssItem({ event: '2', pubDate: 'not a date' }),
+        rssItem({ event: '3', pubDate: 'Mon, 12 Oct 2026 12:00:00 GMT' }),
+      ),
+    );
+    expect(mapAzureDevOpsIncidents(items, AZDO).incidents.map((i) => i.id)).toEqual([
+      '1',
+      '3',
+      '2',
+    ]);
+  });
+
   it('does not crash on a sparse item with omitted fields', () => {
     const sparse: AzureDevOpsFeedItem = {
       eventId: '',

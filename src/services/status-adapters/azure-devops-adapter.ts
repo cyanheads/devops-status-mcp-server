@@ -46,6 +46,7 @@ import type {
 } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
+import { newestFirst } from '@/utils/newest-first.js';
 import { elementText, elementTexts, rssItems } from './rss-extract.js';
 
 const HEALTH_URL = 'https://status.dev.azure.com/_apis/status/health?api-version=7.1-preview.1';
@@ -281,7 +282,7 @@ export function mapAzureDevOpsIncidents(
     page: buildPage(target, undefined),
     incidents: items
       .map((item) => mapAzureDevOpsItem(item, target))
-      .sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0)),
+      .sort((a, b) => newestFirst(a.created_at, b.created_at)),
   };
 }
 

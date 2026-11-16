@@ -311,6 +311,46 @@ describe('mapFirehydrantIncidents', () => {
     expect(incidents[59]!.id).toBe('inc-0'); // oldest retained, not dropped
   });
 
+  it('lists an incident with no start last, after the dated ones', () => {
+    const resolved = '2026-03-03T00:00:00Z';
+    const { incidents } = mapFirehydrantIncidents(
+      {
+        components: [],
+        incidents: [
+          { id: 'new', timestamps: { started: '2026-03-02T00:00:00Z', resolved } },
+          { id: 'undated', timestamps: { resolved } },
+          { id: 'old', timestamps: { started: '2026-03-01T00:00:00Z', resolved } },
+        ],
+      },
+      REDIS,
+    );
+    expect(incidents.map((i) => i.id)).toEqual(['new', 'old', 'undated']);
+  });
+
+  it('lists an update whose time does not parse first, as it does one with no time', () => {
+    const { incidents } = mapFirehydrantIncidents(
+      {
+        components: [],
+        incidents: [
+          {
+            id: 'timeline',
+            timeline: [
+              { occurredAt: '2026-03-01T02:00:00Z', details: { note: 'Second.' } },
+              { occurredAt: 'not-a-date', details: { note: 'Unreadable.' } },
+              { occurredAt: '2026-03-01T01:00:00Z', details: { note: 'First.' } },
+            ],
+          },
+        ],
+      },
+      REDIS,
+    );
+    expect(incidents[0]!.incident_updates.map((u) => u.body)).toEqual([
+      'Unreadable.',
+      'First.',
+      'Second.',
+    ]);
+  });
+
   it('extracts nested BulkImpactUpdate notes and drops note-less milestone entries', () => {
     // The captured SEV4 incident's timeline is all BulkImpactUpdate events:
     // two carry a nested { note: { note } } body, two are milestone-only.
@@ -411,6 +451,21 @@ describe('mapFirehydrantScheduledMaintenances', () => {
     ]);
     expect(scheduled_maintenances[0]!.scheduled_for).toBe('2026-02-24T04:52:19Z');
     expect(mapFirehydrantSummary(raw, REDIS).scheduled_maintenances).toEqual([]);
+  });
+
+  it('lists a window with no start last, after the dated ones', () => {
+    const { scheduled_maintenances } = mapFirehydrantScheduledMaintenances(
+      {
+        components: [],
+        incidents: [
+          { id: 'next', severitySlug: 'MAINTENANCE', timestamps: { started: FUTURE } },
+          { id: 'undated', severitySlug: 'MAINTENANCE', timestamps: {} },
+          { id: 'now', severitySlug: 'MAINTENANCE', timestamps: { started: PAST } },
+        ],
+      },
+      REDIS,
+    );
+    expect(scheduled_maintenances.map((m) => m.id)).toEqual(['next', 'now', 'undated']);
   });
 
   it('lists every window newest first — upcoming, in progress, then completed (#85)', () => {

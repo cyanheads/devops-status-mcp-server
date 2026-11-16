@@ -1,0 +1,336 @@
+{
+  "summary": {
+    "id": "01JT6C46FMYD9THW380GCVV2XJ",
+    "name": "Clerk",
+    "subpath": "clerk",
+    "support_label": "Report a problem",
+    "public_url": "https://status.clerk.com/",
+    "logo_url": "https://storage.googleapis.com/incident-io-status-page-logos/01J1A42NVATSTF52RX6SGWG7TT/clerk/p1bdby4k.png",
+    "favicon_url": "https://storage.googleapis.com/incident-io-status-page-logos/01J1A42NVATSTF52RX6SGWG7TT/clerk/s7qp37rc.png",
+    "components": [
+      {
+        "id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+        "name": "Authentication & User",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K4TC9GXAYMA3FK9RYJM2QG8R",
+        "name": "Machine authentication",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSB18GVV6YFETB81K7E",
+        "name": "Webhooks",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01KKEKA0GFH9HWVE78RD7FSDZB",
+        "name": "Hosted UIs (Account Portal)",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSBS0Z4RS051CDMT5CH",
+        "name": "Session management",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSB6DX634QMSE9V4003",
+        "name": "Multi-tenant authentication",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01KR1V0JQW9RJV3APZQ3XM8HZF",
+        "name": "SCIM",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01M713D7YQZNW8BYP1JJ933H9R",
+        "name": "Checks",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSBQ2XMH6GC4EF7GF99",
+        "name": "Billing",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSBC8ZX3XBYYF6VDHB1",
+        "name": "Email delivery",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSBGGJCYCY10NJJ8099",
+        "name": "SMS delivery",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSBRG3EWYB5V521KKPV",
+        "name": "Dashboard",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSBEVMEWRPZPJ9MEH5T",
+        "name": "Dashboard analytics",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSBS191E18P5FANYAWM",
+        "name": "Dashboard search",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01K41ZBMSBEMMYR2Y9V1ZCY1XG",
+        "name": "Application \"Go live\"",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01KPWM0YRQ2D421BJ2XRVJR54Z",
+        "name": "Platform API",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01M713D7YQ9D09M336YKE115S8",
+        "name": "Protect settings",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      },
+      {
+        "id": "01M5GDV4MP3CGAEMBF7RZQ6BQA",
+        "name": "Ask AI",
+        "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ"
+      }
+    ],
+    "subscriptions_disabled": false,
+    "display_uptime_mode": "chart_and_percentage",
+    "history_window_days": 90,
+    "allow_search_engine_indexing": true,
+    "affected_components": [],
+    "ongoing_incidents": [],
+    "scheduled_maintenances": [],
+    "structure": {
+      "id": "01M713JEEKH65GZJ60ERDZ7YDY",
+      "status_page_id": "01JT6C46FMYD9THW380GCVV2XJ",
+      "items": [
+        {
+          "group": {
+            "id": "01K528PMQ5WNEBJKW66EB828C4",
+            "name": "Core services",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01K41ZBMSBHW3SN4CMJRPPAYG9",
+                "display_uptime": true,
+                "name": "Authentication & User",
+                "hidden": false,
+                "data_available_since": "2025-05-08T17:02:00Z"
+              },
+              {
+                "component_id": "01K4TC9GXAYMA3FK9RYJM2QG8R",
+                "display_uptime": true,
+                "name": "Machine authentication",
+                "hidden": false,
+                "data_available_since": "2025-09-10T17:55:34.442Z"
+              },
+              {
+                "component_id": "01K41ZBMSB18GVV6YFETB81K7E",
+                "display_uptime": true,
+                "name": "Webhooks",
+                "hidden": false,
+                "data_available_since": "2025-04-22T20:00:00Z"
+              },
+              {
+                "component_id": "01KKEKA0GFH9HWVE78RD7FSDZB",
+                "display_uptime": true,
+                "name": "Hosted UIs (Account Portal)",
+                "hidden": false,
+                "data_available_since": "2025-06-27T13:42:56.457Z"
+              }
+            ]
+          }
+        },
+        {
+          "group": {
+            "id": "01KZ4XPMPNRH9EG4GKBWVXVBRV",
+            "name": "Session management",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01K41ZBMSBS0Z4RS051CDMT5CH",
+                "display_uptime": true,
+                "name": "Session management",
+                "hidden": false,
+                "data_available_since": "2025-02-27T11:20:00Z"
+              }
+            ]
+          }
+        },
+        {
+          "group": {
+            "id": "01KZ4X6AP5R12K25FQ20FJC6N9",
+            "name": "Enterprise / Multi-tenant",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01K41ZBMSB6DX634QMSE9V4003",
+                "display_uptime": true,
+                "name": "Multi-tenant authentication",
+                "hidden": false,
+                "data_available_since": "2025-05-08T17:02:00Z"
+              },
+              {
+                "component_id": "01KR1V0JQW9RJV3APZQ3XM8HZF",
+                "display_uptime": true,
+                "name": "SCIM",
+                "hidden": false,
+                "data_available_since": "2026-05-07T18:25:45.724Z"
+              }
+            ]
+          }
+        },
+        {
+          "group": {
+            "id": "01M713A3ZV1A99H63QZ9D2R7W6",
+            "name": "Protect",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01M713D7YQZNW8BYP1JJ933H9R",
+                "display_uptime": true,
+                "name": "Checks",
+                "hidden": false,
+                "data_available_since": "2026-10-22T21:00:00Z"
+              }
+            ]
+          }
+        },
+        {
+          "group": {
+            "id": "01KZ4X921JKPKEF9V7X9EWSNB8",
+            "name": "Billing",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01K41ZBMSBQ2XMH6GC4EF7GF99",
+                "display_uptime": true,
+                "name": "Billing",
+                "hidden": false,
+                "data_available_since": "2025-05-08T17:02:00Z"
+              }
+            ]
+          }
+        },
+        {
+          "group": {
+            "id": "01KZ4WT40P4D1TQDR78YSR2C9W",
+            "name": "Communication services",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01K41ZBMSBC8ZX3XBYYF6VDHB1",
+                "display_uptime": true,
+                "name": "Email delivery",
+                "hidden": false,
+                "data_available_since": "2025-04-23T21:41:00Z"
+              },
+              {
+                "component_id": "01K41ZBMSBGGJCYCY10NJJ8099",
+                "display_uptime": true,
+                "name": "SMS delivery",
+                "hidden": false,
+                "data_available_since": "2025-05-08T17:02:00Z"
+              }
+            ]
+          }
+        },
+        {
+          "group": {
+            "id": "01K528PMQ5WNEBJKW66HET4Q2Z",
+            "name": "Dashboard & Administration",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01K41ZBMSBRG3EWYB5V521KKPV",
+                "display_uptime": true,
+                "name": "Dashboard",
+                "hidden": false,
+                "data_available_since": "2025-03-06T13:59:00Z"
+              },
+              {
+                "component_id": "01K41ZBMSBEVMEWRPZPJ9MEH5T",
+                "display_uptime": true,
+                "name": "Dashboard analytics",
+                "hidden": false,
+                "data_available_since": "2025-05-08T17:02:00Z"
+              },
+              {
+                "component_id": "01K41ZBMSBS191E18P5FANYAWM",
+                "display_uptime": true,
+                "name": "Dashboard search",
+                "hidden": false,
+                "data_available_since": "2025-05-08T17:02:00Z"
+              },
+              {
+                "component_id": "01K41ZBMSBEMMYR2Y9V1ZCY1XG",
+                "display_uptime": true,
+                "name": "Application \"Go live\"",
+                "hidden": false,
+                "data_available_since": "2025-05-08T17:02:00Z"
+              },
+              {
+                "component_id": "01KPWM0YRQ2D421BJ2XRVJR54Z",
+                "display_uptime": true,
+                "name": "Platform API",
+                "hidden": false,
+                "data_available_since": "2025-02-27T11:20:00Z"
+              },
+              {
+                "component_id": "01M713D7YQ9D09M336YKE115S8",
+                "display_uptime": true,
+                "name": "Protect settings",
+                "hidden": false,
+                "data_available_since": "2026-10-22T21:00:00Z"
+              }
+            ]
+          }
+        },
+        {
+          "group": {
+            "id": "01M5GDT19D9MMBM3HC3MG1C419",
+            "name": "Documentation",
+            "display_aggregated_uptime": true,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01M5GDV4MP3CGAEMBF7RZQ6BQA",
+                "display_uptime": true,
+                "name": "Ask AI",
+                "hidden": false,
+                "data_available_since": "2026-10-21T23:48:16.15Z"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "terms_of_service_url": "https://clerk.com/legal/terms",
+    "privacy_policy_url": "https://clerk.com/legal/privacy",
+    "expose_status_summary_api": true,
+    "theme": "light",
+    "date_view": "list",
+    "locale": "en-US",
+    "page_type": "standalone",
+    "data_available_since": "2025-02-27T11:20:00Z",
+    "page_view_tracking_disabled": true,
+    "page_level_subscriptions_disabled": false,
+    "sms_subscriptions_enabled": false,
+    "slack_subscriptions_enabled": true,
+    "subscribe_button_highlighted": false,
+    "show_parent_page_banner": false
+  }
+}

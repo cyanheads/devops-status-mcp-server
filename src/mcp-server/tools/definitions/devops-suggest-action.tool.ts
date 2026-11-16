@@ -7,7 +7,10 @@
 import { tool, z } from '@cyanheads/mcp-ts-core';
 import { getServerConfig } from '@/config/server-config.js';
 import type { VendorCategory } from '@/data/vendor-registry.js';
-import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
+import {
+  getVendorRegistryService,
+  pageServesStatuspageApi,
+} from '@/services/vendor-registry/vendor-registry-service.js';
 import { vendorInline, vendorQuote } from '@/utils/vendor-markdown.js';
 
 /**
@@ -332,7 +335,11 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
   }),
 
   output: z.object({
-    vendor: z.string().describe('Vendor as provided.'),
+    vendor: z
+      .string()
+      .describe(
+        'Vendor as provided — a URL that carried credentials, a query, or a fragment is echoed as its origin and path alone.',
+      ),
     vendor_category: z
       .string()
       .nullable()
@@ -387,7 +394,20 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
   handler(input, ctx) {
     const registry = getVendorRegistryService();
     const { disableActiveProbes } = getServerConfig();
-    const entry = registry.getBySlugOrName(input.vendor);
+    const named = registry.getBySlugOrName(input.vendor);
+    /**
+     * A raw URL in the form the status tools read it — no credentials, query, or
+     * fragment — and echoed and logged that way. On the status page of an entry whose
+     * backend serves no Statuspage API, those tools reject the URL and name that entry,
+     * so the URL stands for the entry here.
+     */
+    const target = named ? null : registry.resolve(input.vendor);
+    const entry =
+      named ??
+      (target
+        ? registry.entriesOnHost(target.url).find((e) => !pageServesStatuspageApi(e.api_type))
+        : undefined);
+    const echo = target?.name ?? input.vendor;
     const category = entry?.category ?? null;
 
     // Deterministic incident-context tailoring: match the affected components and the
@@ -422,13 +442,13 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
     // devops_get_incidents accepts only a registry slug or a raw URL. Anything else would
     // fail there, so it gets a registry search that surfaces the slug instead.
     const vendor = input.vendor.trim();
-    if (entry || /^https?:\/\//i.test(vendor)) {
+    if (entry || target) {
       suggestions.push({
         toolName: 'devops_get_incidents',
         reason:
           'Get full incident timeline with all investigator updates and affected component history.',
         args: {
-          vendor: entry?.slug ?? vendor,
+          vendor: entry?.slug ?? target?.url,
           filter: 'active',
           limit: 5,
         },
@@ -495,7 +515,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
 
     const incidentSnippet = input.incident_summary ?? null;
 
-    ctx.log.info('Action suggested', { vendor: input.vendor, category });
+    ctx.log.info('Action suggested', { vendor: echo, category });
 
     // Dedupe follow-ups by tool + args — context tailoring and the CDN-edge branch can
     // re-propose the same detailed status re-check.
@@ -508,7 +528,7 @@ export const devopsSuggestAction = tool('devops_suggest_action', {
     });
 
     return {
-      vendor: input.vendor,
+      vendor: echo,
       vendor_category: category,
       guidance,
       diagnostics_summary: {

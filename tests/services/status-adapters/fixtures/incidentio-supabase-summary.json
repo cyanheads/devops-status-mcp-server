@@ -1,0 +1,221 @@
+{
+  "summary": {
+    "id": "01KJZVWMNKKQM1MY9H5QWY34VG",
+    "name": "Supabase",
+    "subpath": "supabase",
+    "support_url": "https://supabase.help",
+    "support_label": "Report a problem",
+    "public_url": "https://status.supabase.com/",
+    "logo_url": "https://storage.googleapis.com/incident-io-status-page-logos/cae4baa4-32d4-489e-b94a-75dd081e1e8c",
+    "favicon_url": "https://storage.googleapis.com/incident-io-status-page-logos/4adda13a-7234-45fa-ae40-1e993c706a64",
+    "components": [
+      {
+        "id": "01M32ZK4PSECRCVCVHEC8G82QP",
+        "name": "eu-central-2",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG"
+      },
+      {
+        "id": "01M32ZK4PSECGQP9BFQE626TG8",
+        "name": "eu-west-1",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG"
+      },
+      {
+        "id": "01M32ZK4PSMXGGDNVERWH32A1F",
+        "name": "us-east-2",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG"
+      },
+      {
+        "id": "01M32S9NWPW538MFBF1DR9AQ5H",
+        "name": "ap-southeast-1",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG"
+      },
+      {
+        "id": "01M32S9NWP9ANX3DGPB9QVVMJD",
+        "name": "eu-west-1",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG"
+      },
+      {
+        "id": "01M32S9NWPXWX4RVRAYF06CAS6",
+        "name": "us-east-1",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG"
+      },
+      {
+        "id": "01KJZVWMNKVZ4ESY3EZ8SXDRE5",
+        "name": "Auth",
+        "description": "Authenticate and authorize users",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG"
+      },
+      {
+        "id": "01KJZVWMNKGZH80AW9A4T1BWSN",
+        "name": "Dashboard",
+        "description": "The studio, docs and primary website at https://supabase.com",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG"
+      }
+    ],
+    "subscriptions_disabled": false,
+    "display_uptime_mode": "chart_and_percentage",
+    "history_window_days": 30,
+    "allow_search_engine_indexing": true,
+    "affected_components": [],
+    "ongoing_incidents": [],
+    "scheduled_maintenances": [
+      {
+        "updates": [
+          {
+            "published_at": "2026-11-13T13:36:00Z",
+            "id": "01M7AHYK737189NNT8BFZ2155D",
+            "message": {
+              "feature_set": "mrkdwn",
+              "markdown": "We will perform scheduled maintenance on the Shared Pooler (Supavisor) in the eu-central-2 region on Monday, November 30, from 13:00 to 15:00 UTC.\n\nDuring the window, existing client connections may be dropped, and you may briefly see connection errors while traffic switches to the new version. Applications that reconnect and retry automatically will recover without action.\n\nDirect database connections and the Dedicated Pooler are not affected.",
+              "schema_version": "v1.0.0"
+            },
+            "message_string": "We will perform scheduled maintenance on the Shared Pooler (Supavisor) in the eu-central-2 region on Monday, November 30, from 13:00 to 15:00 UTC.\n\nDuring the window, existing client connections may be dropped, and you may briefly see connection errors while traffic switches to the new version. Applications that reconnect and retry automatically will recover without action.\n\nDirect database connections and the Dedicated Pooler are not affected.",
+            "to_status": "maintenance_scheduled",
+            "component_statuses": [
+              {
+                "component_id": "01M32ZK4PSECRCVCVHEC8G82QP",
+                "status": "under_maintenance"
+              }
+            ],
+            "automated_update": false
+          }
+        ],
+        "component_impacts": [
+          {
+            "start_at": "2026-11-30T13:00:00Z",
+            "end_at": "2026-11-30T15:00:00Z",
+            "id": "01M7AHYK7344HNMRX613Y1097K",
+            "component_id": "01M32ZK4PSECRCVCVHEC8G82QP",
+            "status_page_incident_id": "01M7AHYK73ZAAYG8CSRJBMDTWH",
+            "status": "under_maintenance"
+          }
+        ],
+        "status_summaries": [
+          {
+            "start_at": "2026-11-30T13:00:00Z",
+            "end_at": "2026-11-30T15:00:00Z",
+            "worst_component_status": "under_maintenance"
+          }
+        ],
+        "published_at": "2026-11-13T13:36:00.738Z",
+        "id": "01M7AHYK73ZAAYG8CSRJBMDTWH",
+        "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG",
+        "name": "Scheduled maintenance: Shared Pooler (Supavisor), eu-central-2",
+        "status": "maintenance_scheduled",
+        "affected_components": [
+          {
+            "component_id": "01M32ZK4PSECRCVCVHEC8G82QP",
+            "status": "under_maintenance",
+            "current_status": "operational"
+          }
+        ],
+        "type": "maintenance"
+      }
+    ],
+    "structure": {
+      "id": "01M4BEHCZSJP3VBSE9WCECQ0H8",
+      "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG",
+      "items": [
+        {
+          "group": {
+            "id": "01M32RZSPCRHRNBK9T3WKSDQF4",
+            "name": "Connection Pooler",
+            "description": "Supavisor is a cloud-native, multi-tenant Postgres connection pooler.",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01M32ZK4PSECRCVCVHEC8G82QP",
+                "display_uptime": true,
+                "name": "eu-central-2",
+                "hidden": false,
+                "data_available_since": "2026-09-21T21:57:42.745Z"
+              },
+              {
+                "component_id": "01M32ZK4PSECGQP9BFQE626TG8",
+                "display_uptime": true,
+                "name": "eu-west-1",
+                "hidden": false,
+                "data_available_since": "2026-09-21T21:57:42.745Z"
+              },
+              {
+                "component_id": "01M32ZK4PSMXGGDNVERWH32A1F",
+                "display_uptime": true,
+                "name": "us-east-2",
+                "hidden": false,
+                "data_available_since": "2026-09-21T21:57:42.745Z"
+              }
+            ]
+          }
+        },
+        {
+          "group": {
+            "id": "01M32R99QD6031NTQDBBP6NCEF",
+            "name": "Storage",
+            "description": "Store and serve any type of digital content",
+            "display_aggregated_uptime": false,
+            "hidden": false,
+            "components": [
+              {
+                "component_id": "01M32S9NWPW538MFBF1DR9AQ5H",
+                "display_uptime": true,
+                "name": "ap-southeast-1",
+                "hidden": false,
+                "data_available_since": "2026-09-21T20:07:41.206Z"
+              },
+              {
+                "component_id": "01M32S9NWP9ANX3DGPB9QVVMJD",
+                "display_uptime": true,
+                "name": "eu-west-1",
+                "hidden": false,
+                "data_available_since": "2026-09-21T20:07:41.206Z"
+              },
+              {
+                "component_id": "01M32S9NWPXWX4RVRAYF06CAS6",
+                "display_uptime": true,
+                "name": "us-east-1",
+                "hidden": false,
+                "data_available_since": "2026-09-21T20:07:41.206Z"
+              }
+            ]
+          }
+        },
+        {
+          "component": {
+            "component_id": "01KJZVWMNKVZ4ESY3EZ8SXDRE5",
+            "display_uptime": true,
+            "name": "Auth",
+            "description": "Authenticate and authorize users",
+            "hidden": false,
+            "data_available_since": "2023-06-21T09:23:55.438Z"
+          }
+        },
+        {
+          "component": {
+            "component_id": "01KJZVWMNKGZH80AW9A4T1BWSN",
+            "display_uptime": true,
+            "name": "Dashboard",
+            "description": "The studio, docs and primary website at https://supabase.com",
+            "hidden": false,
+            "data_available_since": "2021-04-20T16:30:22.128Z"
+          }
+        }
+      ]
+    },
+    "terms_of_service_url": "https://supabase.com/terms",
+    "privacy_policy_url": "https://supabase.com/privacy",
+    "no_active_incidents_message": "Having a supa day. All systems are operational.",
+    "expose_status_summary_api": true,
+    "theme": "light",
+    "date_view": "list",
+    "locale": "en-US",
+    "page_type": "standalone",
+    "data_available_since": "2020-11-27T15:21:35Z",
+    "page_view_tracking_disabled": false,
+    "page_level_subscriptions_disabled": false,
+    "sms_subscriptions_enabled": false,
+    "slack_subscriptions_enabled": true,
+    "subscribe_button_highlighted": false,
+    "show_parent_page_banner": false
+  }
+}

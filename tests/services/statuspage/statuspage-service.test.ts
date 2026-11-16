@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getStatuspageService,
   initStatuspageService,
+  lacksStatuspageFields,
   StatuspageService,
 } from '@/services/statuspage/statuspage-service.js';
 import type {
@@ -210,6 +211,60 @@ describe('StatuspageService', () => {
     expect((err as McpError).message).toContain('could not be parsed as JSON');
   });
 
+  /**
+   * A raw URL's not-found classification (#103) keys on this distinction, never on the
+   * message: JSON missing the endpoint's own fields is a JSON API that is not Statuspage,
+   * while a body that is not JSON, a transport failure, and a Statuspage payload with one
+   * value off the known schema are not.
+   */
+  describe('lacksStatuspageFields (#103)', () => {
+    async function rejection(name: string, respond: () => Response) {
+      http.route({ match: new RegExp(`/api/v2/${name}\\.json$`), respond });
+      const service = new StatuspageService();
+      const url = freshUrl();
+      const read =
+        name === 'summary'
+          ? service.fetchSummary(url)
+          : name === 'incidents'
+            ? service.fetchIncidents(url)
+            : service.fetchScheduledMaintenances(url);
+      return read.catch((e: unknown) => e);
+    }
+
+    it('is true for JSON missing a top-level Statuspage field, on every endpoint', async () => {
+      const echo = () => Response.json({ args: {}, headers: {}, method: 'GET' });
+      for (const name of ['summary', 'incidents', 'scheduled-maintenances']) {
+        const err = await rejection(name, echo);
+        expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
+        expect(lacksStatuspageFields(err), name).toBe(true);
+      }
+      expect(lacksStatuspageFields(await rejection('incidents', () => Response.json([1, 2])))).toBe(
+        true,
+      );
+    });
+
+    it('is false for a Statuspage payload with one value off the schema', async () => {
+      const err = await rejection('summary', () =>
+        Response.json({ ...MOCK_SUMMARY, status: { indicator: 'sideways', description: '' } }),
+      );
+      expect((err as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
+      expect(lacksStatuspageFields(err)).toBe(false);
+    });
+
+    it('is false for a body that is not JSON, a non-2xx, and an unreachable host', async () => {
+      const html = await rejection('summary', () => new Response('<html>challenge</html>'));
+      const notFound = await rejection('incidents', () => new Response(null, { status: 404 }));
+      const down = await rejection('summary', () => {
+        throw new TypeError('Unable to connect.');
+      });
+      for (const err of [html, notFound, down]) {
+        expect(err).toBeInstanceOf(McpError);
+        expect(lacksStatuspageFields(err)).toBe(false);
+      }
+      expect(lacksStatuspageFields(new Error('x'))).toBe(false);
+    });
+  });
+
   it('accepts a real payload carrying fields the schema does not name, unchanged (#32)', async () => {
     const withExtras = {
       ...MOCK_SUMMARY,
@@ -366,6 +421,41 @@ describe('StatuspageService', () => {
       await expect(new StatuspageService().fetchHistory(base, 1)).rejects.toMatchObject({
         data: { reason: 'statuspage_unavailable' },
       });
+    });
+
+    /** The archive walk passes what is left of its own limit, capped at the fetch timeout. */
+    it('runs a page under the timeout it is given, else under the configured fetch timeout', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        const base = freshUrl();
+        http.route({
+          match: (request) => request.url.startsWith(`${base}/history.json?page=`),
+          respond: (request) =>
+            new Promise<Response>((_resolve, reject) => {
+              request.signal.addEventListener('abort', () => reject(request.signal.reason), {
+                once: true,
+              });
+            }),
+        });
+        const service = new StatuspageService();
+        const settled: string[] = [];
+        const read = (page: number, timeoutMs?: number) =>
+          service.fetchHistory(base, page, timeoutMs).catch((e: unknown) => {
+            settled.push((e as McpError).message);
+          });
+        const reads = Promise.all([read(1, 1200), read(2)]);
+
+        await vi.advanceTimersByTimeAsync(1200);
+        expect(settled).toEqual([`Timed out after 1200ms fetching ${base}/history.json?page=1`]);
+        await vi.advanceTimersByTimeAsync(3800);
+        await reads;
+        expect(settled).toEqual([
+          `Timed out after 1200ms fetching ${base}/history.json?page=1`,
+          `Timed out after 5000ms fetching ${base}/history.json?page=2`,
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('surfaces a 404 with its status, which callers read as "no archive"', async () => {

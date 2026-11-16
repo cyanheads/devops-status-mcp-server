@@ -4,15 +4,24 @@
  *
  * The archive is undocumented and served per host, so every way it can fail — no
  * archive, a transport or shape failure, a timestamp outside the known grammar, a
- * page that does not step back one quarter — comes back as a value naming the gap
- * rather than a throw. It supplements the documented v2 feed and must never
- * degrade it.
+ * page that does not step back one quarter, the walk's time limit passing — comes
+ * back as a value naming the gap rather than a throw. It supplements the documented
+ * v2 feed and must never degrade it.
  * @module services/statuspage/incident-history
  */
 
 import { McpError } from '@cyanheads/mcp-ts-core/errors';
+import { getServerConfig } from '@/config/server-config.js';
 import { getStatuspageService } from './statuspage-service.js';
 import type { StatuspageHistoryIncident, StatuspageHistoryResponse } from './types.js';
+
+/**
+ * One limit across every request a `since` history read makes, on every backend that
+ * reads history in pages. A 24-month walk reads up to eleven pages, so the per-page fetch
+ * timeout alone would let a slow archive hold the tool call past the 60-second request
+ * timeout of MCP clients, which would then never see the records read before it.
+ */
+export const HISTORY_DEADLINE_MS = 30_000;
 
 /** A history-archive record with its display timestamp resolved to UTC. */
 export interface HistoryRecord {
@@ -167,7 +176,7 @@ function quarterOf(localIso: string): number | null {
 }
 
 /** Calendar quarter of a UTC instant, counted as {@link quarterOf} counts. */
-function utcQuarter(ms: number): number {
+export function utcQuarter(ms: number): number {
   const date = new Date(ms);
   return date.getUTCFullYear() * 4 + Math.floor(date.getUTCMonth() / 3);
 }
@@ -193,6 +202,10 @@ function describeFetchFailure(err: unknown, page: number): string {
  * counts quarters in its own zone while today and the floor are UTC. An archive still
  * short of the floor after that is not counting back from today — a page 1 dated years
  * ahead would otherwise step back one request at a time for as long as it liked.
+ *
+ * Every page shares one 30-second limit: each is requested under what is left of it,
+ * capped at the configured fetch timeout, and none is requested once it has passed. A
+ * walk the limit stops keeps the pages read before it, like any other gap.
  */
 export async function readIncidentHistory(
   baseUrl: string,
@@ -212,15 +225,26 @@ export async function readIncidentHistory(
     return stop(`its status API names time zone "${timeZone}", which is not a recognized zone`);
   }
 
+  const { fetchTimeoutMs } = getServerConfig();
+  const deadline = Date.now() + HISTORY_DEADLINE_MS;
+  const limitPassed = (page: number) =>
+    `the ${HISTORY_DEADLINE_MS / 1000}-second limit on the read passed before history page ${page}`;
+
   const today = utcQuarter(Date.now());
   const maxPages = today - Math.min(utcQuarter(floorMs), today) + 3;
   let previousQuarter: number | null = null;
   for (let page = 1; page <= maxPages; page++) {
+    const timeLeftMs = deadline - Date.now();
+    if (timeLeftMs <= 0) return stop(limitPassed(page));
     let data: StatuspageHistoryResponse;
     try {
-      ({ data } = await getStatuspageService().fetchHistory(baseUrl, page));
+      ({ data } = await getStatuspageService().fetchHistory(
+        baseUrl,
+        page,
+        Math.min(fetchTimeoutMs, timeLeftMs),
+      ));
     } catch (err) {
-      return stop(describeFetchFailure(err, page));
+      return stop(Date.now() >= deadline ? limitPassed(page) : describeFetchFailure(err, page));
     }
 
     const windowStart = Date.parse(data.start_time);

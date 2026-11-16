@@ -55,6 +55,21 @@ describe('vendorEntryResource', () => {
     expect(vendorEntryResource.output?.shape.api_type.description).toContain('"azure-devops"');
   });
 
+  it('returns an incident.io-hosted entry with its own backend, named in the description (#98)', async () => {
+    const ctx = createMockContext({ uri: new URL('devops-status://vendors/openai') });
+    const result = await vendorEntryResource.handler(paramsSchema.parse({ name: 'openai' }), ctx);
+    expect(result).toEqual({
+      slug: 'openai',
+      name: 'OpenAI',
+      category: 'ai',
+      statuspage_url: 'https://status.openai.com',
+      api_type: 'incidentio',
+    });
+    expect(vendorEntryResource.output?.shape.api_type.description).toContain(
+      '"incidentio" (incident.io-hosted status page\'s own feed)',
+    );
+  });
+
   it('carries the component scope of an entry on a shared page, and none otherwise', async () => {
     const read = (name: string) =>
       vendorEntryResource.handler(

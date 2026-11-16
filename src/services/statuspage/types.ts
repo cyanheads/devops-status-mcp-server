@@ -22,8 +22,9 @@ export interface StatuspagePage {
  * The severity ladder an outage is rated on; the native adapters rank incident
  * impacts on it. `maintenance` sits off the ladder: a Statuspage page publishes it
  * in its own `status` block, and the Status.io (overall code 200), Firehydrant (a
- * started, unresolved MAINTENANCE item), and Datadog (an in_progress window) adapters
- * set it only while no open incident rates — an outage outranks a window.
+ * started, unresolved MAINTENANCE item), Datadog (an in_progress window), and incident.io
+ * (a window in progress, or a component or subpage under maintenance) adapters set it
+ * only while no open incident rates — an outage outranks a window.
  */
 export type StatuspageSeverityIndicator = 'none' | 'minor' | 'major' | 'critical';
 

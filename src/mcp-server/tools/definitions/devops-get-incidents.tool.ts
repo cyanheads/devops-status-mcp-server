@@ -4,11 +4,18 @@
  */
 
 import { tool, z } from '@cyanheads/mcp-ts-core';
-import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
+import { JsonRpcErrorCode } from '@cyanheads/mcp-ts-core/errors';
+import {
+  fetchIncidentioDataAvailableSince,
+  INCIDENTIO_DEFAULT_WINDOW_DAYS,
+  readIncidentioHistory,
+} from '@/services/status-adapters/incidentio-adapter.js';
 import type { BackendHistory } from '@/services/status-adapters/status-dispatch.js';
 import {
   fetchVendorIncidents,
   fetchVendorScheduledMaintenances,
+  isNotServed,
+  rawTargetRejection,
   vendorHistory,
 } from '@/services/status-adapters/status-dispatch.js';
 import type { HistoryRecord, HistoryWalk } from '@/services/statuspage/incident-history.js';
@@ -17,6 +24,7 @@ import type { StatuspageIncident } from '@/services/statuspage/types.js';
 import type { ResolvedVendor } from '@/services/vendor-registry/vendor-registry-service.js';
 import { getVendorRegistryService } from '@/services/vendor-registry/vendor-registry-service.js';
 import { clampMax } from '@/utils/input-bounds.js';
+import { newestFirst } from '@/utils/newest-first.js';
 import { assertSafeUrl, ssrfRejectionMessage } from '@/utils/ssrf-guard.js';
 import { vendorInline, vendorQuote } from '@/utils/vendor-markdown.js';
 import { hasEveryTerm, toTerms } from '@/utils/word-match.js';
@@ -70,9 +78,8 @@ function durationMinutes(
 type IncidentSource = 'api' | 'history';
 
 function normalizeIncident(i: StatuspageIncident, isScheduled: boolean) {
-  const updates = [...i.incident_updates].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
+  // Oldest first; an update with no readable timestamp counts as the oldest.
+  const updates = [...i.incident_updates].sort((a, b) => newestFirst(b.created_at, a.created_at));
 
   const affectedComponents = [
     ...new Set(i.incident_updates.flatMap((u) => (u.affected_components ?? []).map((c) => c.name))),
@@ -137,19 +144,26 @@ function normalizeHistoryRecord(r: HistoryRecord, baseUrl: string): Incident {
 }
 
 /**
- * Scheduled maintenances, or none when the page serves no maintenance endpoint. A
- * 404 is tolerable only because the incidents fetch beside this one proves the base
- * URL is a real Statuspage — filter: 'scheduled' has no such proof and still errors.
+ * Scheduled maintenances, or null when the page publishes no maintenance feed: its
+ * maintenance endpoint answers 404 or 410 while its incident feed serves, as on the
+ * Statuspage-compatible pages that leave that endpoint out. The 404 alone is no proof —
+ * a base URL that is not a Statuspage page answers the same — so `incidentsServe` must
+ * settle first: the incidents fetch already in flight beside this one, or one started
+ * only on this path. Its failure is the call's (for a raw URL, `statuspage_not_found`
+ * when incidents.json is not served either).
  */
-function fetchPublishedMaintenances(vendor: ResolvedVendor): Promise<StatuspageIncident[]> {
-  return fetchVendorScheduledMaintenances(vendor).then(
-    ({ data }) => data.scheduled_maintenances,
-    (err: unknown) => {
-      if (err instanceof McpError && (err.data as { status?: number } | undefined)?.status === 404)
-        return [];
-      throw err;
-    },
-  );
+async function fetchPublishedMaintenances(
+  vendor: ResolvedVendor,
+  incidentsServe: () => Promise<unknown>,
+): Promise<StatuspageIncident[] | null> {
+  try {
+    const { data } = await fetchVendorScheduledMaintenances(vendor);
+    return data.scheduled_maintenances;
+  } catch (err) {
+    if (!isNotServed(err)) throw err;
+    await incidentsServe();
+    return null;
+  }
 }
 
 /** Incident statuses each non-scheduled filter keeps; null keeps every incident. */
@@ -201,9 +215,9 @@ function oldestStartDate(records: readonly DatedRecord[]): string | null {
 type IncidentFilter = 'all' | 'active' | 'resolved' | 'scheduled';
 
 /**
- * The filters that can return more than the one that just came back empty, rendered
- * for a guidance sentence, or null when none can. Recommending the filter the caller
- * passed, or one the backend can never satisfy, sends them back for a second empty result.
+ * The filters that can return more than the one that just came back empty, or null when
+ * none can. Recommending the filter the caller passed, or one the backend can never
+ * satisfy, sends them back for a second empty result.
  *
  * `active`, `resolved`, and `scheduled` are disjoint, and `all` is their union, so only
  * the other disjoint filters this backend serves can hold anything new — and `all` adds
@@ -212,13 +226,20 @@ type IncidentFilter = 'all' | 'active' | 'resolved' | 'scheduled';
  * reaches here — it is answered on its own below, because every narrower filter is empty
  * by construction once `all` is.
  */
-function alternativeFilters(history: BackendHistory, used: IncidentFilter): string | null {
+function alternativeFilters(
+  history: BackendHistory,
+  used: IncidentFilter,
+): IncidentFilter[] | null {
   const disjoint: IncidentFilter[] = ['active'];
   if (history.resolved !== 'none') disjoint.push('resolved');
   if (history.scheduledMaintenance) disjoint.push('scheduled');
   const others = disjoint.filter((f) => f !== used);
-  if (others.length === 0) return null;
-  return ['all', ...others].map((f) => `"${f}"`).join(' or ');
+  return others.length === 0 ? null : ['all', ...others];
+}
+
+/** Filters rendered for a guidance sentence, e.g. `"all" or "active"`. */
+function quoteFilters(filters: readonly IncidentFilter[]): string {
+  return filters.map((f) => `"${f}"`).join(' or ');
 }
 
 /** What the date range and `match` removed from the filter's matches, step by step. */
@@ -236,6 +257,17 @@ interface Narrowing {
   feedStart: string | null;
   /** The earliest date the history archive is read back to on this call's clock. */
   historyFloor: string;
+  /**
+   * True on an incident.io vendor, whose history `since` reads is its own incident list one
+   * calendar quarter at a time, full records with no archive behind them.
+   */
+  historyWindows: boolean;
+  /**
+   * Records the call read before `filter` (left after the entry's component scope, plus the
+   * history records it added), or null when it read no incident feed (filter: 'scheduled').
+   * At zero, the other incident filter and `all` hold nothing an empty one did not.
+   */
+  incidentRecords: number | null;
   /** True when `match` also reads location names and IDs, which Google Cloud and AWS list. */
   matchesLocations: boolean;
   since: string | undefined;
@@ -266,7 +298,16 @@ function dateRangeGuidance(
   filter: IncidentFilter,
   history: BackendHistory,
   url: string,
-  { since, until, beforeSince, afterUntil, feedStart, historyFloor, upstreamCeiling }: Narrowing,
+  {
+    since,
+    until,
+    beforeSince,
+    afterUntil,
+    feedStart,
+    historyFloor,
+    historyWindows,
+    upstreamCeiling,
+  }: Narrowing,
 ): string {
   if (until === undefined) {
     return (
@@ -290,8 +331,11 @@ function dateRangeGuidance(
     // A ceiling notice that follows names the way to older incidents: since, or the status page.
     if (until < historyFloor) {
       const page = upstreamCeiling === null ? ` See ${url} for earlier history.` : '';
-      return `${matches} The status page's history archive is read back ${HISTORY_MAX_MONTHS} months at most, to ${historyFloor}, so since cannot reach incidents that started on or before ${until}.${page}`;
+      const reach = historyWindows ? 'Incident history' : "The status page's history archive";
+      return `${matches} ${reach} is read back ${HISTORY_MAX_MONTHS} months at most, to ${historyFloor}, so since cannot reach incidents that started on or before ${until}.${page}`;
     }
+    // On incident.io, the default-window notice that follows says how far since reaches.
+    if (historyWindows) return matches;
     return upstreamCeiling === null
       ? `${matches} Add since (up to ${HISTORY_MAX_MONTHS} months back) to also read the status page's history archive, which reaches incidents older than the ones its status API returns.`
       : matches;
@@ -304,8 +348,9 @@ function dateRangeGuidance(
       ? [`${afterUntil} later match${plural(afterUntil, ' was', 'es were')} left out by until`]
       : []),
   ];
+  // On incident.io, historyFloorGuidance alone gives the date its read stopped at.
   const floor =
-    history.historyPages && since < historyFloor
+    history.historyPages && !historyWindows && since < historyFloor
       ? ` The history archive is read back to ${historyFloor} at most, so before that date ` +
         'only records the status API still returns are reachable.'
       : '';
@@ -379,8 +424,8 @@ function emptyResultGuidance(
     );
   }
 
-  const alternatives = alternativeFilters(history, filter);
-  if (alternatives === null) {
+  const suggested = alternativeFilters(history, filter);
+  if (suggested === null) {
     // `active` is always servable, so only an empty `active` can leave nothing to offer.
     return (
       `${name} currently lists no open incidents. Its status feed publishes only currently-open ` +
@@ -388,16 +433,53 @@ function emptyResultGuidance(
       `return more. See ${url} to confirm on the vendor's own status page.`
     );
   }
+  const alternatives = quoteFilters(suggested);
+  /**
+   * since and until are accepted only with "all" and "resolved", so on a call that set either,
+   * each suggested filter that takes neither says to drop them or following it is rejected.
+   */
+  const rangeSet = narrowing.since !== undefined || narrowing.until !== undefined;
+  const rangeless = suggested.filter((f) => f === 'active' || f === 'scheduled');
+  const dropRange =
+    rangeSet && rangeless.length > 0
+      ? ` Drop since and until for ${quoteFilters(rangeless)}, which ${rangeless.length === 1 ? 'accepts' : 'accept'} neither.`
+      : '';
+  if (narrowing.incidentRecords === 0) {
+    /**
+     * The call read no incident record, so the other incident filter and `all` read the same
+     * empty list; only `scheduled`, which reads the maintenance feed, can return more. At
+     * the feed's ceiling, the entry's component scope left out every record the shared page
+     * returned, and the ceiling notice that follows names the way to older ones.
+     */
+    const lead =
+      narrowing.upstreamCeiling !== null
+        ? `None of the incidents ${name}'s status feed returned touch ${name}'s components.`
+        : `${name} currently lists no incidents.`;
+    const caveat =
+      filter !== 'resolved'
+        ? ''
+        : history.resolved === 'none'
+          ? ' It publishes currently-open events with no resolution lifecycle, so filter: "resolved" can never return incidents for it.'
+          : history.resolved === 'current'
+            ? ' It publishes only the incidents its status page currently lists, so older resolved history is not retrievable from it.'
+            : '';
+    const next = history.scheduledMaintenance
+      ? ` Try filter: "scheduled"${rangeSet ? ' without since or until' : ''} for its maintenance windows.`
+      : narrowing.upstreamCeiling !== null
+        ? ''
+        : ` See ${url} to confirm on the vendor's own status page.`;
+    return `${lead}${caveat}${next}`;
+  }
   if (filter === 'resolved' && history.resolved === 'none') {
     return (
       `${name} publishes currently-open events with no resolution lifecycle, so ` +
-      `filter: "resolved" can never return incidents for it. Try filter: ${alternatives}.`
+      `filter: "resolved" can never return incidents for it. Try filter: ${alternatives}.${dropRange}`
     );
   }
   if (filter === 'resolved' && history.resolved === 'current') {
     return (
       `${name} publishes only the incidents its status page currently lists, and it lists no ` +
-      `resolved one now; older resolved history is not retrievable from it. Try filter: ${alternatives}.`
+      `resolved one now; older resolved history is not retrievable from it. Try filter: ${alternatives}.${dropRange}`
     );
   }
   if (filter === 'scheduled' && !history.scheduledMaintenance) {
@@ -406,7 +488,7 @@ function emptyResultGuidance(
       `empty for it. Try filter: ${alternatives}.`
     );
   }
-  return `No incidents matched filter "${filter}" for ${name}. Try filter: ${alternatives}.`;
+  return `No incidents matched filter "${filter}" for ${name}. Try filter: ${alternatives}.${dropRange}`;
 }
 
 /**
@@ -422,25 +504,48 @@ function upstreamCeilingGuidance(ceiling: number, url: string, sinceReaches: boo
     : `The vendor's status API returns at most ${ceiling} incidents per fetch and offers no pagination, so incidents older than the oldest one it returned are not reachable through this tool at any offset. See ${url} for the older history.`;
 }
 
+/** What a history read reports about how far it reached, whichever reader ran it. */
+type HistoryReach = Omit<HistoryWalk, 'records'>;
+
 /**
- * State how far the history archive was read when it stopped short of `since`, so
- * the result is not taken as complete back to that date.
+ * State how far history was read when it stopped short of `since`, so the result is not
+ * taken as complete back to that date. `windows` marks an incident.io read, whose default
+ * window is the part of the result read without it.
  */
-function historyGapGuidance(name: string, since: string, walk: HistoryWalk): string {
+function historyGapGuidance(
+  name: string,
+  since: string,
+  walk: HistoryReach,
+  windows: boolean,
+): string {
   const gap = walk.gap?.replace(/\.$/, '');
-  return walk.readBackTo === null
-    ? `The ${name} history archive could not be read: ${gap}. Incidents between ` +
-        `${since} and the oldest one the status API returned may be missing.`
-    : `The ${name} history archive was read back to ${walk.readBackTo}, not to ${since}: ` +
-        `${gap}. Incidents between those two dates may be missing.`;
+  if (walk.readBackTo !== null) {
+    const subject = windows ? `${name}'s incident history` : `The ${name} history archive`;
+    return `${subject} was read back to ${walk.readBackTo}, not to ${since}: ${gap}. Incidents between those two dates may be missing.`;
+  }
+  return windows
+    ? `${name}'s incident history past its default ${INCIDENTIO_DEFAULT_WINDOW_DAYS}-day window could not be read: ${gap}. Incidents between ${since} and the start of that window may be missing.`
+    : `The ${name} history archive could not be read: ${gap}. Incidents between ${since} and the oldest one the status API returned may be missing.`;
 }
 
 /**
- * State that a `since` older than the history floor read the archive only to the floor,
- * so the records older than it are those the status API still returns, not all of them.
- * A walk that stopped short of the floor is described on its own by historyGapGuidance.
+ * State that a `since` older than the history floor read history only to the floor. On a
+ * Statuspage archive the records older than it are those the status API still returns; an
+ * incident.io read returns nothing older. A read that stopped short of the floor is
+ * described on its own by historyGapGuidance.
  */
-function historyFloorGuidance(since: string, floor: string, walk: HistoryWalk): string {
+function historyFloorGuidance(
+  since: string,
+  floor: string,
+  walk: HistoryReach,
+  windows: boolean,
+): string {
+  if (windows) {
+    const reach = walk.reachedFloor
+      ? `it was read back to ${walk.readBackTo}`
+      : `it is read back to ${floor} at most`;
+    return `since ${since} is past the ${HISTORY_MAX_MONTHS}-month floor incident history is read back to; ${reach}, so incidents that started before that are not returned.`;
+  }
   const reach = walk.reachedFloor
     ? `the archive was read back to ${walk.readBackTo}`
     : `the archive is read back to ${floor} at most`;
@@ -448,6 +553,24 @@ function historyFloorGuidance(since: string, floor: string, walk: HistoryWalk): 
     `since ${since} is past the ${HISTORY_MAX_MONTHS}-month history-archive floor; ${reach}, so ` +
     'incidents that started before that appear only where the status API still returns them.'
   );
+}
+
+/**
+ * State that an incident.io feed read without `since` covers only its default window, and
+ * how since reaches past it. `dataAvailableSince` is the page's own start, or null when it
+ * states none; a value that does not parse states none either. Then older records may exist,
+ * so the window is named without claiming them. Null when the page's stated start falls
+ * inside the window, so there is nothing older.
+ */
+function defaultWindowGuidance(name: string, dataAvailableSince: string | null): string | null {
+  const windowStartMs = Date.now() - INCIDENTIO_DEFAULT_WINDOW_DAYS * DAY_MS;
+  const windowStart = new Date(windowStartMs).toISOString().slice(0, 10);
+  const lead = `${name}'s status feed lists the last ${INCIDENTIO_DEFAULT_WINDOW_DAYS} days by default, back to ${windowStart};`;
+  const pageStartMs = dataAvailableSince === null ? Number.NaN : Date.parse(dataAvailableSince);
+  if (Number.isNaN(pageStartMs))
+    return `${lead} since reaches up to ${HISTORY_MAX_MONTHS} months back.`;
+  if (pageStartMs >= windowStartMs) return null;
+  return `${lead} its status page publishes older incidents, which since reaches up to ${HISTORY_MAX_MONTHS} months back.`;
 }
 
 /**
@@ -638,7 +761,7 @@ function fitToBudget(
 
 export const devopsGetIncidents = tool('devops_get_incidents', {
   description:
-    'Fetch incident history and scheduled maintenance windows for a vendor. Returns full incident timeline — each investigator update, affected components, and resolution. Filter by status to focus on active incidents (use before deploy), resolved history (for postmortem), or maintenance windows: upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, Firehydrant, and Datadog vendors (Status.io vendors list upcoming and in-progress only). Narrow further with match (terms in the title or affected component names, plus location names and IDs on Google Cloud and AWS) and since/until (a start-date range) — all applied before paging, so totals count only what they keep. Page through long histories with limit + offset — a truncated result discloses the total and returns the value to page with in nextOffset. Each response is held to 64,000 bytes per surface: a page can stop short of limit at that budget (the paging fields and notice say so), and an incident too large on its own keeps only its newest updates, with updates_omitted counting the rest — full_updates: true returns them all. Some vendor feeds cap their own history: when upstreamCeiling is present the vendor API returned everything it will serve, and older incidents are not reachable at a higher offset; the notice says whether since reaches them. On Atlassian Statuspage vendors, since (a date) also reads the status page\'s quarterly history archive back to that date, or 24 months back at most, where the page publishes one — not on a vendor that covers only part of a shared page, such as "sendgrid"; those records are marked source: "history" and carry the title, impact, start and end times, and final update message only. An empty result, or a history read that stopped short of since, explains itself in notice.',
+    'Fetch incident history and scheduled maintenance windows for a vendor. Returns full incident timeline — each investigator update, affected components, and resolution. Filter by status to focus on active incidents (use before deploy), resolved history (for postmortem), or maintenance windows: upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, incident.io, Firehydrant, and Datadog vendors (Status.io vendors list upcoming and in-progress only). Narrow further with match (terms in the title or affected component names, plus location names and IDs on Google Cloud and AWS) and since/until (a start-date range) — all applied before paging, so totals count only what they keep. Page through long histories with limit + offset — a truncated result discloses the total and returns the value to page with in nextOffset. Each response is held to 64,000 bytes per surface: a page can stop short of limit at that budget (the paging fields and notice say so), and an incident too large on its own keeps only its newest updates, with updates_omitted counting the rest — full_updates: true returns them all. Some vendor feeds cap their own history: when upstreamCeiling is present the vendor API returned everything it will serve, and older incidents are not reachable at a higher offset; the notice says whether since reaches them. On Atlassian Statuspage vendors, since (a date) also reads the status page\'s quarterly history archive back to that date, or 24 months back at most, where the page publishes one — not on a vendor that covers only part of a shared page, such as "sendgrid"; those records are marked source: "history" and carry the title, impact, start and end times, and final update message only. On incident.io vendors (such as "openai"), whose feed lists the last 90 days by default, since reads the page\'s incident list one calendar quarter at a time back to that date, 24 months back at most, and returns full records (source: "api"). An empty result, or a history read that stopped short of since, explains itself in notice.',
   annotations: { readOnlyHint: true, openWorldHint: true, idempotentHint: true },
 
   input: z.object({
@@ -646,13 +769,13 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .string()
       .min(1)
       .describe(
-        'Vendor slug (e.g., "github", "aws") or raw Atlassian Statuspage base URL. Use devops_list_vendors to find slugs.',
+        'Vendor slug (e.g., "github", "aws") or raw Atlassian Statuspage base URL, read at its origin and path (credentials, query, and fragment dropped). Most other backends are reached by slug only: a URL on such a vendor\'s status page (https://status.gitlab.com) is rejected with the slug to pass. A URL on an incident.io page (https://status.openai.com) reads its Statuspage-compatible API instead, which lists 25 incidents at most and no maintenance windows; pass the slug ("openai") for the page\'s full feed. Use devops_list_vendors to find slugs.',
       ),
     filter: z
       .enum(['all', 'active', 'resolved', 'scheduled'])
       .default('all')
       .describe(
-        'all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only maintenance windows — upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, Firehydrant ("redis-cloud"), and Datadog ("datadog", "datadog-eu1") vendors; Status.io vendors ("gitlab", "neon") list upcoming and in-progress windows only. Not every vendor backend serves every filter — "aws" lists a resolved event only until it drops off its feed, "azure" lists open items only (never resolved), and "aws", "azure", "azure-devops", "gcp", and "slack" publish no maintenance windows. An empty result names which case applied.',
+        'all: incidents plus scheduled maintenances. active: only incidents with status investigating/identified/monitoring. resolved: only fully resolved incidents. scheduled: only maintenance windows — upcoming and in-progress ones, plus completed ones on Atlassian Statuspage, incident.io ("fly-io", "supabase"), Firehydrant ("redis-cloud"), and Datadog ("datadog", "datadog-eu1") vendors; Status.io vendors ("gitlab", "neon") list upcoming and in-progress windows only. Not every vendor backend serves every filter — "aws" lists a resolved event only until it drops off its feed, "azure" lists open items only (never resolved), and "aws", "azure", "azure-devops", "gcp", and "slack" publish no maintenance windows. An empty result names which case applied.',
       ),
     limit: z
       .number()
@@ -679,7 +802,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       ])
       .optional()
       .describe(
-        'Earliest start date to include, as YYYY-MM-DD (UTC). Accepted with filter "all" or "resolved". A record\'s start is its scheduled_for, else the earlier of its started_at and created_at; records that started before since are left out, and limit/offset page the rest. On Atlassian Statuspage vendors it also reads the status page\'s quarterly history archive back to this date, reaching incidents older than the 50 the status API serves — except on a vendor that covers only part of a shared status page (such as "sendgrid" on Twilio\'s page), whose archive records carry no components to narrow by. The archive is read back 24 months at most: for an earlier date, older records come only from what the status API still returns (such as completed maintenance windows), and the notice gives the date the archive was read back to. On a vendor with no archive this tool reads, since filters only what its status feed returns. Where that feed is a recent window, a since earlier than the oldest record it returned gets that record\'s start date in the notice. A feed that carries its page\'s whole history (such as "redis-cloud" or "datadog") holds nothing older, so it gets that date only on an empty result whose until is earlier than it. Omit to read only the status API.',
+        'Earliest start date to include, as YYYY-MM-DD (UTC). Accepted with filter "all" or "resolved". A record\'s start is its scheduled_for, else the earlier of its started_at and created_at; records that started before since are left out, and limit/offset page the rest. On Atlassian Statuspage vendors it also reads the status page\'s quarterly history archive back to this date, reaching incidents older than the 50 the status API serves — except on a vendor that covers only part of a shared status page (such as "sendgrid" on Twilio\'s page), whose archive records carry no components to narrow by. The archive is read back 24 months at most: for an earlier date, older records come only from what the status API still returns (such as completed maintenance windows), and the notice gives the date the archive was read back to. On incident.io vendors ("openai", "supabase") it reads the status page\'s incident list one calendar quarter per request back to this date, 24 months back at most, past the last 90 days that list covers without since; those are full records, marked source: "api". On a vendor with no archive this tool reads, since filters only what its status feed returns. Where that feed is a recent window, a since earlier than the oldest record it returned gets that record\'s start date in the notice. A feed that carries its page\'s whole history (such as "redis-cloud" or "datadog") holds nothing older, so it gets that date only on an empty result whose until is earlier than it. Omit to read only the status API.',
       ),
     until: z
       .union([
@@ -711,7 +834,11 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
   }),
 
   output: z.object({
-    vendor: z.string().describe('Vendor slug or URL as provided.'),
+    vendor: z
+      .string()
+      .describe(
+        'Vendor slug or URL as provided — a URL that carried credentials, a query, or a fragment is echoed as its origin and path alone.',
+      ),
     name: z.string().describe('Display name of the vendor.'),
     incidents: z
       .array(
@@ -874,7 +1001,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       .string()
       .optional()
       .describe(
-        "Plain-language explanation of this result — a limit over 50 that was served as 50 (with the requested and effective values), a since older than the 24-month history-archive floor (with the date the archive was read back to), a since earlier than the oldest record a vendor feed that is a recent window with no history archive behind it returned, or an until without since on such a feed (with that record's start date), how to page onward, that the page stopped at the response size budget or left out an oversized incident's oldest updates (and the call that returns them all), why it came back empty (the vendor currently publishes nothing at all, a capped feed of a shared status page that returned nothing touching the vendor's components, a filter the backend cannot satisfy, an offset past the end, a since/until range or match terms that left everything out — naming the archive floor when the range reaches back past it, and where a feed that carries its page's whole history starts when the range ends before that), that the vendor feed capped the history (and whether since reaches past that cap), or how far the history archive was read when it stopped short of since or its floor. On a vendor that reads an umbrella status page with no components, such as \"atlassian\", its last sentence names the product slugs to check instead. Absent when the result needs no explanation.",
+        "Plain-language explanation of this result — a limit over 50 that was served as 50 (with the requested and effective values), a since older than the 24-month history floor (with the date history was read back to), a since earlier than the oldest record a vendor feed that is a recent window with no history archive behind it returned, or an until without since on such a feed (with that record's start date), a call without since on an incident.io vendor whose page publishes incidents older than its feed's default 90-day window (with the date that window starts), how to page onward, that the page stopped at the response size budget or left out an oversized incident's oldest updates (and the call that returns them all), why it came back empty (the vendor currently publishes nothing at all, an incident list with no record, which only filter \"scheduled\" can add to where the vendor publishes maintenance windows, a capped feed of a shared status page that returned nothing touching the vendor's components, a filter the backend cannot satisfy, an offset past the end, a since/until range or match terms that left everything out — naming the archive floor when the range reaches back past it, and where a feed that carries its page's whole history starts when the range ends before that), that the vendor feed capped the history (and whether since reaches past that cap), or how far incident history was read when it stopped short of since or its floor. On a vendor that reads an umbrella status page with no components, such as \"atlassian\", its last sentence names the product slugs to check instead. Absent when the result needs no explanation.",
       ),
   },
 
@@ -907,6 +1034,13 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
         'Pass until as a YYYY-MM-DD date on or after since, with filter "all" or "resolved".',
     },
     {
+      reason: 'statuspage_not_found',
+      code: JsonRpcErrorCode.NotFound,
+      when: 'A raw URL serves no Atlassian Statuspage API at that base: its host is the status page of a registry vendor whose backend serves none, or its summary or incidents endpoint answers 404 or 410, or an endpoint answers JSON without the Statuspage fields.',
+      recovery:
+        "Pass the vendor's registry slug (devops_list_vendors lists them) or the base URL of a page hosted on Atlassian Statuspage.",
+    },
+    {
       reason: 'statuspage_unavailable',
       code: JsonRpcErrorCode.ServiceUnavailable,
       when: "The vendor's status API returned an error or timed out.",
@@ -929,8 +1063,18 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       );
     }
 
-    // SSRF guard: only raw URL inputs need checking — registry entries are pre-verified public URLs.
+    /**
+     * A raw URL is echoed and logged in its resolved form, which carries no credential or
+     * query the caller typed; a slug is echoed as given.
+     */
+    const vendor = resolved.slug === null ? resolved.name : input.vendor;
+
+    // Only raw URL inputs need checking — registry entries are pre-verified public URLs.
     if (resolved.slug === null) {
+      const rejection = rawTargetRejection(resolved);
+      if (rejection !== null) {
+        throw ctx.fail('statuspage_not_found', rejection, { url: resolved.url });
+      }
       try {
         await assertSafeUrl(resolved.url);
       } catch (err) {
@@ -974,6 +1118,11 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     const archiveSince = since !== undefined && since < floor ? floor : since;
     const readsHistory = archiveSince !== undefined && history.historyPages;
     /**
+     * incident.io pages publish no history.json: since reads their incident list one calendar
+     * quarter per request instead, full records merged with the default window by id.
+     */
+    const historyWindows = resolved.api_type === 'incidentio';
+    /**
      * The feed is a recent window with no archive behind it, so nothing older than its
      * oldest record is reachable. A whole-history feed (Firehydrant, Datadog) is the page's
      * complete record, so on it nothing older exists.
@@ -987,32 +1136,57 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
      * the incident feed was not fetched at all (filter: 'scheduled').
      */
     let upstreamIncidentCount: number | null = null;
-    let walk: HistoryWalk | null = null;
+    /** See Narrowing.incidentRecords. */
+    let incidentRecords: number | null = null;
+    let walk: HistoryReach | null = null;
     /** True when two lists were merged, so the result needs ordering newest first. */
     let merged = false;
     /** See Narrowing.feedStart. */
     let feedStart: string | null = null;
+    /** See defaultWindowGuidance. */
+    let defaultWindow: string | null = null;
+
+    /**
+     * What the empty-result guidance reads: the backend's capabilities, less a maintenance
+     * feed when this page turned out to publish none.
+     */
+    let served = history;
 
     if (input.filter === 'scheduled') {
-      const { data } = await fetchVendorScheduledMaintenances(resolved);
-      incidents = data.scheduled_maintenances.map((i) => normalizeIncident(i, true));
+      const maintenances = await fetchPublishedMaintenances(resolved, () =>
+        fetchVendorIncidents(resolved),
+      );
+      if (maintenances === null) served = { ...history, scheduledMaintenance: false };
+      incidents = (maintenances ?? []).map((i) => normalizeIncident(i, true));
     } else {
       /**
        * The maintenance list is part of an `all` result, where a failed read fails the
-       * call as it does without since. With history it is also half of what a history
-       * record must be absent from to be added; under `resolved` that is its only use,
-       * so there a failed read costs the archive, never the v2 result.
+       * call as it does without since. With the Statuspage archive it is also half of what a
+       * history record must be absent from to be added; under `resolved` that is its only
+       * use, so there a failed read costs the archive, never the v2 result. incident.io
+       * records carry their own type, so its history read needs no maintenance list.
+       *
+       * An incident.io call that could set since reads the page's data_available_since, which
+       * says whether the page publishes anything older than the default window; it joins the
+       * summary read the incident read has in flight.
        */
-      const [{ data, upstreamIncidents }, maintenances] = await Promise.all([
-        fetchVendorIncidents(resolved),
-        input.filter === 'all' || readsHistory
-          ? fetchPublishedMaintenances(resolved).catch((err: unknown) => {
+      const incidentsRead = fetchVendorIncidents(resolved);
+      const [{ data, upstreamIncidents }, maintenances, dataAvailableSince] = await Promise.all([
+        incidentsRead,
+        input.filter === 'all' || (readsHistory && !historyWindows)
+          ? fetchPublishedMaintenances(resolved, () => incidentsRead).catch((err: unknown) => {
               if (input.filter === 'all') throw err;
               return err as Error;
             })
           : [],
+        historyWindows && readsIncidentHistory && since === undefined
+          ? fetchIncidentioDataAvailableSince(resolved)
+          : undefined,
       ]);
-      const published = maintenances instanceof Error ? [] : maintenances;
+      if (dataAvailableSince !== undefined) {
+        defaultWindow = defaultWindowGuidance(resolved.name, dataAvailableSince);
+      }
+      const published = maintenances instanceof Error ? [] : (maintenances ?? []);
       upstreamIncidentCount = upstreamIncidents.length;
       if (!history.historyPages && (since !== undefined || until !== undefined)) {
         // Everything the call read, before a component scope, filter, range, or match narrowed it.
@@ -1039,8 +1213,26 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
         incidents.push(...published.map((i) => normalizeIncident(i, true)));
       }
 
-      if (readsHistory) {
-        walk =
+      /** Records the history read added beside the live lists, of any status. */
+      let historyRecords = 0;
+      // The live lists win: a history record is added only when neither carries its id.
+      const known = new Set([...data.incidents, ...published].map((i) => i.id));
+      if (readsHistory && historyWindows) {
+        const windows = await readIncidentioHistory(
+          resolved,
+          Date.parse(`${archiveSince}T00:00:00Z`),
+        );
+        for (const record of windows.records) {
+          if (known.has(record.id)) continue;
+          known.add(record.id);
+          historyRecords++;
+          // A maintenance record already carries impact "maintenance".
+          const incident = normalizeIncident(record, false);
+          if (statuses === null || statuses.includes(incident.status)) incidents.push(incident);
+        }
+        walk = windows;
+      } else if (readsHistory) {
+        const archive =
           maintenances instanceof Error
             ? {
                 records: [],
@@ -1053,16 +1245,17 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
                 data.page.time_zone,
                 Date.parse(`${archiveSince}T00:00:00Z`),
               );
-        // v2 wins: a history record joins on `code` = v2 `id` and is added only when
-        // neither v2 list carries it.
-        const known = new Set([...data.incidents, ...published].map((i) => i.id));
-        for (const record of walk.records) {
+        // An archive record's `code` is its v2 `id`.
+        for (const record of archive.records) {
           if (known.has(record.code)) continue;
           known.add(record.code);
+          historyRecords++;
           const incident = normalizeHistoryRecord(record, resolved.url);
           if (input.filter === 'all' || incident.status === 'resolved') incidents.push(incident);
         }
+        walk = archive;
       }
+      incidentRecords = data.incidents.length + historyRecords;
       merged = input.filter === 'all' || walk !== null;
     }
 
@@ -1089,6 +1282,8 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       since,
       until,
       historyFloor: floor,
+      historyWindows,
+      incidentRecords,
       beforeSince: 0,
       afterUntil: 0,
       feedStart,
@@ -1123,7 +1318,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       narrowing.unmatched = inRange - incidents.length;
     }
     if (merged) {
-      incidents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      incidents.sort((a, b) => newestFirst(a.created_at, b.created_at));
     }
 
     const limit = clampMax('limit', input.limit, LIMIT_MAX);
@@ -1135,7 +1330,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     const settledNotices: string[] = [];
     if (limit.notice) settledNotices.push(limit.notice);
     if (walk !== null && since !== undefined && since !== archiveSince) {
-      settledNotices.push(historyFloorGuidance(since, floor, walk));
+      settledNotices.push(historyFloorGuidance(since, floor, walk, historyWindows));
     }
     if (upstreamCeiling !== null) {
       ctx.enrich({ upstreamCeiling });
@@ -1151,7 +1346,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
       settledNotices.push(upstreamCeilingGuidance(upstreamCeiling, resolved.url, sinceReaches));
     }
     if (archiveSince !== undefined && walk?.gap) {
-      settledNotices.push(historyGapGuidance(resolved.name, archiveSince, walk));
+      settledNotices.push(historyGapGuidance(resolved.name, archiveSince, walk, historyWindows));
     }
     if (feedStart !== null && windowedFeed) {
       settledNotices.push(
@@ -1163,6 +1358,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
         ),
       );
     }
+    if (defaultWindow !== null) settledNotices.push(defaultWindow);
 
     /**
      * The umbrella-page pointer is settled before the cut too, so the budget measures it,
@@ -1172,7 +1368,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     // Filter, then page, then bound: the budget only ever ends this page sooner.
     const settled = [...settledNotices, ...(pointer === undefined ? [] : [pointer])].join(' ');
     const envelope = {
-      vendor: input.vendor,
+      vendor,
       name: resolved.name,
       total_returned: windowed.length,
       statuspage_url: resolved.url,
@@ -1213,7 +1409,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
           input.filter,
           input.offset,
           incidents.length,
-          history,
+          served,
           resolved.url,
           narrowing,
         ),
@@ -1245,7 +1441,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     }
 
     ctx.log.info('Incidents fetched', {
-      vendor: input.vendor,
+      vendor,
       filter: input.filter,
       offset: input.offset,
       count: page.length,
@@ -1259,7 +1455,7 @@ export const devopsGetIncidents = tool('devops_get_incidents', {
     });
 
     return {
-      vendor: input.vendor,
+      vendor,
       name: resolved.name,
       incidents: page,
       total_returned: page.length,

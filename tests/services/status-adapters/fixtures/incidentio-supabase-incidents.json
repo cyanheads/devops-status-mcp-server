@@ -1,0 +1,289 @@
+{
+  "incidents": [
+    {
+      "updates": [
+        {
+          "published_at": "2026-11-13T13:36:00Z",
+          "id": "01M7AHYK737189NNT8BFZ2155D",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We will perform scheduled maintenance on the Shared Pooler (Supavisor) in the eu-central-2 region on Monday, November 30, from 13:00 to 15:00 UTC.\n\nDuring the window, existing client connections may be dropped, and you may briefly see connection errors while traffic switches to the new version. Applications that reconnect and retry automatically will recover without action.\n\nDirect database connections and the Dedicated Pooler are not affected.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We will perform scheduled maintenance on the Shared Pooler (Supavisor) in the eu-central-2 region on Monday, November 30, from 13:00 to 15:00 UTC.\n\nDuring the window, existing client connections may be dropped, and you may briefly see connection errors while traffic switches to the new version. Applications that reconnect and retry automatically will recover without action.\n\nDirect database connections and the Dedicated Pooler are not affected.",
+          "to_status": "maintenance_scheduled",
+          "component_statuses": [
+            {
+              "component_id": "01M32ZK4PSECRCVCVHEC8G82QP",
+              "status": "under_maintenance"
+            }
+          ],
+          "automated_update": false
+        }
+      ],
+      "component_impacts": [
+        {
+          "start_at": "2026-11-30T13:00:00Z",
+          "end_at": "2026-11-30T15:00:00Z",
+          "id": "01M7AHYK7344HNMRX613Y1097K",
+          "component_id": "01M32ZK4PSECRCVCVHEC8G82QP",
+          "status_page_incident_id": "01M7AHYK73ZAAYG8CSRJBMDTWH",
+          "status": "under_maintenance"
+        }
+      ],
+      "status_summaries": [
+        {
+          "start_at": "2026-11-30T13:00:00Z",
+          "end_at": "2026-11-30T15:00:00Z",
+          "worst_component_status": "under_maintenance"
+        }
+      ],
+      "published_at": "2026-11-13T13:36:00.738Z",
+      "id": "01M7AHYK73ZAAYG8CSRJBMDTWH",
+      "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG",
+      "name": "Scheduled maintenance: Shared Pooler (Supavisor), eu-central-2",
+      "status": "maintenance_scheduled",
+      "affected_components": [
+        {
+          "component_id": "01M32ZK4PSECRCVCVHEC8G82QP",
+          "status": "under_maintenance",
+          "current_status": "operational"
+        }
+      ],
+      "type": "maintenance"
+    },
+    {
+      "updates": [
+        {
+          "published_at": "2026-11-12T14:48:12.681Z",
+          "id": "01M783P2MAHW4275FMSMCQ10SF",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "Between 14:14-14:18 UTC and 14:25-14:29, Storage requests may have been slow or aborted in the eu-west-1 region. This issue has been resolved and we do not expect recurrence. We are monitoring the region.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "Between 14:14-14:18 UTC and 14:25-14:29, Storage requests may have been slow or aborted in the eu-west-1 region. This issue has been resolved and we do not expect recurrence. We are monitoring the region.",
+          "to_status": "monitoring",
+          "component_statuses": [
+            {
+              "component_id": "01M32S9NWP9ANX3DGPB9QVVMJD",
+              "status": "degraded_performance"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-11-12T14:56:11.588Z",
+          "id": "01M7844P9C85TWF8GFPDBBY3K0",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We have mitigated the issue with the Storage service and we have not observed any further issues during our monitoring period. We consider this incident to be resolved.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We have mitigated the issue with the Storage service and we have not observed any further issues during our monitoring period. We consider this incident to be resolved.",
+          "to_status": "resolved",
+          "component_statuses": [
+            {
+              "component_id": "01M32S9NWP9ANX3DGPB9QVVMJD",
+              "status": "operational"
+            }
+          ],
+          "automated_update": false
+        }
+      ],
+      "component_impacts": [
+        {
+          "start_at": "2026-11-12T14:48:12.681Z",
+          "end_at": "2026-11-12T14:56:11.588Z",
+          "id": "01M783P2MAW9A3MEJ0TKYR0YKK",
+          "component_id": "01M32S9NWP9ANX3DGPB9QVVMJD",
+          "status_page_incident_id": "01M783P2MAAXZ8TR7ZRJSTNJEZ",
+          "status": "degraded_performance"
+        }
+      ],
+      "status_summaries": [
+        {
+          "start_at": "2026-11-12T14:48:12.681Z",
+          "end_at": "2026-11-12T14:56:11.588Z",
+          "worst_component_status": "degraded_performance"
+        }
+      ],
+      "published_at": "2026-11-12T14:48:12.681Z",
+      "id": "01M783P2MAAXZ8TR7ZRJSTNJEZ",
+      "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG",
+      "name": "Storage request degradation in eu-west-1",
+      "status": "resolved",
+      "affected_components": [
+        {
+          "component_id": "01M32S9NWP9ANX3DGPB9QVVMJD",
+          "status": "degraded_performance",
+          "current_status": "operational"
+        }
+      ],
+      "type": "incident"
+    },
+    {
+      "updates": [
+        {
+          "published_at": "2026-09-30T22:08:26.617Z",
+          "id": "01M3T5X0M7AA48QNQJCFTW323K",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "Starting October 7th, we are migrating our status page to a new platform to give you better visibility into Supabase's service status.\n\nWhat's changing:\n\nThe status page URL will stay the same: https://status.supabase.com\n\nIf you are subscribed via email, you will automatically be resubscribed, no action needed.\n\nIf you are subscribed via any other method (SMS, Slack, webhook, RSS, etc.), you will need to resubscribe on the new page, since these subscriptions will not carry over automatically. Note that our new platform only offers Email, RSS, and Slack notifications.\n\nWhat's new:\n\nThe new status page lets you choose exactly what you want updates about. Instead of getting notified about all products, services and regions, email subscribers can now subscribe to only the specific products, services, and regions relevant to them. You will hear about the incidents that actually affect you.\n\nThanks, The Supabase Team",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "Starting October 7th, we are migrating our status page to a new platform to give you better visibility into Supabase's service status.\n\nWhat's changing:\n\nThe status page URL will stay the same: https://status.supabase.com\n\nIf you are subscribed via email, you will automatically be resubscribed, no action needed.\n\nIf you are subscribed via any other method (SMS, Slack, webhook, RSS, etc.), you will need to resubscribe on the new page, since these subscriptions will not carry over automatically. Note that our new platform only offers Email, RSS, and Slack notifications.\n\nWhat's new:\n\nThe new status page lets you choose exactly what you want updates about. Instead of getting notified about all products, services and regions, email subscribers can now subscribe to only the specific products, services, and regions relevant to them. You will hear about the incidents that actually affect you.\n\nThanks, The Supabase Team",
+          "to_status": "maintenance_scheduled",
+          "component_statuses": [],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-10-07T15:00:07.413Z",
+          "id": "01M4BERDM2CFH49230NHA72APD",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "Scheduled maintenance is currently in progress. We will provide updates as necessary.",
+          "to_status": "maintenance_in_progress",
+          "component_statuses": [],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-10-07T17:03:34.639Z",
+          "id": "01M4BN425RQF5VV9XM29V53W2F",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "The statuspage migration is now complete. \n\nIf you were previously subscribed via email, no action is needed, you were automatically resubscribed.\n\nIf you were previously subscribed via any other method (SMS, Slack, webhook, RSS, etc.), you can now resubscribe.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "The statuspage migration is now complete. \n\nIf you were previously subscribed via email, no action is needed, you were automatically resubscribed.\n\nIf you were previously subscribed via any other method (SMS, Slack, webhook, RSS, etc.), you can now resubscribe.",
+          "to_status": "maintenance_complete",
+          "component_statuses": [],
+          "automated_update": false
+        }
+      ],
+      "component_impacts": [],
+      "status_summaries": [],
+      "published_at": "2026-09-30T22:08:26.542Z",
+      "id": "01M3T5X0M7MY87TX29CFN1HCJS",
+      "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG",
+      "name": "Statuspage Migration",
+      "status": "maintenance_complete",
+      "affected_components": [],
+      "type": "maintenance"
+    },
+    {
+      "updates": [
+        {
+          "published_at": "2026-09-24T10:37:32.455Z",
+          "id": "01M39HXNPN4RNFPVJ9DD5TC2AV",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We are investigating reports of users encountering permission-related errors, such as “You need additional permissions,” when performing administrative actions in the Supabase Dashboard. This may prevent some users from managing their projects through the Dashboard. We are working to identify the cause and will provide further updates as they become available.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We are investigating reports of users encountering permission-related errors, such as “You need additional permissions,” when performing administrative actions in the Supabase Dashboard. This may prevent some users from managing their projects through the Dashboard. We are working to identify the cause and will provide further updates as they become available.",
+          "to_status": "investigating",
+          "component_statuses": [
+            {
+              "component_id": "01KJZVWMNKGZH80AW9A4T1BWSN",
+              "status": "full_outage"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-24T10:50:12.409Z",
+          "id": "01M39HXNPN7X52S92EPHGWSQPW",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We have identified the issue causing some users to encounter permission-related errors, such as “You need additional permissions,” when performing administrative actions in the Supabase Dashboard. We are working on a fix and will provide another update once it has been implemented.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We have identified the issue causing some users to encounter permission-related errors, such as “You need additional permissions,” when performing administrative actions in the Supabase Dashboard. We are working on a fix and will provide another update once it has been implemented.",
+          "to_status": "identified",
+          "component_statuses": [
+            {
+              "component_id": "01KJZVWMNKGZH80AW9A4T1BWSN",
+              "status": "full_outage"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-24T11:08:39.965Z",
+          "id": "01M39HXNPNHC671TZN1AVFE5A0",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "We have applied a fix, and administrative operations in the Supabase Dashboard are now completing as expected. We are monitoring the results to ensure the issue is fully resolved.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "We have applied a fix, and administrative operations in the Supabase Dashboard are now completing as expected. We are monitoring the results to ensure the issue is fully resolved.",
+          "to_status": "monitoring",
+          "component_statuses": [
+            {
+              "component_id": "01KJZVWMNKGZH80AW9A4T1BWSN",
+              "status": "operational"
+            }
+          ],
+          "automated_update": false
+        },
+        {
+          "published_at": "2026-09-24T11:49:44.19Z",
+          "id": "01M39N2AH8Q1AYF73B6933HPY0",
+          "message": {
+            "feature_set": "mrkdwn",
+            "markdown": "This incident has been resolved. Administrative operations in the Supabase Dashboard are completing as expected, and we have observed no further permission related errors following the fix.",
+            "schema_version": "v1.0.0"
+          },
+          "message_string": "This incident has been resolved. Administrative operations in the Supabase Dashboard are completing as expected, and we have observed no further permission related errors following the fix.",
+          "to_status": "resolved",
+          "component_statuses": [
+            {
+              "component_id": "01KJZVWMNKGZH80AW9A4T1BWSN",
+              "status": "operational"
+            }
+          ],
+          "automated_update": false
+        }
+      ],
+      "component_impacts": [
+        {
+          "start_at": "2026-09-24T10:37:32.455Z",
+          "end_at": "2026-09-24T11:08:39.965Z",
+          "id": "01M39HXNPNSA7QBJCFXSNPH87F",
+          "component_id": "01KJZVWMNKGZH80AW9A4T1BWSN",
+          "status_page_incident_id": "01M39HXNPNY21MKAJEPYEZDRM5",
+          "status": "full_outage"
+        }
+      ],
+      "status_summaries": [
+        {
+          "start_at": "2026-09-24T10:37:32.455Z",
+          "end_at": "2026-09-24T10:50:12.409Z",
+          "worst_component_status": "full_outage"
+        },
+        {
+          "start_at": "2026-09-24T10:50:12.409Z",
+          "end_at": "2026-09-24T11:08:39.965Z",
+          "worst_component_status": "full_outage"
+        }
+      ],
+      "published_at": "2026-09-24T10:37:32.362Z",
+      "id": "01M39HXNPNY21MKAJEPYEZDRM5",
+      "status_page_id": "01KJZVWMNKKQM1MY9H5QWY34VG",
+      "name": "Permission errors in the Supabase Dashboard",
+      "status": "resolved",
+      "affected_components": [
+        {
+          "component_id": "01KJZVWMNKGZH80AW9A4T1BWSN",
+          "status": "full_outage",
+          "current_status": "operational"
+        }
+      ],
+      "type": "incident"
+    }
+  ]
+}

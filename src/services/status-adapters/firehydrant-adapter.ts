@@ -53,6 +53,7 @@ import type {
 import { SEVERITY_RANK } from '@/services/statuspage/types.js';
 import { fetchCached } from '@/utils/cached-fetch.js';
 import { htmlToText } from '@/utils/html-to-text.js';
+import { newestFirst } from '@/utils/newest-first.js';
 
 const FIREHYDRANT_DATA_PATH = '/data/payload.json';
 
@@ -181,8 +182,9 @@ function windowStatus(item: FirehydrantIncidentItem, now: number): WindowStatus 
   return startsAfter(item, now) ? 'scheduled' : 'in_progress';
 }
 
-function newestFirst(a: StatuspageIncident, b: StatuspageIncident): number {
-  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+/** When an update happened: `occurredAt`, else `time` — '' when it carries neither. */
+function entryTime(entry: FirehydrantTimelineEntry): string {
+  return entry.occurredAt ?? entry.time ?? '';
 }
 
 function buildPage(target: FirehydrantTarget): StatuspagePage {
@@ -204,14 +206,13 @@ function mapFirehydrantIncident(
   target: FirehydrantTarget,
   maintenanceStatus?: WindowStatus,
 ): StatuspageIncident {
-  // Note-less entries (milestone-only BulkImpactUpdates) carry nothing to display — drop them.
+  /**
+   * Note-less entries (milestone-only BulkImpactUpdates) carry nothing to display — drop
+   * them. The rest run oldest first, an update with no readable time leading.
+   */
   const timeline = (item.timeline ?? [])
     .filter((e) => noteText(e) !== '')
-    .sort(
-      (a, b) =>
-        new Date(a.occurredAt ?? a.time ?? 0).getTime() -
-        new Date(b.occurredAt ?? b.time ?? 0).getTime(),
-    );
+    .sort((a, b) => newestFirst(entryTime(b), entryTime(a)));
   const affected = (item.components ?? [])
     .filter((c) => c.name)
     .map((c) => ({
@@ -242,8 +243,8 @@ function mapFirehydrantIncident(
       id: `${item.id ?? 'update'}-${i}`,
       body: htmlToText(noteText(entry)),
       status,
-      created_at: entry.occurredAt ?? entry.time ?? '',
-      display_at: entry.occurredAt ?? entry.time ?? '',
+      created_at: entryTime(entry),
+      display_at: entryTime(entry),
       // Attach the incident-level affected list to the latest update so
       // downstream affected-component extraction sees it.
       affected_components: i === timeline.length - 1 && affected.length > 0 ? affected : null,
@@ -264,7 +265,7 @@ function mapMaintenances(
   return items
     .filter(isMaintenance)
     .map((i) => mapFirehydrantIncident(i, target, windowStatus(i, now)))
-    .sort(newestFirst);
+    .sort((a, b) => newestFirst(a.created_at, b.created_at));
 }
 
 /**
@@ -276,7 +277,7 @@ function mapIncidents(raw: FirehydrantPayload, target: FirehydrantTarget): Statu
   return raw.incidents
     .filter((i) => !isMaintenance(i))
     .map((i) => mapFirehydrantIncident(i, target))
-    .sort(newestFirst);
+    .sort((a, b) => newestFirst(a.created_at, b.created_at));
 }
 
 /**

@@ -2,6 +2,10 @@
 
 All notable changes to this project. Each entry links to its full per-version file in [changelog/](changelog/).
 
+## [0.11.2](changelog/0.11.x/0.11.2.md) — 2026-11-16
+
+incident.io-hosted pages (supabase, clerk, openai, and five more) are read through their own page feed instead of the 25-record compatible API. A raw URL that serves no Statuspage API fails as non-retryable statuspage_not_found, and concurrent reads of one URL share one request.
+
 ## [0.11.1](changelog/0.11.x/0.11.1.md) — 2026-10-31
 
 Datadog reads its own status pages through a native adapter, with eight more site entries (71 vendors). AWS incidents list their region, and match reads hyphenated terms such as eu-central-1 as one phrase. Notices for history limits and empty results are corrected, and the cert Flags line renders the host as written.

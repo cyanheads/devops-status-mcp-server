@@ -1,6 +1,6 @@
 # devops-status-mcp-server - Directory Structure
 
-Generated on: 2026-10-31 20:16:12
+Generated on: 2026-11-16 09:50:46
 
 ```text
 devops-status-mcp-server/
@@ -188,6 +188,7 @@ devops-status-mcp-server/
 │   │   │   ├── datadog-adapter.ts
 │   │   │   ├── firehydrant-adapter.ts
 │   │   │   ├── gcp-adapter.ts
+│   │   │   ├── incidentio-adapter.ts
 │   │   │   ├── rss-extract.ts
 │   │   │   ├── slack-adapter.ts
 │   │   │   ├── status-dispatch.ts
@@ -204,6 +205,7 @@ devops-status-mcp-server/
 │   │   ├── html-to-text.ts
 │   │   ├── input-bounds.ts
 │   │   ├── markdown-literal.ts
+│   │   ├── newest-first.ts
 │   │   ├── ssrf-guard.ts
 │   │   ├── vendor-markdown.ts
 │   │   └── word-match.ts
@@ -257,6 +259,13 @@ devops-status-mcp-server/
 │   │   │   │   ├── datadog-us1.json
 │   │   │   │   ├── firehydrant-redis.json
 │   │   │   │   ├── gcp-incidents.json
+│   │   │   │   ├── incidentio-clerk-incidents.json
+│   │   │   │   ├── incidentio-clerk-summary.json
+│   │   │   │   ├── incidentio-elevenlabs-summary.json
+│   │   │   │   ├── incidentio-supabase-incidents.json
+│   │   │   │   ├── incidentio-supabase-summary.json
+│   │   │   │   ├── incidentio-unknown-host-incidents.json
+│   │   │   │   ├── incidentio-unknown-host-summary.json
 │   │   │   │   ├── slack-current.json
 │   │   │   │   ├── slack-history.json
 │   │   │   │   ├── statusio-gitlab.json
@@ -272,6 +281,7 @@ devops-status-mcp-server/
 │   │   │   ├── datadog-adapter.test.ts
 │   │   │   ├── firehydrant-adapter.test.ts
 │   │   │   ├── gcp-adapter.test.ts
+│   │   │   ├── incidentio-adapter.test.ts
 │   │   │   ├── slack-adapter.test.ts
 │   │   │   ├── status-dispatch.test.ts
 │   │   │   └── statusio-adapter.test.ts

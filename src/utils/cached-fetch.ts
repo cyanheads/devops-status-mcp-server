@@ -11,6 +11,11 @@
  * a size limit before any parser sees it, and the cache holds at most a fixed total
  * of serialized bytes, evicting oldest-first.
  *
+ * Concurrent reads of one URL share one request: a caller that finds a request for
+ * the same normalized URL in flight waits on it instead of starting its own. The
+ * in-flight record is dropped when that request settles, so the cache alone decides
+ * what outlives it.
+ *
  * Every transport failure — network error, timeout, non-2xx, oversized or
  * unparseable body — leaves here as a `ServiceUnavailable` carrying
  * `reason: 'statuspage_unavailable'`, so the tools' declared error contract is
@@ -53,6 +58,12 @@ interface CacheEntry {
  */
 const CACHE = new Map<string, CacheEntry>();
 let cacheBytes = 0;
+
+/**
+ * Requests in flight, keyed like {@link CACHE}. Only the request that created a record
+ * removes it, on settle, so a key holds at most one record at a time.
+ */
+const IN_FLIGHT = new Map<string, Promise<unknown>>();
 
 function cacheKey(url: string): string {
   return URL.parse(url)?.href ?? url;
@@ -201,6 +212,12 @@ async function fetchFollowingSafeRedirects(url: string, init: RequestInit): Prom
 /**
  * Fetch a URL with timeout and TTL cache, parsing the response with `parse`.
  * The parsed value (not the raw response) is cached under the normalized URL.
+ *
+ * A caller that finds a request for the same normalized URL in flight joins it: the
+ * first caller's `ttlMs`, `timeoutMs`, and `parse` run that request, so a joiner waits
+ * at most what is left of that request's timeout and receives the same value by
+ * reference, reported `cached: false`, or the same error. A failed request caches
+ * nothing, and the next call starts a new one.
  */
 export async function fetchCached<T>(
   url: string,
@@ -212,6 +229,24 @@ export async function fetchCached<T>(
   const cached = cacheGet<T>(key);
   if (cached !== null) return { data: cached, cached: true };
 
+  let request = IN_FLIGHT.get(key) as Promise<T> | undefined;
+  if (request === undefined) {
+    request = fetchAndCache(url, key, ttlMs, timeoutMs, parse).finally(() => {
+      IN_FLIGHT.delete(key);
+    });
+    IN_FLIGHT.set(key, request);
+  }
+  return { data: await request, cached: false };
+}
+
+/** One upstream read of `url`: fetch, bounded read, parse, then store the value under `key`. */
+async function fetchAndCache<T>(
+  url: string,
+  key: string,
+  ttlMs: number,
+  timeoutMs: number,
+  parse: (res: Response) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -242,7 +277,7 @@ export async function fetchCached<T>(
     }
 
     cacheSet(key, data, ttlMs);
-    return { data, cached: false };
+    return data;
   } catch (err) {
     if (err instanceof McpError) throw err;
     throw serviceUnavailable(

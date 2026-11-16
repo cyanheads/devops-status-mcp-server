@@ -2,13 +2,19 @@
  * @fileoverview Tests for the shared cached fetch helper — per-hop redirect
  * re-validation against the SSRF guard, transport failures mapped onto the
  * statuspage_unavailable contract, the cache's key normalization and byte bounds,
- * and the upstream body read limit.
+ * the upstream body read limit, and concurrent reads of one URL sharing one request.
  * @module tests/utils/cached-fetch.test
  */
 
 import { lookup } from 'node:dns/promises';
-import { JsonRpcErrorCode, McpError } from '@cyanheads/mcp-ts-core/errors';
+import { readFileSync } from 'node:fs';
+import { JsonRpcErrorCode, McpError, serviceUnavailable } from '@cyanheads/mcp-ts-core/errors';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  type DatadogConfig,
+  fetchDatadogIncidents,
+  fetchDatadogSummary,
+} from '@/services/status-adapters/datadog-adapter.js';
 import {
   clearFetchCache,
   FETCH_CACHE_BUDGET_BYTES,
@@ -325,6 +331,23 @@ describe('fetchCached transport failures', () => {
     expect(again.cached).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('caches nothing from a failed read, so the next call requests again', async () => {
+    const url = freshUrl();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValueOnce(jsonResponse({ page: { name: 'Vendor' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchJsonCached(url, 60_000, 5_000)).rejects.toMatchObject({
+      data: { reason: 'statuspage_unavailable', status: 503 },
+    });
+    const next = await fetchJsonCached(url, 60_000, 5_000);
+
+    expect(next).toEqual({ data: { page: { name: 'Vendor' } }, cached: false });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 const MiB = 1024 * 1024;
@@ -598,5 +621,220 @@ describe('fetchCached body read limit', () => {
     expect(data).toEqual({ page: { name: 'Vendor' } });
     expect(mockAssertSafeUrl).toHaveBeenCalledWith(target);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+/** Records how `p` settled, so a test can read whether it has settled at a given moment. */
+function track<T>(p: Promise<T>) {
+  const state: { settled: boolean; value?: T; error?: unknown } = { settled: false };
+  p.then(
+    (value) => Object.assign(state, { settled: true, value }),
+    (error: unknown) => Object.assign(state, { settled: true, error }),
+  );
+  return state;
+}
+
+/** Reads `{ page }`, rejecting any other body typed — the shape of an adapter's envelope gate. */
+async function readPage(res: Response): Promise<{ page: unknown }> {
+  const body = (await res.json()) as { page?: unknown };
+  if (body.page === undefined) {
+    throw serviceUnavailable('The body carried no page.', { reason: 'statuspage_unavailable' });
+  }
+  return { page: body.page };
+}
+
+describe('fetchCached concurrent reads of one URL', () => {
+  beforeEach(() => clearFetchCache());
+  afterEach(() => vi.useRealTimers());
+
+  /**
+   * A fetch held open until `release` answers every request made so far, each with its own
+   * response, so a duplicate request fails the count instead of hanging the test.
+   */
+  function heldFetch() {
+    const waiting: Array<(res: Response) => void> = [];
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          waiting.push(resolve);
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const release = (respond: () => Response) => {
+      for (const resolve of waiting.splice(0)) resolve(respond());
+    };
+    return { fetchMock, release };
+  }
+
+  /** A fetch that never answers and rejects when its signal aborts, as a stalled read does. */
+  function stalledFetch() {
+    const fetchMock = vi.fn(
+      (_input: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('The operation was aborted.', 'AbortError')),
+          );
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('makes one request for a caller that arrives while it is in flight, and hands both the same value', async () => {
+    const url = freshUrl();
+    const { fetchMock, release } = heldFetch();
+
+    const leader = fetchJsonCached(url, 60_000, 5_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const joiner = fetchJsonCached(url, 60_000, 5_000);
+    release(() => Response.json({ page: { name: 'Vendor' } }));
+    const [a, b] = await Promise.all([leader, joiner]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(a).toEqual({ data: { page: { name: 'Vendor' } }, cached: false });
+    // The joiner's data was fetched during its call, so it is not reported as cached.
+    expect(b.cached).toBe(false);
+    expect(b.data).toBe(a.data);
+
+    // Settled and stored: the next call is a cache hit, not a join or a new request.
+    const after = await fetchJsonCached(url, 60_000, 5_000);
+    expect(after.cached).toBe(true);
+    expect(after.data).toBe(a.data);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds a late joiner by the rest of the shared request's timeout, then lets the next call start fresh", async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const url = freshUrl();
+    const fetchMock = stalledFetch();
+
+    const leader = track(fetchJsonCached(url, 60_000, 1_000));
+    await vi.advanceTimersByTimeAsync(600);
+    const joiner = track(fetchJsonCached(url, 60_000, 1_000));
+    await vi.advanceTimersByTimeAsync(399);
+    expect(leader.settled).toBe(false);
+    expect(joiner.settled).toBe(false);
+
+    // 400 ms after it joined — the shared request's remaining budget, not a full timeout of its own.
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(leader.error).toBeInstanceOf(McpError);
+    expect(joiner.error).toBe(leader.error);
+    expect((leader.error as McpError).message).toBe(`Timed out after 1000ms fetching ${url}`);
+    expect((leader.error as McpError).data).toMatchObject({
+      reason: 'statuspage_unavailable',
+      url,
+    });
+    expect(fetchCacheStats().entries).toBe(0);
+
+    const retry = track(fetchJsonCached(url, 60_000, 1_000));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(retry.settled).toBe(true);
+  });
+
+  it.each<[string, () => Promise<Response>]>([
+    ['a network error', () => Promise.reject(new TypeError('fetch failed'))],
+    ['a non-2xx response', async () => new Response('busy', { status: 503 })],
+    [
+      'a body over the read limit',
+      async () =>
+        new Response(countedBody(1024).stream, {
+          headers: { 'content-length': String(MAX_RESPONSE_BODY_BYTES + 1) },
+        }),
+    ],
+    ['an unparseable body', async () => new Response('<html>busy</html>')],
+    ['an envelope rejection', async () => Response.json({ incidents: [] })],
+  ])(
+    'rejects every waiter with the one error on %s, caches nothing, and starts fresh after',
+    async (_label, failing) => {
+      const url = freshUrl();
+      const fetchMock = vi
+        .fn<(input: string) => Promise<Response>>()
+        .mockImplementationOnce(failing)
+        .mockImplementation(async () => Response.json({ page: 'ok' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const [a, b] = await Promise.all([
+        fetchCached(url, 60_000, 5_000, readPage).catch((e: unknown) => e),
+        fetchCached(url, 60_000, 5_000, readPage).catch((e: unknown) => e),
+      ]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(a).toBeInstanceOf(McpError);
+      expect(b).toBe(a);
+      expect((a as McpError).data).toMatchObject({ reason: 'statuspage_unavailable' });
+      expect(fetchCacheStats().entries).toBe(0);
+
+      const next = await fetchCached(url, 60_000, 5_000, readPage);
+      expect(next).toEqual({ data: { page: 'ok' }, cached: false });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('hands a value over the per-entry limit to every waiter and keeps it nowhere', async () => {
+    const url = 'https://oversize.example.com/x.json';
+    const fetchMock = stubHosts({
+      'oversize.example.com': () => new Response(paddedJson(FETCH_CACHE_MAX_ENTRY_BYTES + 1)),
+    });
+
+    const [a, b] = await Promise.all([
+      fetchJsonCached<{ pad: string }>(url, 60_000, 5_000),
+      fetchJsonCached<{ pad: string }>(url, 60_000, 5_000),
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(a.data.pad).toHaveLength(FETCH_CACHE_MAX_ENTRY_BYTES + 1 - '{"pad":""}'.length);
+    expect(b.data).toBe(a.data);
+    expect([a.cached, b.cached]).toEqual([false, false]);
+    expect(fetchCacheStats()).toEqual({ entries: 0, bytes: 0 });
+
+    // Nothing holds it once the request settles, so the next call requests it again.
+    const again = await fetchJsonCached(url, 60_000, 5_000);
+    expect(again.cached).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('joins spellings of one page and keeps distinct pages apart', async () => {
+    const fetchMock = stubHosts({
+      'www.githubstatus.com': () => Response.json({ page: 'GitHub' }),
+      'other.example.com': () => Response.json({ page: 'other' }),
+    });
+
+    const [canonical, variant, other] = await Promise.all([
+      fetchJsonCached('https://www.githubstatus.com/api/v2/summary.json', 60_000, 5_000),
+      fetchJsonCached('https://WWW.GitHubStatus.com:443/api/./v2/summary.json', 60_000, 5_000),
+      fetchJsonCached('https://other.example.com/api/v2/summary.json', 60_000, 5_000),
+    ]);
+
+    expect(fetchMock.mock.calls.map(([input]) => new URL(input).hostname)).toEqual([
+      'www.githubstatus.com',
+      'other.example.com',
+    ]);
+    expect(variant.data).toBe(canonical.data);
+    expect(other.data).toEqual({ page: 'other' });
+  });
+
+  it("serves concurrent Datadog summary and incident reads on a cold cache from one request for the page's document", async () => {
+    const raw = JSON.parse(
+      readFileSync(
+        new URL('../services/status-adapters/fixtures/datadog-us1.json', import.meta.url),
+        'utf-8',
+      ),
+    ) as DatadogConfig;
+    const fetchMock = stubHosts({ 'status.datadoghq.com': () => Response.json(raw) });
+    const target = { name: 'Datadog US1', url: 'https://status.datadoghq.com', slug: 'datadog' };
+
+    const [summary, incidents] = await Promise.all([
+      fetchDatadogSummary(target),
+      fetchDatadogIncidents(target),
+    ]);
+
+    expect(fetchMock.mock.calls.map(([input]) => input)).toEqual([
+      'https://status.datadoghq.com/config.json',
+    ]);
+    expect(summary.data.components).toHaveLength(40);
+    expect(incidents.data.incidents).toHaveLength(7);
+    expect([summary.cached, incidents.cached]).toEqual([false, false]);
   });
 });
